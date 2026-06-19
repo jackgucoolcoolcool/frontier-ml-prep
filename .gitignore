@@ -1,0 +1,8 @@
+# OS junk
+.DS_Store
+
+# Yue Qin personal website — not part of this repo
+index.html
+script.js
+styles.css
+assets/

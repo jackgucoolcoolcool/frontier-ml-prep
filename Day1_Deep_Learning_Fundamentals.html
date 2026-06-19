@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 1 — Deep Learning Fundamentals</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #161b22;
+    --panel-2: #1c2530;
+    --text: #d7dee8;
+    --muted: #8b97a7;
+    --accent: #6ea8fe;
+    --accent-2: #7ee0c0;
+    --warn: #ffb454;
+    --border: #2a3340;
+    --code-bg: #11161d;
+    --table-head: #1f2937;
+    --reveal-bg: #16241f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+    font-size: 16.5px;
+  }
+  #progress {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    z-index: 100; transition: width 0.1s ease-out;
+  }
+  .layout { display: flex; max-width: 1240px; margin: 0 auto; }
+  /* Sidebar */
+  nav.toc {
+    position: sticky; top: 0; align-self: flex-start;
+    height: 100vh; overflow-y: auto;
+    width: 270px; min-width: 270px;
+    padding: 24px 16px 60px 20px;
+    border-right: 1px solid var(--border);
+    font-size: 14px;
+  }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  nav.toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 10px; border-radius: 6px; margin: 1px 0;
+    border-left: 2px solid transparent;
+  }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+  nav.toc a.sub { padding-left: 22px; font-size: 13px; }
+  /* Content */
+  main {
+    flex: 1; min-width: 0;
+    padding: 40px 48px 120px;
+  }
+  header.hero {
+    border: 1px solid var(--border);
+    background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 14px; padding: 28px 30px; margin-bottom: 36px;
+  }
+  header.hero h1 { margin: 0 0 6px; font-size: 30px; }
+  header.hero .sub { color: var(--muted); margin: 4px 0; font-size: 15px; }
+  .bar-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent-2);
+          padding: 4px 11px; border-radius: 20px; font-size: 13px; }
+  h2.section { font-size: 24px; margin: 52px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h3 { font-size: 19px; margin: 30px 0 10px; color: #eaf0f7; }
+  h4 { font-size: 16px; margin: 20px 0 8px; color: var(--accent-2); }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1.5px 6px; border-radius: 5px; font-size: 14px;
+         font-family: "SF Mono", Menlo, Consolas, monospace; color: #e8c98a; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+        padding: 16px 18px; overflow-x: auto; }
+  pre code { background: none; padding: 0; color: #c7d3e0; font-size: 13.5px; line-height: 1.55; }
+  ul, ol { padding-left: 24px; }
+  li { margin: 6px 0; }
+  strong { color: #f0f4f9; }
+  /* Tables */
+  table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--table-head); color: #eaf0f7; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  /* Callouts */
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; border: 1px solid var(--border); }
+  .callout .label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .practice { background: rgba(255,180,84,0.07); border-color: rgba(255,180,84,0.35); }
+  .practice .label { color: var(--warn); }
+  .watch { background: rgba(110,168,254,0.08); border-color: rgba(110,168,254,0.35); }
+  .watch .label { color: var(--accent); }
+  .keyidea { background: rgba(126,224,192,0.07); border-color: rgba(126,224,192,0.3); }
+  .keyidea .label { color: var(--accent-2); }
+  /* Self-test reveal */
+  .qa { border: 1px solid var(--border); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+  .qa .q { padding: 12px 16px; cursor: pointer; background: var(--panel); font-weight: 600;
+           display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .qa .q:hover { background: var(--panel-2); }
+  .qa .q .chev { color: var(--muted); transition: transform .2s; font-size: 13px; }
+  .qa.open .q .chev { transform: rotate(90deg); }
+  .qa .a { display: none; padding: 14px 16px; background: var(--reveal-bg); border-top: 1px solid var(--border); }
+  .qa.open .a { display: block; }
+  .qa .a code { background: #0d1612; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 18px; }
+  /* Schedule checkboxes */
+  .sched label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .sched input { width: 17px; height: 17px; accent-color: var(--accent-2); }
+  .controls { margin: 10px 0 24px; }
+  .btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+         padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .back-top { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2);
+              border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px;
+              border-radius: 50%; cursor: pointer; font-size: 18px; display: none; z-index: 50; }
+  .back-top:hover { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 880px) {
+    nav.toc { display: none; }
+    main { padding: 24px 18px 100px; }
+  }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="layout">
+  <nav class="toc" id="toc">
+    <h2>Day 1 Contents</h2>
+    <a href="#top">Overview & schedule</a>
+    <a href="#s1">§1 · Neural net mechanics</a>
+    <a href="#s2">§2 · Backpropagation</a>
+    <a href="#s3">§3 · Initialization</a>
+    <a href="#s4">§4 · Norm & residuals</a>
+    <a href="#s5">§5 · Optimization</a>
+    <a href="#s6">§6 · Debugging playbook</a>
+    <a href="#s7">§7 · #16 self-test</a>
+    <a href="#cheat">Cheat sheet</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="top">
+      <h1>Day 1 — Deep Learning Fundamentals</h1>
+      <div class="sub"><strong>Target:</strong> Research Scientist loop, frontier lab (Meta TBD / MSL style)</div>
+      <div class="sub"><strong>Mode:</strong> Concepts & derivations first · light code · explanation + self-test Q&A</div>
+      <div class="sub"><strong>The bar for today:</strong> derive backprop on a whiteboard, explain <em>why</em> every standard trick exists, and reason through a training failure out loud — "I see X → suspect Y → look at Z."</div>
+      <div class="bar-meta">
+        <span class="pill">~8 hours</span>
+        <span class="pill">Section #4</span>
+        <span class="pill">Protect §2 + §6</span>
+      </div>
+    </header>
+
+    <div class="callout keyidea">
+      <span class="label">How to use this page</span>
+      Each section opens with a <em>watch-first</em> video, then explanation + intuition, then an <strong>In Practice</strong> box, and ends with <strong>Self-test</strong> questions. <strong>Click any question to reveal its answer</strong> — but say your answer out loud first. Talking is what the interview tests. Your schedule checkboxes and revealed answers are saved in this browser.
+    </div>
+
+    <h3>Suggested 8-hour schedule</h3>
+    <div class="controls"><button class="btn" onclick="resetProgress()">Reset checkboxes</button></div>
+    <div class="sched">
+    <table>
+      <thead><tr><th>✓</th><th>Time</th><th>Topic</th><th>§</th></tr></thead>
+      <tbody>
+        <tr><td><label><input type="checkbox" data-sched="1"></label></td><td>0:00–1:30</td><td>Neural net mechanics: MLPs, nonlinearity, activations</td><td>§1</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="2"></label></td><td>1:30–3:00</td><td>Backpropagation, derived from scratch</td><td>§2</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="3"></label></td><td>3:15–4:30</td><td>Initialization & gradient flow</td><td>§3</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="4"></label></td><td>4:30–5:45</td><td>Normalization & residual connections</td><td>§4</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="5"></label></td><td>6:00–7:15</td><td>Optimizers, schedules, warmup, clipping, precision</td><td>§5</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="6"></label></td><td>7:15–8:00</td><td>Debugging playbook + full self-test</td><td>§6–7</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="hint">Highest-leverage parts for a research interview: <strong>§2 (backprop)</strong> and <strong>§6 (debugging)</strong>. If you fall behind, protect those two.</p>
+
+    <!-- ===================== §1 ===================== -->
+    <h2 class="section" id="s1">§1 — Neural network mechanics</h2>
+    <div class="callout watch">
+      <span class="label">▶ Watch first (intuition)</span>
+      3Blue1Brown <a href="https://www.3blue1brown.com/lessons/neural-networks" target="_blank">"But what is a neural network?" (Ch.1)</a> &middot;
+      <a href="https://www.3blue1brown.com/lessons/gradient-descent" target="_blank">"Gradient descent" (Ch.2)</a>
+    </div>
+
+    <h3>1.1 What a layer actually computes</h3>
+    <p>A fully-connected layer is an <strong>affine map followed by a nonlinearity</strong>:</p>
+    <pre><code>z = W x + b      # affine: linear map + shift
+a = φ(z)         # elementwise nonlinearity</code></pre>
+    <p>An <strong>MLP</strong> stacks these: <code>a₁ = φ(W₁x+b₁)</code>, <code>a₂ = φ(W₂a₁+b₂)</code>, … and a final linear head producing logits.</p>
+
+    <h3>1.2 Why the nonlinearity is non-negotiable</h3>
+    <p>A classic warm-up. <strong>Without <code>φ</code>, a deep network collapses to a single linear layer.</strong> Compose two linear layers: <code>W₂(W₁x + b₁) + b₂ = (W₂W₁)x + (W₂b₁ + b₂)</code> — just one affine map. Stacking 100 linear layers is still linear: only straight decision boundaries, can't even represent XOR. <strong>The nonlinearity is what lets depth buy expressive power</strong> (universal approximation intuition).</p>
+
+    <h3>1.3 Activation functions — what and <em>why</em></h3>
+    <table>
+      <thead><tr><th>Activation</th><th>Intuition</th><th>Why / when</th><th>Watch out for</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Sigmoid</strong></td><td><code>1/(1+e⁻ᶻ)</code> → (0,1)</td><td>Gates, probabilities</td><td>Saturates → vanishing grad; not zero-centered</td></tr>
+        <tr><td><strong>Tanh</strong></td><td>→ (−1,1)</td><td>Zero-centered sigmoid</td><td>Still saturates</td></tr>
+        <tr><td><strong>ReLU</strong></td><td><code>max(0,z)</code></td><td>Cheap, no saturation for z&gt;0; default for CNN/MLP</td><td><strong>Dead neurons</strong></td></tr>
+        <tr><td><strong>GELU</strong></td><td><code>z·Φ(z)</code></td><td>Smooth; <strong>default in transformers</strong></td><td>Slightly more compute</td></tr>
+        <tr><td><strong>SwiGLU</strong></td><td>gated: <code>(W₁x)⊙swish(W₂x)</code></td><td>Gating → quality per-param (LLaMA, PaLM)</td><td>~1.5× FFN params (3 matrices)</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><strong>ReLU killed vanishing gradients</strong> on the positive path: its derivative is exactly 1 for <code>z&gt;0</code> (vs sigmoid's ≤0.25, ~0 when saturated). Stacking sigmoids multiplies many &lt;1 numbers → vanish.</li>
+      <li><strong>Why GELU/SwiGLU in transformers?</strong> Smooth + reliable quality bump at scale; SwiGLU's <em>gating</em> modulates information multiplicatively → more expressive per parameter. A "marginal gains compound at scale" story.</li>
+    </ul>
+
+    <div class="callout practice">
+      <span class="label">⚙ In Practice — dead ReLUs</span>
+      If ReLU units output 0 for <em>every</em> input (so their gradient is 0), they never recover — "dead neurons." <strong>See</strong> a rising fraction of exact-zero activations in a layer → <strong>suspect</strong> dead ReLUs from too-aggressive updates (LR too high pushed biases negative, or bad init) → <strong>look at</strong> the LR and bias gradients. Fixes: lower LR, better init, or GELU/leaky variant.
+    </div>
+
+    <h4>Self-test §1</h4>
+    <div class="qa"><div class="q">Why do neural nets need nonlinearities?<span class="chev">▶</span></div><div class="a">Composing affine maps yields an affine map; depth only adds expressive power if a nonlinearity sits between layers. Without it the net is one linear function — can't model non-linear boundaries (e.g. XOR).</div></div>
+    <div class="qa"><div class="q">Why did ReLU help vs sigmoid?<span class="chev">▶</span></div><div class="a">ReLU's gradient is 1 on the active branch, so it doesn't shrink gradients on the forward-active path; sigmoid's derivative is ≤0.25 and ~0 when saturated, so deep stacks multiply many small numbers → vanishing gradient.</div></div>
+    <div class="qa"><div class="q">Why GELU/SwiGLU instead of ReLU in transformers?<span class="chev">▶</span></div><div class="a">Smoothness + empirical quality gains at scale; SwiGLU adds multiplicative gating (more expressive per param). The extra FLOPs/params are justified by better loss-per-compute.</div></div>
+
+    <!-- ===================== §2 ===================== -->
+    <h2 class="section" id="s2">§2 — Backpropagation, from scratch</h2>
+    <div class="callout watch">
+      <span class="label">▶ Watch first (the canonical explanation)</span>
+      3Blue1Brown <a href="https://www.3blue1brown.com/topics/neural-networks" target="_blank">Ch.3 "Backprop intuitively" + Ch.4 "Backprop calculus"</a> &middot;
+      Karpathy <a href="https://karpathy.ai/zero-to-hero.html" target="_blank">"Spelled-out intro to backprop" (micrograd)</a> — first ~hour is the derivation.
+    </div>
+    <p>Backprop is <strong>just the chain rule applied efficiently to a computation graph</strong>, reusing intermediates so all gradients come from one backward pass. If you can derive it for a 2-layer net, you understand it.</p>
+
+    <h3>2.1 Setup: a 2-layer MLP for classification</h3>
+    <pre><code>z₁ = W₁ x + b₁
+a₁ = φ(z₁)
+z₂ = W₂ a₁ + b₂        # logits
+ŷ  = softmax(z₂)
+L  = cross_entropy(ŷ, y) = −Σ_k y_k log ŷ_k</code></pre>
+    <p>Goal: compute <code>∂L/∂W₁, ∂L/∂b₁, ∂L/∂W₂, ∂L/∂b₂</code>.</p>
+
+    <h3>2.2 The identity that makes it clean: softmax + cross-entropy</h3>
+    <p>A must-know result: <strong>the gradient of softmax-cross-entropy w.r.t. the logits is just <code>ŷ − y</code></strong> (predicted probabilities minus one-hot truth).</p>
+    <pre><code>∂L/∂z₂ = ŷ − y      # call this δ₂, the "error at the output"</code></pre>
+    <p>Clean and numerically stable (why frameworks fuse the two ops). <em>Why:</em> CE gives <code>∂L/∂ŷ_k = −y_k/ŷ_k</code>, softmax Jacobian is <code>ŷ_k(δ_ki − ŷ_i)</code>; multiply, sum, use <code>Σ y_k = 1</code> → telescopes to <code>ŷ_i − y_i</code>.</p>
+
+    <h3>2.3 Propagate backward — the chain rule, layer by layer</h3>
+    <pre><code>δ₂ = ŷ − y
+∂L/∂W₂ = δ₂ a₁ᵀ           # outer product: error × the input it multiplied
+∂L/∂b₂ = δ₂
+∂L/∂a₁ = W₂ᵀ δ₂           # push error back through the linear layer
+δ₁     = (W₂ᵀ δ₂) ⊙ φ'(z₁) # gate by local activation derivative
+∂L/∂W₁ = δ₁ xᵀ
+∂L/∂b₁ = δ₁</code></pre>
+    <div class="callout keyidea">
+      <span class="label">★ The whole of backprop, three rules</span>
+      <strong>1.</strong> Gradient w.r.t. a weight = (error at its output) × (input it multiplied) → outer product <code>δ aᵀ</code>.<br>
+      <strong>2.</strong> Move the error to the previous layer by multiplying by <code>Wᵀ</code> (transpose = sending signal back through the same linear map).<br>
+      <strong>3.</strong> Cross a nonlinearity by multiplying elementwise by its local derivative <code>φ'</code>. For ReLU, <code>φ'</code> is 1 where z&gt;0 else 0 — so ReLU just <em>masks</em> the gradient.
+    </div>
+
+    <h3>2.4 Why vanishing/exploding gradients fall right out</h3>
+    <p>Look at <code>δ₁ = (W₂ᵀ δ₂) ⊙ φ'(z₁)</code>. For an L-layer net, the layer-1 gradient is a <strong>product of L−1 weight matrices and L−1 activation-derivative factors</strong>:</p>
+    <ul>
+      <li>Factors consistently <strong>&lt; 1</strong> (saturated sigmoids, spectral norm &lt;1) → product shrinks geometrically → <strong>vanishing gradient</strong>, early layers barely learn.</li>
+      <li>Factors consistently <strong>&gt; 1</strong> → product blows up → <strong>exploding gradient</strong>, NaNs/loss spikes.</li>
+    </ul>
+    <div class="callout keyidea">
+      <span class="label">★ The unifying lens for all of §3–§5</span>
+      This single product-of-Jacobians picture motivates <em>almost every trick</em> that follows: careful init (keep factors ~1), normalization (control activation scale), and residuals (provide a "×1" path). Keep it in your head — saying this connection out loud is a strong interview signal.
+    </div>
+
+    <div class="callout practice">
+      <span class="label">⚙ In Practice — frameworks fuse softmax+CE</span>
+      Separate <code>softmax</code> then <code>log</code> can overflow (<code>e^large</code>) or underflow (<code>log(0)=−inf</code>). Libraries use a fused, log-sum-exp-stabilized <code>cross_entropy_with_logits</code>. <strong>See</strong> loss = inf/NaN from step 0, or only when a logit gets large → <strong>suspect</strong> double-applied softmax (softmax in the model <em>and</em> a loss expecting raw logits) → <strong>look at</strong> the loss wiring. Extremely common real bug.
+    </div>
+
+    <h4>Self-test §2</h4>
+    <div class="qa"><div class="q">Derive backprop for a 2-layer net.<span class="chev">▶</span></div><div class="a">Reproduce §2.2–§2.3. Three rules: weight grad <code>= δ aᵀ</code>; back through linear <code>= Wᵀδ</code>; back through activation <code>= ⊙ φ'</code>.</div></div>
+    <div class="qa"><div class="q">What's ∂L/∂(logits) for softmax-cross-entropy?<span class="chev">▶</span></div><div class="a"><code>ŷ − y</code>. Be ready to sketch why (softmax Jacobian × CE grad telescopes via Σy_k=1).</div></div>
+    <div class="qa"><div class="q">Explain vanishing/exploding gradients from the equations.<span class="chev">▶</span></div><div class="a">Layer-1 gradient is a product of many <code>Wᵀ</code> and <code>φ'</code> factors; consistently &lt;1 → vanish, &gt;1 → explode. Geometric in depth.</div></div>
+    <div class="qa"><div class="q">Why is ReLU's backward pass essentially a mask?<span class="chev">▶</span></div><div class="a"><code>φ'(z)=1</code> for z&gt;0 else 0 — passes the incoming gradient unchanged or zeros it; no shrinking on the active path.</div></div>
+
+    <!-- ===================== §3 ===================== -->
+    <h2 class="section" id="s3">§3 — Initialization & gradient flow</h2>
+    <h3>3.1 The goal of initialization</h3>
+    <p>Keep the <strong>variance of activations (forward) and gradients (backward) roughly constant across layers</strong> at the start. If each layer multiplies variance by a factor ≠ 1, signal explodes/vanishes before the first useful step.</p>
+    <ul>
+      <li><strong>Xavier/Glorot:</strong> scale ≈ <code>1/√fan_in</code> — balances forward/backward variance (linear/tanh regime).</li>
+      <li><strong>He/Kaiming:</strong> <code>√(2/fan_in)</code> — the 2 corrects for ReLU killing half the units (halving variance). Default for ReLU.</li>
+    </ul>
+    <p>The principle, not the constants, is the point: init preserves variance layer-to-layer. Get it wrong and you start in a vanishing/exploding regime.</p>
+
+    <h3>3.2 Why this still matters with normalization</h3>
+    <p>LN/BN reduce init sensitivity, but at the <em>start</em> and at large scale, init still governs early stability. Modern LLMs often scale residual-branch weights by <code>1/√N_layers</code> so the residual stream variance doesn't grow with depth. Ties back to §2.4 — keep the product-of-Jacobians near 1.</p>
+
+    <div class="callout practice">
+      <span class="label">⚙ In Practice — init symptoms</span>
+      <strong>See</strong> loss huge/NaN at step 0–10 and gradient norms growing with depth → <strong>suspect</strong> init scale too large → <strong>look at</strong> init std + missing residual-branch scaling. <strong>See</strong> loss flat with tiny early-layer grad norms → <strong>suspect</strong> too-small init (vanishing) → <strong>look at</strong> per-layer grad-norm logging.
+    </div>
+
+    <h4>Self-test §3</h4>
+    <div class="qa"><div class="q">Why scale init by 1/√fan_in?<span class="chev">▶</span></div><div class="a">To keep activation/gradient variance ≈ constant across layers, preventing exploding/vanishing signal at initialization.</div></div>
+    <div class="qa"><div class="q">Why does He init use √(2/fan_in) for ReLU?<span class="chev">▶</span></div><div class="a">ReLU zeros ~half the inputs, halving variance; the factor of 2 compensates.</div></div>
+    <div class="qa"><div class="q">If normalization exists, why care about init?<span class="chev">▶</span></div><div class="a">Init governs the first steps before stats stabilize, and at depth controls residual-stream growth; bad init still causes early NaNs or stalls.</div></div>
+
+    <!-- ===================== §4 ===================== -->
+    <h2 class="section" id="s4">§4 — Normalization & residual connections</h2>
+    <h3>4.1 Normalization: what & variants</h3>
+    <p>Normalization layers <strong>re-center and re-scale activations</strong> so each layer sees a well-conditioned input, stabilizing/speeding optimization, then apply learned <code>γ</code> (scale) and <code>β</code> (shift) so the net can undo it.</p>
+    <table>
+      <thead><tr><th>Variant</th><th>Normalizes over…</th><th>Batch-dependent?</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td><strong>BatchNorm</strong></td><td>each feature, across the <strong>batch</strong></td><td><strong>Yes</strong></td><td>CNNs / vision</td></tr>
+        <tr><td><strong>LayerNorm</strong></td><td>all features, <strong>within one example</strong></td><td>No</td><td>Transformers</td></tr>
+        <tr><td><strong>RMSNorm</strong></td><td>like LN but <strong>no mean-subtraction</strong>, RMS only</td><td>No</td><td>LLaMA, modern LLMs</td></tr>
+      </tbody>
+    </table>
+
+    <h3>4.2 Why transformers use LN/RMSNorm, not BatchNorm</h3>
+    <ol>
+      <li><strong>Batch dependence is a liability for sequences.</strong> BN stats are noisy with small batches and ill-defined for variable-length / autoregressive decoding (one token at a time). LN normalizes within a single example → independent of batch size and position.</li>
+      <li><strong>Train/inference mismatch.</strong> BN uses batch stats at train, running averages at inference — subtle bugs. LN is identical in both.</li>
+      <li><strong>RMSNorm</strong> drops mean-centering (RMS rescale only): cheaper, ~equal quality — and at LLM scale that compute matters.</li>
+    </ol>
+
+    <h3>4.3 Residual connections — the key trick for depth</h3>
+    <p>A residual block computes <code>y = x + F(x)</code> instead of <code>y = F(x)</code>.</p>
+    <ul>
+      <li><strong>Gradient highway.</strong> <code>∂y/∂x = I + ∂F/∂x</code>. The identity term gives a gradient path multiplied by <strong>1</strong>, not a small weight factor. Re-read §2.4: the <code>+ I</code> guarantees one term in the product stays order-1, so gradients flow to early layers even in very deep nets.</li>
+      <li><strong>Easier target.</strong> Each block learns a <em>residual</em> (small correction to identity), not a full transform. "Do nothing + small fix" is easier to learn than the identity from scratch.</li>
+      <li>This is <em>why</em> nets went from ~20 to 100s+ of layers, and why every transformer block is wrapped in residuals.</li>
+    </ul>
+
+    <h3>4.4 Pre-norm vs post-norm (frontier-relevant)</h3>
+    <ul>
+      <li><strong>Post-norm</strong> (original): <code>x → Sublayer → Add → LN</code>. Needs careful warmup; unstable at depth.</li>
+      <li><strong>Pre-norm</strong> (modern default): <code>x → LN → Sublayer → Add</code>. Residual stream stays clean end-to-end → cleaner gradient highway, far more stable at depth. Almost all large LLMs use pre-norm.</li>
+    </ul>
+
+    <div class="callout practice">
+      <span class="label">⚙ In Practice — normalization symptoms</span>
+      <strong>See</strong> stable at batch 256 but diverging at batch 8 → <strong>suspect</strong> BN's noisy small-batch stats → <strong>look at</strong> switching to LN/GroupNorm. <strong>See</strong> a deep post-norm transformer that won't train without long warmup → <strong>suspect</strong> post-norm instability → <strong>consider</strong> pre-norm. <strong>See</strong> eval ≫ worse than train only for BN models → <strong>suspect</strong> train/running-stat mismatch (left in train mode at eval) → <strong>look at</strong> <code>model.eval()</code> / BN momentum.
+    </div>
+
+    <h4>Self-test §4</h4>
+    <div class="qa"><div class="q">BatchNorm vs LayerNorm — why transformers prefer LN?<span class="chev">▶</span></div><div class="a">BN normalizes per-feature across the batch (batch-dependent, train/inf mismatch, bad for variable-length/decoding); LN within an example (batch-independent, identical train/inf). Transformers process variable-length sequences and decode token-by-token → LN/RMSNorm.</div></div>
+    <div class="qa"><div class="q">Why do residual connections help training?<span class="chev">▶</span></div><div class="a"><code>∂y/∂x = I + ∂F/∂x</code>: the identity gives a gradient path ×1 (prevents vanishing through depth); and each block only learns a correction to identity — an easier target.</div></div>
+    <div class="qa"><div class="q">Pre-norm vs post-norm — which and why?<span class="chev">▶</span></div><div class="a">Pre-norm keeps the residual stream un-normalized (cleaner gradient highway), trains more stably at depth; the modern default for large models.</div></div>
+    <div class="qa"><div class="q">What does RMSNorm drop vs LayerNorm?<span class="chev">▶</span></div><div class="a">Mean-subtraction; it only rescales by RMS. Cheaper, ~equal quality.</div></div>
+
+    <!-- ===================== §5 ===================== -->
+    <h2 class="section" id="s5">§5 — Optimization in practice</h2>
+    <h3>5.1 The optimizer ladder (know the <em>why</em> of each step)</h3>
+    <ul>
+      <li><strong>Batch GD:</strong> full dataset per step — accurate but one step per epoch, too slow.</li>
+      <li><strong>SGD / mini-batch:</strong> gradient from a small batch — noisy but cheap and frequent; noise helps escape sharp minima. The workhorse.</li>
+      <li><strong>Momentum:</strong> velocity <code>v = βv + g</code>, step with <code>v</code> — damps oscillation, accelerates consistent directions. "Heavy ball."</li>
+      <li><strong>RMSProp:</strong> divide step by running RMS of recent gradients → <strong>per-parameter adaptive LR</strong>.</li>
+      <li><strong>Adam:</strong> momentum (1st moment) + RMSProp (2nd moment) + bias correction. Robust default.</li>
+      <li><strong>AdamW:</strong> Adam + <strong>decoupled weight decay</strong>. The transformer default (§5.2).</li>
+    </ul>
+
+    <h3>5.2 Why AdamW decouples weight decay (favorite question)</h3>
+    <p>"L2 regularization" and "weight decay" are identical for plain SGD, but <strong>not</strong> for Adam. In vanilla Adam, adding <code>λw</code> to the gradient means the decay gets divided by the adaptive denominator (<code>√v</code>) — so high-gradient params get <em>less</em> effective decay. That couples regularization to gradient magnitude.</p>
+    <pre><code>AdamW: w ← w − lr·(adam_update) − lr·λ·w   # decay applied directly, not through √v</code></pre>
+    <p>Result: uniform pull toward 0, decoupled from adaptive scaling → reliably better generalization for transformers.</p>
+
+    <h3>5.3 LR schedules & warmup</h3>
+    <ul>
+      <li><strong>Warmup:</strong> start LR ≈ 0, ramp up over first hundreds/thousands of steps. <strong>Why:</strong> at init, the model and Adam's 2nd-moment estimate <code>v</code> are unreliable; big early steps diverge. Warmup lets stats settle. Especially critical for transformers.</li>
+      <li><strong>Cosine decay (after warmup):</strong> anneal LR down on a cosine curve. Large LR early explores; small LR late refines. Standard for LLM pretraining.</li>
+    </ul>
+
+    <h3>5.4 Gradient clipping</h3>
+    <p>Clip the global gradient norm to a threshold (e.g. rescale so <code>||g|| ≤ 1.0</code>) before the step. <strong>Why:</strong> occasionally a bad batch / sharp region produces a huge gradient that would throw weights off and spike the loss (the exploding-gradient product from §2.4). Clipping caps the step size — cheap insurance against one bad batch destroying a run.</p>
+
+    <h3>5.5 Batch size, accumulation, mixed precision, checkpointing</h3>
+    <ul>
+      <li><strong>Batch size:</strong> larger → less noise (stable, often higher LR via sqrt/linear scaling) but diminishing returns & worse exploration; smaller → noisier, sometimes generalizes better. A compute/stability/generalization tradeoff.</li>
+      <li><strong>Gradient accumulation:</strong> run several micro-batches, <strong>sum gradients</strong>, step once → simulates a big batch you can't fit in memory. Gotcha: average correctly; zero grads only after the step.</li>
+      <li><strong>Mixed precision:</strong> 16-bit compute for speed/memory, FP32 master copy. <strong>BF16</strong> = FP32's exponent range, fewer mantissa bits → rarely overflows, preferred. <strong>FP16</strong> = narrow range → often needs <strong>loss scaling</strong> (scale loss up before backward, unscale before step) to stop small gradients underflowing to 0.</li>
+      <li><strong>Activation (gradient) checkpointing:</strong> don't store all activations; recompute during backward. Trades ~30% compute for big memory savings. A memory technique — not numerical stability, and not model checkpoints.</li>
+    </ul>
+
+    <div class="callout practice">
+      <span class="label">⚙ In Practice — mixed-precision symptoms</span>
+      <strong>See</strong> loss NaN after enabling FP16 → <strong>suspect</strong> overflow/underflow in 16-bit → <strong>look at</strong> loss scaling / switch to BF16. <strong>See</strong> gradients exactly 0 for small-magnitude params in FP16 → <strong>suspect</strong> underflow → increase loss scale or use BF16. <strong>See</strong> fine in FP32 but subtly worse final quality in low precision → <strong>suspect</strong> precision loss in sensitive ops → keep softmax / LN / loss in FP32.
+    </div>
+
+    <h4>Self-test §5</h4>
+    <div class="qa"><div class="q">Adam vs SGD — when/why?<span class="chev">▶</span></div><div class="a">Adam adapts per-parameter LR (momentum + RMS), robust with little tuning, great for sparse/ill-scaled gradients and transformers; SGD(+momentum) can generalize better in some vision settings and is simpler. Default to AdamW for transformers.</div></div>
+    <div class="qa"><div class="q">Why does AdamW decouple weight decay?<span class="chev">▶</span></div><div class="a">In Adam, L2-as-gradient gets divided by the adaptive <code>√v</code> denominator, making decay depend on gradient magnitude. Applying decay directly to weights restores uniform regularization → better generalization.</div></div>
+    <div class="qa"><div class="q">Why is warmup needed (esp. transformers)?<span class="chev">▶</span></div><div class="a">Early on, model and Adam's 2nd-moment estimates are unreliable; big steps then diverge. Ramping LR lets stats settle. Transformers are especially sensitive.</div></div>
+    <div class="qa"><div class="q">Why clip gradients?<span class="chev">▶</span></div><div class="a">To cap the damage from occasional huge gradients (bad batch / sharp region) that would otherwise spike the loss or NaN the run.</div></div>
+    <div class="qa"><div class="q">How does gradient accumulation simulate a larger batch?<span class="chev">▶</span></div><div class="a">Sum gradients over several micro-batches, then take one optimizer step — equivalent to one large batch, trading time for memory.</div></div>
+    <div class="qa"><div class="q">FP16 vs BF16?<span class="chev">▶</span></div><div class="a">BF16 keeps FP32's exponent range (rarely overflows, usually no loss scaling); FP16 has narrow range and typically needs loss scaling to avoid underflow.</div></div>
+
+    <!-- ===================== §6 ===================== -->
+    <h2 class="section" id="s6">§6 — The debugging playbook</h2>
+    <p>The section frontier interviewers love — it tests whether you've actually <em>trained</em> things. Canonical prompt:</p>
+    <div class="callout keyidea"><span class="label">Interview prompt</span>"Your loss was decreasing fine, then spikes hard at 30k steps. Walk me through what you check."</div>
+    <p>No single answer — the skill is an <strong>organized differential diagnosis</strong>. Say the categories out loud, then prioritize by the clues given (e.g. "spike at a specific, reproducible step on resume → bad data shard or checkpoint/resume bug, not random instability").</p>
+
+    <h3>6.1 Master symptom → cause → look-at table</h3>
+    <table>
+      <thead><tr><th>Symptom</th><th>Likely cause (Y)</th><th>Where to look (Z)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>NaN/inf from step 0</strong></td><td>Double softmax; logits-vs-probs loss mismatch; init too large; LR absurd; data has NaN/inf</td><td>Loss wiring; init std; print logit/grad norms step 1; scan a batch</td></tr>
+        <tr><td><strong>NaN after enabling FP16</strong></td><td>Overflow/underflow; no loss scaling</td><td>Turn on loss scaling / switch BF16; keep softmax·LN·loss in FP32</td></tr>
+        <tr><td><strong>Sudden spike mid-training</strong></td><td>Corrupt data shard; LR too high for region; grad explosion; optimizer-state / precision overflow</td><td>Grad-norm trace just before; reproducible at same step on resume? → data shard; is clipping on?</td></tr>
+        <tr><td><strong>Spikes that self-recover</strong></td><td>Transient sharp region / occasional bad batch</td><td>Add/lower grad clipping; usually benign if rare</td></tr>
+        <tr><td><strong>Spike right after resume</strong></td><td>Optimizer (Adam moments) not restored; schedule reset; dataloader position lost; RNG/precision mismatch</td><td>Confirm optimizer + scheduler + dataloader state saved/restored; schedule step counter</td></tr>
+        <tr><td><strong>Loss flat / not decreasing</strong></td><td>LR ≈ 0; vanishing grads; frozen params; wrong loss; misaligned labels</td><td>Print grad norms (≈0 → vanishing/frozen); can a tiny model overfit a tiny batch?</td></tr>
+        <tr><td><strong>Train good, eval bad (gap grows)</strong></td><td>Overfitting; data leakage; train/eval preprocessing mismatch; BN in train mode at eval</td><td>Regularize; match eval pipeline; <code>model.eval()</code>; check leakage/contamination</td></tr>
+        <tr><td><strong>Both plateau high</strong></td><td>Underfitting; model too small/under-trained; LR too low; bad data</td><td>Scale model/compute; raise LR / lengthen schedule; inspect data quality</td></tr>
+        <tr><td><strong>Loss ↓ but downstream eval ↓</strong></td><td>Optimizing proxy not goal (perplexity↓ but reasoning↓); dist. shift; over-optimization/reward hacking; eval contamination hiding regressions</td><td>Decouple metrics; check eval contamination; inspect <em>what</em> it now gets wrong</td></tr>
+        <tr><td><strong>Loss oscillates wildly</strong></td><td>LR too high; batch too small; no warmup</td><td>Lower LR; add warmup; increase batch / accumulation</td></tr>
+        <tr><td><strong>A layer's activations → 0</strong></td><td>Dead ReLUs; LR pushed biases negative</td><td>Activation histograms; lower LR; GELU/leaky</td></tr>
+        <tr><td><strong>Grad norm grows with depth</strong></td><td>Bad init scale; missing residual scaling; exploding through depth</td><td>Per-layer grad-norm logging; init std; residual-branch scaling</td></tr>
+        <tr><td><strong>Throughput suddenly drops</strong></td><td>Stragglers in distributed training; data-loading bottleneck; checkpoint I/O</td><td>GPU util vs dataloader wait; per-rank timing; find the slow rank</td></tr>
+      </tbody>
+    </table>
+
+    <h3>6.2 The general method (say this framing)</h3>
+    <ol>
+      <li><strong>Localize in time:</strong> gradual or sudden? Specific reproducible step (→ data/checkpoint) or random (→ numerical/LR)?</li>
+      <li><strong>Look at gradient norms first</strong> — cheapest, most diagnostic. Spike before the loss spike → exploding/bad batch. ≈0 → vanishing/frozen.</li>
+      <li><strong>Check the data at that point.</strong> Frontier training is data-bound: corrupt shard, tokenization bug, or wrong loss-masking (loss on padding/prompt tokens) are top suspects for localized spikes.</li>
+      <li><strong>Check the plumbing:</strong> double softmax, logits-vs-probs, loss masking, checkpoint/resume of <em>optimizer + scheduler + dataloader</em>, mixed-precision config.</li>
+      <li><strong>Sanity baseline:</strong> can the model <strong>overfit a single batch</strong> to ~0 loss? If not, something is fundamentally broken — independent of scale. Fastest way to separate "bug" from "needs more compute."</li>
+    </ol>
+    <div class="callout keyidea"><span class="label">★ The meta-point</span>You treat training as an instrumented experiment: log grad norms, activation stats, and data provenance <em>before</em> you need them, and reason about likelihood rather than randomly trying fixes.</div>
+
+    <h4>Self-test §6</h4>
+    <div class="qa"><div class="q">"Loss spikes at 30k steps — what do you check?"<span class="chev">▶</span></div><div class="a">Localize (reproducible step? → data shard / resume bug; random? → LR/numerical). Check the grad-norm trace just before, inspect the data batch at that step, verify clipping + mixed-precision config, confirm it's not optimizer-state-on-resume. Give the categories, then prioritize by clues.</div></div>
+    <div class="qa"><div class="q">"How do you debug NaNs?"<span class="chev">▶</span></div><div class="a">Step 0 vs mid-training. Check double-softmax / loss API / init scale first; if FP16-triggered → loss scaling or BF16; scan data for NaN/inf; find where the first NaN appears (forward vs backward).</div></div>
+    <div class="qa"><div class="q">"Train good, eval bad — causes?"<span class="chev">▶</span></div><div class="a">Overfitting, data leakage, train/eval preprocessing mismatch, BN in train mode at eval, or a subtle proxy/goal mismatch (loss improved but capability didn't).</div></div>
+    <div class="qa"><div class="q">"Bug vs 'needs more compute'?"<span class="chev">▶</span></div><div class="a">Try to overfit one batch to ~0. Success → wiring is fine, it's capacity/data/compute; failure → it's a bug (labels, LR, masking, init).</div></div>
+
+    <!-- ===================== §7 ===================== -->
+    <h2 class="section" id="s7">§7 — Consolidated #16 self-test (DL block)</h2>
+    <p class="hint">Do these <strong>out loud, timed (~2 min each)</strong>, then reveal. Your dress rehearsal.</p>
+    <div class="qa"><div class="q">1. Derive backprop for a two-layer network.<span class="chev">▶</span></div><div class="a">→ §2. Three rules: <code>δ aᵀ</code>, <code>Wᵀδ</code>, <code>⊙ φ'</code>.</div></div>
+    <div class="qa"><div class="q">2. Why do residual connections help?<span class="chev">▶</span></div><div class="a">→ §4.3. <code>∂y/∂x = I + ∂F/∂x</code>: ×1 gradient path + easier residual target.</div></div>
+    <div class="qa"><div class="q">3. BatchNorm vs LayerNorm (why transformers use LN).<span class="chev">▶</span></div><div class="a">→ §4.2. Batch dependence + train/inf mismatch + variable-length decoding.</div></div>
+    <div class="qa"><div class="q">4. Adam vs SGD.<span class="chev">▶</span></div><div class="a">→ §5.1. Adaptive per-param LR vs simpler/sometimes-better-generalizing SGD.</div></div>
+    <div class="qa"><div class="q">5. Why learning-rate warmup?<span class="chev">▶</span></div><div class="a">→ §5.3. Unreliable early stats; avoid big early steps that diverge.</div></div>
+    <div class="qa"><div class="q">6. Why gradient clipping?<span class="chev">▶</span></div><div class="a">→ §5.4. Cap damage from occasional huge gradients.</div></div>
+    <div class="qa"><div class="q">7. What causes exploding gradients?<span class="chev">▶</span></div><div class="a">→ §2.4 / §5.4. Product of Jacobian factors &gt;1 through depth.</div></div>
+    <div class="qa"><div class="q">8. What causes loss spikes?<span class="chev">▶</span></div><div class="a">→ §6. Bad data shard, LR too high, grad explosion, resume/optimizer-state, precision overflow.</div></div>
+    <div class="qa"><div class="q">9. How do you debug NaNs?<span class="chev">▶</span></div><div class="a">→ §6.1. Step-0 wiring vs mid-train numerical; double softmax; FP16; data scan.</div></div>
+    <div class="qa"><div class="q">10. Why does mixed precision help (and when hurt)?<span class="chev">▶</span></div><div class="a">→ §5.5. Speed/memory; hurts via FP16 over/underflow → loss scaling / BF16 / FP32 for sensitive ops.</div></div>
+    <div class="qa"><div class="q">11. Why do neural nets need nonlinearities?<span class="chev">▶</span></div><div class="a">→ §1.2. Else collapse to one affine map.</div></div>
+    <div class="qa"><div class="q">12. Why decoupled weight decay in AdamW?<span class="chev">▶</span></div><div class="a">→ §5.2. Avoid decay being scaled by the adaptive <code>√v</code> denominator.</div></div>
+
+    <div class="callout keyidea">
+      <span class="label">★ What "great" sounds like today</span>
+      You <strong>derive</strong> (backprop, <code>ŷ−y</code>, <code>I + ∂F/∂x</code>) instead of reciting. You connect tricks to <strong>one unifying cause</strong> — the product-of-Jacobians (§2.4) explains init, normalization, residuals, warmup, and clipping at once. You debug like an <strong>experimentalist</strong>: localize → grad norms → data → plumbing → overfit-one-batch.
+    </div>
+
+    <!-- ===================== Cheat sheet ===================== -->
+    <h2 class="section" id="cheat">Quick-reference cheat sheet</h2>
+    <ul>
+      <li><strong>Nonlinearity</strong> = the reason depth helps (else net = one affine map).</li>
+      <li><strong>Backprop rules:</strong> weight grad <code>= δ aᵀ</code>; back through linear <code>= Wᵀδ</code>; back through activation <code>= ⊙ φ'</code>.</li>
+      <li><strong>Softmax-CE logit gradient = <code>ŷ − y</code>.</strong></li>
+      <li><strong>Vanishing/exploding = product of L Jacobian factors</strong> drifting &lt;1 or &gt;1. Everything below fixes this:
+        <ul>
+          <li><strong>Init</strong> keeps per-layer variance ≈ 1 (<code>1/√fan_in</code>; He <code>√(2/fan_in)</code> for ReLU).</li>
+          <li><strong>Normalization</strong> conditions activations (LN/RMSNorm in transformers; not BN — batch dependence + train/inf mismatch).</li>
+          <li><strong>Residuals</strong> give a ×1 gradient highway (<code>∂y/∂x = I + ∂F/∂x</code>); <strong>pre-norm</strong> keeps it clean.</li>
+          <li><strong>Warmup</strong> avoids big early steps while Adam's stats are unreliable; <strong>cosine decay</strong> anneals.</li>
+          <li><strong>Clipping</strong> caps damage from occasional huge gradients.</li>
+        </ul>
+      </li>
+      <li><strong>AdamW</strong> = Adam + decoupled weight decay (decay on weights, not through <code>√v</code>).</li>
+      <li><strong>BF16 &gt; FP16</strong> for range (FP16 needs loss scaling). <strong>Grad accumulation</strong> simulates big batches. <strong>Activation checkpointing</strong> trades compute for memory.</li>
+      <li><strong>Debugging reflex:</strong> localize in time → grad norms → inspect data → check plumbing (double softmax, loss masking, resume state) → overfit one batch.</li>
+    </ul>
+
+    <hr>
+    <p class="hint">End of Day 1. When you're ready, ask for <strong>"build Day 2"</strong> — Transformers &amp; LLMs, same format.</p>
+  </main>
+</div>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+  // Reading progress bar
+  const prog = document.getElementById('progress');
+  const backTop = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    const scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+    prog.style.width = scrolled + '%';
+    backTop.style.display = h.scrollTop > 600 ? 'block' : 'none';
+  });
+
+  // Collapsible Q&A with persistence
+  document.querySelectorAll('.qa').forEach((qa, i) => {
+    const key = 'qa_' + i;
+    if (localStorage.getItem(key) === '1') qa.classList.add('open');
+    qa.querySelector('.q').addEventListener('click', () => {
+      qa.classList.toggle('open');
+      localStorage.setItem(key, qa.classList.contains('open') ? '1' : '0');
+    });
+  });
+
+  // Schedule checkboxes with persistence
+  document.querySelectorAll('[data-sched]').forEach(cb => {
+    const key = 'sched_' + cb.dataset.sched;
+    if (localStorage.getItem(key) === '1') cb.checked = true;
+    cb.addEventListener('change', () => localStorage.setItem(key, cb.checked ? '1' : '0'));
+  });
+  function resetProgress() {
+    document.querySelectorAll('[data-sched]').forEach(cb => { cb.checked = false; localStorage.setItem('sched_' + cb.dataset.sched, '0'); });
+  }
+
+  // Active TOC highlight on scroll
+  const tocLinks = [...document.querySelectorAll('nav.toc a')];
+  const sections = tocLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll', () => {
+    let current = sections[0];
+    for (const s of sections) { if (s.getBoundingClientRect().top <= 120) current = s; }
+    tocLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+  });
+</script>
+</body>
+</html>
