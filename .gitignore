@@ -6,3 +6,6 @@ index.html
 script.js
 styles.css
 assets/
+
+# build script
+_convert.py
