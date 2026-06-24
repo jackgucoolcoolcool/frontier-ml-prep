@@ -1,0 +1,204 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post-Training &amp; RL for LLMs — Mechanics Deep Dive</title><style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .layout{display:flex;max-width:1240px;margin:0 auto;}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+  nav.toc a:hover{color:var(--text);background:var(--panel);}
+  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
+  main{flex:1;min-width:0;padding:40px 48px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
+  header.hero h1{margin:0 0 10px;font-size:30px;}
+  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
+  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;}
+  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
+  ul,ol{padding-left:24px;} li{margin:6px 0;}
+  ul ul,ol ul{margin:6px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
+  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
+  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
+  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
+  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .qa .q:hover{background:var(--panel-2);}
+  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
+  .qa.open .q .chev{transform:rotate(90deg);}
+  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
+  .qa.open .a{display:block;}
+  .qa .a code{background:#0d1612;}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
+</style></head><body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2><a href="#top">Overview</a>
+<a href="#s1">§1</a>
+<a href="#s2">§2</a>
+<a href="#s3">§3</a>
+<a href="#s4">§4</a>
+<a href="#s5">§5</a>
+<a href="#s6">§6</a>
+<a href="#s7">§7</a>
+<a href="#s8">§8</a>
+<a href="#s9">§9</a>
+<a href="#s10">Cheat sheet</a></nav>
+<main>
+<header class="hero" id="top"><h1>Post-Training &amp; RL for LLMs — Mechanics Deep Dive</h1><p style="margin:4px 0;color:var(--muted)"><strong>Why this doc:</strong> Your coding/research conversations will lean heavily on <strong>post-training, RL, and agents</strong>. This goes a level deeper than the Day 2 overview — into the <em>mechanics</em> (policy gradient → PPO → DPO derivations, reward modeling, GRPO) that an RL-focused interviewer expects you to actually understand, not just name.</p><p style="margin:4px 0;color:var(--muted)"><strong>The bar:</strong> be able to derive the DPO loss, write the PPO clipped objective and say why each piece exists, explain the reward-model loss, and reason about reward hacking / KL / verifiable rewards. Pair this with the coding doc (<code>Coding_Implementations_From_Scratch</code>).</p><p style="margin:4px 0;color:var(--muted)">Notation: policy $π_θ$ (the LLM), reference/old policy $π_{ref}$, prompt $x$, response $y$, reward $r$. Equations are in code blocks for readability.</p></header>
+<hr>
+<h2 class="section" id="s1">§1 — The RL framing of LLM post-training</h2>
+<p>An autoregressive LLM <strong>is a policy</strong>. Map it to RL:</p>
+<table><thead><tr><th>RL concept</th><th>LLM equivalent</th></tr></thead><tbody><tr><td>State $s_t$</td><td>prompt + tokens generated so far</td></tr><tr><td>Action $a_t$</td><td>the next token</td></tr><tr><td>Policy $π_θ(a_t\mid s_t)$</td><td>the LLM&#x27;s next-token distribution</td></tr><tr><td>Trajectory</td><td>a full generated response $y$</td></tr><tr><td>Reward $R$</td><td>a scalar score for the whole response (usually only at the end)</td></tr></tbody></table>
+<p>We want to <strong>maximize expected reward</strong> of generations:</p>
+<pre><code>J(θ) = E_{x~D, y~π_θ(·|x)} [ R(x, y) ]</code></pre>
+<p>The catch: $R$ comes from human preference or a verifier — it&#x27;s <strong>non-differentiable</strong> w.r.t. $θ$, and you can&#x27;t backprop through sampling. That&#x27;s why we need <strong>policy-gradient</strong> methods.</p>
+<hr>
+<h2 class="section" id="s2">§2 — Policy gradient (REINFORCE)</h2>
+<h3>The log-derivative trick (derive this)</h3>
+<p>We can&#x27;t differentiate through the sampling, but we can use:</p>
+<pre><code>∇θ E_{y~π_θ}[R(y)] = E_{y~π_θ}[ R(y) · ∇θ log π_θ(y) ]</code></pre>
+<p><strong>Why:</strong> $∇θ E[R] = ∇θ Σ_y π_θ(y) R(y) = Σ_y R(y) ∇θ π_θ(y)$. Use the identity $∇θ π_θ = π_θ ∇θ \log π_θ$ (since $∇\log f = ∇f / f$), giving $Σ_y π_θ(y) R(y) ∇θ \log π_θ(y) = E[R · ∇θ \log π_θ]$. ∎</p>
+<p>For a token sequence, $\log π_θ(y) = Σ_t \log π_θ(a_t\mid s_t)$, so:</p>
+<pre><code>∇θ J = E[ R(x,y) · Σ_t ∇θ log π_θ(a_t | s_t) ]</code></pre>
+<p><strong>Intuition:</strong> scale the gradient of each token&#x27;s log-prob by the reward. High-reward sequences → push their tokens up; low-reward → push down. This is REINFORCE.</p>
+<h3>The variance problem → baselines &amp; advantage</h3>
+<p>REINFORCE is <strong>high variance</strong> (reward magnitudes are noisy and absolute). Subtract a <strong>baseline</strong> $b$ that doesn&#x27;t depend on the action — it reduces variance without biasing the gradient:</p>
+<pre><code>∇θ J = E[ (R - b) · ∇θ log π_θ(y) ]</code></pre>
+<p>Best baseline ≈ the expected reward, i.e. a <strong>value function</strong> $V(s)$. Define the <strong>advantage</strong>:</p>
+<pre><code>A(s,a) = Q(s,a) - V(s)    ≈  &quot;how much better was this action than average&quot;</code></pre>
+<p>Using advantage instead of raw reward is the core variance-reduction idea behind actor-critic / PPO. <strong>Be ready to say:</strong> &quot;we subtract a baseline (the value function) so the gradient uses <em>advantage</em> — how much better than expected — which cuts variance.&quot;</p>
+<hr>
+<h2 class="section" id="s3">§3 — PPO (Proximal Policy Optimization)</h2>
+<p>PPO is the RL algorithm in classic RLHF. The problem it solves: vanilla policy gradient takes one noisy step per sample and can <strong>destructively over-update</strong>. PPO lets you take <strong>multiple optimization steps on the same batch</strong> while preventing the policy from moving too far — a cheap &quot;trust region.&quot;</p>
+<h3>The clipped surrogate objective (know this cold)</h3>
+<p>Define the <strong>importance ratio</strong> between new and old policy:</p>
+<pre><code>r_t(θ) = π_θ(a_t|s_t) / π_θ_old(a_t|s_t)</code></pre>
+<p>PPO maximizes:</p>
+<pre><code>L_CLIP(θ) = E_t[ min( r_t(θ) · A_t ,  clip(r_t(θ), 1-ε, 1+ε) · A_t ) ]</code></pre>
+<p><strong>Why each piece:</strong></p>
+<ul>
+<li><code>r_t · A_t</code> is the normal policy-gradient surrogate (importance-weighted advantage).</li>
+<li><code>clip(r_t, 1-ε, 1+ε)</code> (ε≈0.2) caps how far the ratio can move → the policy can&#x27;t change too much in one update.</li>
+<li><code>min(...)</code> takes the <strong>more pessimistic</strong> of clipped vs unclipped → removes the incentive to push the ratio beyond the clip region. (For positive advantage it caps the upside; for negative advantage it caps the downside.)</li>
+</ul>
+<p>This is a <strong>first-order approximation of a trust region</strong> (TRPO&#x27;s KL constraint) that&#x27;s far simpler to implement.</p>
+<h3>The full PPO loss</h3>
+<pre><code>L = L_CLIP  -  c1 · L_value  +  c2 · H[π_θ]</code></pre>
+<ul>
+<li><strong>Value loss</strong> <code>L_value = (V_φ(s) - R_target)²</code> — trains the critic that produces the baseline. (<code>-c1</code> because we minimize it.)</li>
+<li><strong>Entropy bonus</strong> <code>H[π_θ]</code> — encourages exploration / prevents premature collapse.</li>
+<li><strong>GAE</strong> (Generalized Advantage Estimation) is the usual way to compute $A_t$ from rewards + value estimates, trading bias vs variance via λ.</li>
+</ul>
+<h3>Why PPO-RLHF is heavy</h3>
+<p>You maintain <strong>four models</strong>: policy, reference (frozen, for KL), reward model, and value/critic. It&#x27;s compute-hungry, unstable, and hyperparameter-sensitive — which is the whole motivation for DPO (§5).</p>
+<hr>
+<h2 class="section" id="s4">§4 — Reward modeling (the RM)</h2>
+<p>RLHF optimizes a <strong>learned</strong> reward model trained from human <strong>pairwise preferences</strong> (easier to compare than to score absolutely).</p>
+<h3>Bradley-Terry preference model (derive the loss)</h3>
+<p>Given prompt $x$ with a preferred response $y_w$ and dispreferred $y_l$, model the probability that $y_w$ is preferred as:</p>
+<pre><code>P(y_w ≻ y_l) = σ( r(x, y_w) - r(x, y_l) )</code></pre>
+<p>where $σ$ is the sigmoid and $r$ is the reward model (an LLM with a scalar head). Train by maximum likelihood → <strong>minimize</strong>:</p>
+<pre><code>L_RM = - E_{(x, y_w, y_l)}[ log σ( r(x, y_w) - r(x, y_l) ) ]</code></pre>
+<p><strong>Read it:</strong> push the preferred response&#x27;s score <em>above</em> the dispreferred one&#x27;s; the sigmoid+log makes it a smooth classification loss on the score <em>difference</em>. (Note: only score <em>differences</em> matter — the RM&#x27;s absolute scale is arbitrary.)</p>
+<h3>Using the RM in PPO with a KL penalty</h3>
+<p>The reward fed to PPO is the RM score <strong>minus a KL penalty</strong> to the reference policy:</p>
+<pre><code>R(x, y) = r_RM(x, y)  -  β · KL( π_θ(·|x) || π_ref(·|x) )</code></pre>
+<p><strong>Why the KL term (critical):</strong> the RM is imperfect. Without anchoring, PPO will <strong>reward-hack</strong> — drift into degenerate text (repetition, weird tokens, length exploitation) that scores high on the flawed RM but isn&#x27;t actually good. The KL keeps the policy near the trusted SFT/reference distribution. β trades reward vs faithfulness.</p>
+<hr>
+<h2 class="section" id="s5">§5 — DPO (Direct Preference Optimization) — derive it</h2>
+<p>DPO&#x27;s insight: you can skip the RM <strong>and</strong> the RL loop, optimizing preferences directly with a simple loss. The derivation is worth knowing — it&#x27;s a favorite.</p>
+<h3>Step 1 — the optimal KL-regularized policy</h3>
+<p>The RLHF objective <code>max_π E[r] - β·KL(π||π_ref)</code> has a known closed-form optimum:</p>
+<pre><code>π*(y|x) = (1/Z(x)) · π_ref(y|x) · exp( r(x,y) / β )</code></pre>
+<p>(the reward-weighted reference distribution; $Z(x)$ is a normalizing partition function).</p>
+<h3>Step 2 — invert to express reward in terms of the policy</h3>
+<p>Solve that for $r$:</p>
+<pre><code>r(x,y) = β · log( π*(y|x) / π_ref(y|x) )  +  β · log Z(x)</code></pre>
+<p>The key trick: the intractable $\log Z(x)$ depends <strong>only on $x$</strong>, not on $y$ — so it <strong>cancels</strong> in any preference <em>difference</em> $r(x,y_w) - r(x,y_l)$.</p>
+<h3>Step 3 — plug into Bradley-Terry</h3>
+<p>Substitute this implied reward into the RM preference loss. The DPO loss becomes:</p>
+<pre><code>L_DPO = - E[ log σ( β·log(π_θ(y_w|x)/π_ref(y_w|x)) - β·log(π_θ(y_l|x)/π_ref(y_l|x)) ) ]</code></pre>
+<p><strong>Read it:</strong> it&#x27;s the <em>same</em> Bradley-Terry loss, but the &quot;reward&quot; is now <code>β·log(π_θ/π_ref)</code> — the policy <em>is</em> its own implicit reward model. You directly increase the log-prob margin of preferred over dispreferred responses (relative to the reference), no RM and no sampling/RL loop.</p>
+<h3>DPO vs PPO (the practical comparison)</h3>
+<ul>
+<li><strong>DPO:</strong> offline (fixed preference dataset), 2 models (policy + frozen ref), stable, cheap, simple. Bound to the dataset&#x27;s coverage; can&#x27;t learn from its <em>own current</em> mistakes.</li>
+<li><strong>PPO:</strong> online/on-policy (samples fresh, learns from current failures), reusable RM, more control — but 4 models, unstable, expensive.</li>
+<li><strong>One-liner:</strong> &quot;DPO reparameterizes RLHF so the policy is its own reward model — same Bradley-Terry objective, no RL loop. PPO wins when you can iterate on fresh on-policy data.&quot;</li>
+</ul>
+<hr>
+<h2 class="section" id="s6">§6 — The modern landscape (name these)</h2>
+<ul>
+<li><strong>RLAIF / Constitutional AI:</strong> replace human preference labels with <strong>AI-generated</strong> ones guided by principles. Scales labeling; inherits the judge&#x27;s biases.</li>
+<li><strong>Rejection sampling / best-of-n:</strong> sample n responses, keep the best by an RM, SFT on those. Simple, strong baseline; bootstraps better SFT data; bounded by the base model&#x27;s best samples.</li>
+<li><strong>GRPO (Group Relative Policy Optimization):</strong> PPO variant used in recent reasoning models (e.g. DeepSeek). <strong>Drops the value/critic model</strong> — instead samples a <em>group</em> of responses per prompt and uses the <strong>group&#x27;s mean reward as the baseline</strong>, normalizing advantages within the group. Cheaper (no critic) and well-suited to verifiable rewards. Worth knowing as the current reasoning-RL workhorse.</li>
+<li><strong>Verifiable-reward RL (RLVR):</strong> for math/code, reward = an <strong>automatic checker</strong> (tests pass / answer correct). Clean, ungameable signal → strong RL; behind recent reasoning gains. No RM needed.</li>
+<li><strong>Process vs outcome supervision:</strong> reward each reasoning <em>step</em> (process, denser, better reasoning, costlier to label) vs only the final answer (outcome).</li>
+</ul>
+<hr>
+<h2 class="section" id="s7">§7 — Failure modes &amp; knobs (bring these up unprompted)</h2>
+<ul>
+<li><strong>Reward hacking / over-optimization:</strong> policy exploits RM flaws. Mitigate: KL penalty, RM ensembles, early stopping, capping optimization.</li>
+<li><strong>Alignment tax:</strong> post-training can slightly reduce raw capability — a real tradeoff.</li>
+<li><strong>Over/under-refusal:</strong> too much safety tuning → refuses benign requests; too little → unsafe. Eval&#x27;d explicitly.</li>
+<li><strong>Sycophancy:</strong> RLHF can teach the model to tell raters what they want to hear (rated higher) rather than what&#x27;s true.</li>
+<li><strong>Length bias:</strong> RMs often prefer longer answers; controlled for explicitly.</li>
+</ul>
+<hr>
+<h2 class="section" id="s8">§8 — RL + Agents (the Fei/Weiyue bridge)</h2>
+<p>Agents add a <strong>multi-step environment</strong> — the reward comes from <em>task success</em>, often after many tool calls.</p>
+<ul>
+<li><strong>Environment feedback as reward:</strong> tool results, test pass/fail, task completion → a (often sparse, often verifiable) reward. This is RL with a real environment, not just a preference RM.</li>
+<li><strong>Long-horizon credit assignment:</strong> which of the 20 steps caused success/failure? Hard, sparse-reward problem. Process supervision and step-level rewards help.</li>
+<li><strong>On-policy iteration matters more for agents:</strong> the agent must learn from its <em>own</em> rollouts (its mistakes are distribution-specific), favoring online RL over purely offline methods.</li>
+<li><strong>Eval ties in:</strong> agent success rate, steps, cost, unsafe actions, prompt-injection robustness (see Day 4 §3).</li>
+</ul>
+<hr>
+<h2 class="section" id="s9">§9 — Self-test</h2>
+<div class="qa"><div class="q"><span><strong>Derive the policy-gradient estimator.</strong></span><span class="chev">▶</span></div><div class="a">log-derivative trick: <code>∇θ E[R] = E[R · ∇θ log π_θ]</code>; for sequences sum token log-probs.</div></div>
+<div class="qa"><div class="q"><span><strong>Why subtract a baseline / use advantage?</strong></span><span class="chev">▶</span></div><div class="a">variance reduction without bias; advantage = how much better than expected (Q − V).</div></div>
+<div class="qa"><div class="q"><span><strong>Write the PPO clipped objective and explain the clip + min.</strong></span><span class="chev">▶</span></div><div class="a"><code>min(r·A, clip(r,1±ε)·A)</code>; clip bounds the policy step (trust region), min takes the pessimistic bound so there&#x27;s no incentive to exceed the clip.</div></div>
+<div class="qa"><div class="q"><span><strong>What four models does PPO-RLHF need?</strong></span><span class="chev">▶</span></div><div class="a">policy, reference (KL), reward model, value/critic.</div></div>
+<div class="qa"><div class="q"><span><strong>Write the reward-model loss.</strong></span><span class="chev">▶</span></div><div class="a"><code>-log σ(r(x,y_w) − r(x,y_l))</code> (Bradley-Terry); only score differences matter.</div></div>
+<div class="qa"><div class="q"><span><strong>Why the KL penalty in RLHF?</strong></span><span class="chev">▶</span></div><div class="a">RM is imperfect; KL anchors the policy to the reference to prevent reward hacking.</div></div>
+<div class="qa"><div class="q"><span><strong>Derive the DPO loss.</strong></span><span class="chev">▶</span></div><div class="a">optimal KL-reg policy <code>π* ∝ π_ref·exp(r/β)</code> → invert to <code>r = β log(π/π_ref) + β log Z</code>; logZ cancels in differences → plug into Bradley-Terry → <code>-log σ(β log(π_θ(y_w)/π_ref(y_w)) − β log(π_θ(y_l)/π_ref(y_l)))</code>.</div></div>
+<div class="qa"><div class="q"><span><strong>DPO vs PPO — when each?</strong></span><span class="chev">▶</span></div><div class="a">DPO offline/simple/stable, dataset-bound; PPO online/on-policy, heavier, better when you can iterate.</div></div>
+<div class="qa"><div class="q"><span><strong>What is GRPO and why is it used for reasoning?</strong></span><span class="chev">▶</span></div><div class="a">PPO without a critic; group-sampled mean reward as baseline, normalized advantages; cheap, pairs well with verifiable rewards.</div></div>
+<div class="qa"><div class="q"><span><strong>When can you skip the reward model entirely?</strong></span><span class="chev">▶</span></div><div class="a">verifiable domains (math/code) with an automatic checker (RLVR); or DPO (implicit reward).</div></div>
+<hr>
+<h2 class="section" id="s10">Cheat sheet</h2>
+<ul>
+<li>LLM = policy; maximize <code>E[R(x,y)]</code>; R non-differentiable → policy gradient.</li>
+<li><strong>REINFORCE:</strong> <code>∇θ J = E[R · ∇θ log π_θ(y)]</code>. High variance → subtract baseline → <strong>advantage</strong> <code>A = Q − V</code>.</li>
+<li><strong>PPO:</strong> <code>L_CLIP = E[min(r·A, clip(r,1−ε,1+ε)·A)]</code>; + value loss + entropy; 4 models; clip = cheap trust region.</li>
+<li><strong>Reward model:</strong> Bradley-Terry <code>-log σ(r(y_w) − r(y_l))</code>; PPO reward = <code>r_RM − β·KL(π||π_ref)</code> (KL stops reward hacking).</li>
+<li><strong>DPO:</strong> policy is its own implicit reward; <code>-log σ(β log(π_θ(y_w)/π_ref(y_w)) − β log(π_θ(y_l)/π_ref(y_l)))</code>. Offline, 2 models, stable.</li>
+<li><strong>GRPO:</strong> PPO minus critic; group-mean baseline. <strong>RLVR:</strong> checker reward for math/code.</li>
+<li><strong>Risks:</strong> reward hacking (→KL), alignment tax, over/under-refusal, sycophancy, length bias.</li>
+<li><strong>Agents:</strong> reward = task success (sparse/verifiable); long-horizon credit assignment; on-policy matters.</li>
+</ul>
+</main></div>
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<script>
+  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
+  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
+  const KEY=document.title.replace(/\W/g,'_');
+  document.querySelectorAll('.qa').forEach((qa,i)=>{const k=KEY+'_qa_'+i;if(localStorage.getItem(k)==='1')qa.classList.add('open');qa.querySelector('.q').addEventListener('click',()=>{qa.classList.toggle('open');localStorage.setItem(k,qa.classList.contains('open')?'1':'0');});});
+  const tl=[...document.querySelectorAll('nav.toc a')],secs=tl.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll',()=>{let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<=120)cur=s;}tl.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+(cur&&cur.id)));});
+</script>
+</body></html>

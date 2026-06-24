@@ -1,0 +1,288 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Coding From Scratch — Implementation Reference</title><style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .layout{display:flex;max-width:1240px;margin:0 auto;}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+  nav.toc a:hover{color:var(--text);background:var(--panel);}
+  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
+  main{flex:1;min-width:0;padding:40px 48px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
+  header.hero h1{margin:0 0 10px;font-size:30px;}
+  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
+  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;}
+  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
+  ul,ol{padding-left:24px;} li{margin:6px 0;}
+  ul ul,ol ul{margin:6px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
+  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
+  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
+  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
+  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .qa .q:hover{background:var(--panel-2);}
+  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
+  .qa.open .q .chev{transform:rotate(90deg);}
+  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
+  .qa.open .a{display:block;}
+  .qa .a code{background:#0d1612;}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
+</style></head><body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2><a href="#top">Overview</a>
+<a href="#s1">1. Stable softmax + cross-entropy</a>
+<a href="#s2">2. Scaled dot-product attention (the #1 ask)</a>
+<a href="#s3">3. Causal mask</a>
+<a href="#s4">4. Multi-head attention (write this fluently)</a>
+<a href="#s5">5. Cross-attention (likely for Fei</a>
+<a href="#s6">6. LayerNorm &amp; RMSNorm</a>
+<a href="#s7">7. Transformer block (pre-norm, decoder-style)</a>
+<a href="#s8">8. KV-cache generation loop</a>
+<a href="#s9">9. Top-k / top-p (nucleus) sampling</a>
+<a href="#s10">10. DPO loss (high-probability post-training a</a>
+<a href="#s11">11. Reward model head + Bradley-Terry loss</a>
+<a href="#s12">12. PPO clipped objective (core)</a>
+<a href="#s13">13. Best-of-n / rejection sampling</a>
+<a href="#s14">14. (Bonus) Backprop for a 2-layer MLP in NumP</a>
+<a href="#s15">Drill checklist (re-type each from blank, time</a></nav>
+<main>
+<header class="hero" id="top"><h1>ML Coding From Scratch — Implementation Reference</h1><p style="margin:4px 0;color:var(--muted)"><strong>Why this doc:</strong> The coding rounds test whether you can implement core ML primitives <strong>from a blank file</strong>, correctly and efficiently. This is a reference of the highest-probability asks, with clean PyTorch you should be able to reproduce from memory. Given your interviewers&#x27; focus, the <strong>attention family</strong> and <strong>post-training losses (DPO, reward model, PPO)</strong> are the most likely.</p><p style="margin:4px 0;color:var(--muted)"><strong>How to use it:</strong> don&#x27;t just read — <em>close the doc and re-type each one timed.</em> For each, I note what an interviewer probes. Code targets clarity + correctness first, then efficiency (vectorized, no Python loops over tokens).</p><p style="margin:4px 0;color:var(--muted)">Assumes <code>import torch</code>, <code>import torch.nn as nn</code>, <code>import torch.nn.functional as F</code>. Shapes use <code>B</code>=batch, <code>T</code>=sequence length, <code>D</code>=model dim, <code>H</code>=heads.</p></header>
+<hr>
+<h2 class="section" id="s1">1. Stable softmax + cross-entropy</h2>
+<pre><code>def softmax(z, dim=-1):
+    z = z - z.max(dim=dim, keepdim=True).values     # subtract max for numerical stability
+    e = torch.exp(z)
+    return e / e.sum(dim=dim, keepdim=True)
+
+def cross_entropy(logits, targets):
+    # logits: (B, C), targets: (B,) int class indices
+    logp = logits - torch.logsumexp(logits, dim=-1, keepdim=True)  # log-softmax, stable
+    return -logp[torch.arange(len(targets)), targets].mean()</code></pre>
+<p><strong>Probes:</strong> Why subtract the max? (overflow). Why <code>logsumexp</code> instead of <code>log(sum(exp))</code>? (stability). The softmax-CE gradient is <code>ŷ − y</code> — be ready to say it.</p>
+<hr>
+<h2 class="section" id="s2">2. Scaled dot-product attention (the #1 ask)</h2>
+<pre><code>def attention(Q, K, V, mask=None):
+    # Q,K,V: (B, T, d_k). Returns (B, T, d_v)
+    d_k = Q.size(-1)
+    scores = Q @ K.transpose(-2, -1) / d_k**0.5          # (B, T, T)
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, float(&#x27;-inf&#x27;))
+    weights = F.softmax(scores, dim=-1)
+    return weights @ V</code></pre>
+<p><strong>Probes:</strong> Why <code>/√d_k</code>? (keeps dot-product variance ~1 so softmax doesn&#x27;t saturate). Why <code>-inf</code> before softmax? (→ 0 weight). Get the <code>transpose(-2,-1)</code> and shapes right.</p>
+<hr>
+<h2 class="section" id="s3">3. Causal mask</h2>
+<pre><code>def causal_mask(T):
+    # lower-triangular: position t attends to &lt;= t
+    return torch.tril(torch.ones(T, T)).bool()           # (T, T), True = keep</code></pre>
+<p>Used as <code>attention(Q, K, V, mask=causal_mask(T))</code>. <strong>Probe:</strong> why causal masking enables parallel next-token training (each position predicts the next without seeing it).</p>
+<hr>
+<h2 class="section" id="s4">4. Multi-head attention (write this fluently)</h2>
+<pre><code>class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model, n_heads):
+        super().__init__()
+        assert d_model % n_heads == 0
+        self.h, self.d_k = n_heads, d_model // n_heads
+        self.qkv = nn.Linear(d_model, 3 * d_model)
+        self.out = nn.Linear(d_model, d_model)
+
+    def forward(self, x, mask=None):
+        B, T, D = x.shape
+        qkv = self.qkv(x).reshape(B, T, 3, self.h, self.d_k).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]                  # each (B, H, T, d_k)
+        scores = q @ k.transpose(-2, -1) / self.d_k**0.5  # (B, H, T, T)
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, float(&#x27;-inf&#x27;))
+        attn = F.softmax(scores, dim=-1) @ v              # (B, H, T, d_k)
+        attn = attn.transpose(1, 2).reshape(B, T, D)      # concat heads
+        return self.out(attn)</code></pre>
+<p><strong>Probes:</strong> the reshape/permute to split heads (most common bug spot — narrate shapes), why heads (different representation subspaces), total compute ≈ single full-width attention.</p>
+<hr>
+<h2 class="section" id="s5">5. Cross-attention (likely for Fei — VLM / encoder-decoder)</h2>
+<p>Same math, but <strong>Q comes from one stream, K/V from another</strong> (e.g. text queries attending to image features).</p>
+<pre><code>class CrossAttention(nn.Module):
+    def __init__(self, d_model, n_heads):
+        super().__init__()
+        self.h, self.d_k = n_heads, d_model // n_heads
+        self.q = nn.Linear(d_model, d_model)
+        self.kv = nn.Linear(d_model, 2 * d_model)
+        self.out = nn.Linear(d_model, d_model)
+
+    def forward(self, x_q, x_kv):
+        # x_q: (B, Tq, D) e.g. text;  x_kv: (B, Tk, D) e.g. image tokens
+        B, Tq, D = x_q.shape
+        Tk = x_kv.size(1)
+        q = self.q(x_q).reshape(B, Tq, self.h, self.d_k).transpose(1, 2)
+        kv = self.kv(x_kv).reshape(B, Tk, 2, self.h, self.d_k).permute(2, 0, 3, 1, 4)
+        k, v = kv[0], kv[1]                               # (B, H, Tk, d_k)
+        scores = q @ k.transpose(-2, -1) / self.d_k**0.5  # (B, H, Tq, Tk)
+        attn = F.softmax(scores, dim=-1) @ v
+        attn = attn.transpose(1, 2).reshape(B, Tq, D)
+        return self.out(attn)</code></pre>
+<p><strong>Probes:</strong> the difference from self-attention (Q vs K/V sources, asymmetric Tq≠Tk), and how this is the fusion mechanism in Flamingo-style VLMs.</p>
+<hr>
+<h2 class="section" id="s6">6. LayerNorm &amp; RMSNorm</h2>
+<pre><code>class LayerNorm(nn.Module):
+    def __init__(self, d, eps=1e-5):
+        super().__init__()
+        self.g = nn.Parameter(torch.ones(d)); self.b = nn.Parameter(torch.zeros(d))
+        self.eps = eps
+    def forward(self, x):
+        mu = x.mean(-1, keepdim=True)
+        var = x.var(-1, keepdim=True, unbiased=False)
+        return self.g * (x - mu) / torch.sqrt(var + self.eps) + self.b
+
+class RMSNorm(nn.Module):                                  # no mean-centering; cheaper
+    def __init__(self, d, eps=1e-6):
+        super().__init__()
+        self.g = nn.Parameter(torch.ones(d)); self.eps = eps
+    def forward(self, x):
+        rms = torch.sqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return self.g * x / rms</code></pre>
+<p><strong>Probes:</strong> LN normalizes over the <strong>feature dim within each token</strong> (not the batch) — why transformers use it over BN. RMSNorm drops the mean subtraction. (Tie-in: Siyuan&#x27;s Weight Standardization normalizes the <em>weights</em> instead.)</p>
+<hr>
+<h2 class="section" id="s7">7. Transformer block (pre-norm, decoder-style)</h2>
+<pre><code>class Block(nn.Module):
+    def __init__(self, d_model, n_heads, mlp_ratio=4):
+        super().__init__()
+        self.ln1, self.ln2 = LayerNorm(d_model), LayerNorm(d_model)
+        self.attn = MultiHeadAttention(d_model, n_heads)
+        self.mlp = nn.Sequential(
+            nn.Linear(d_model, mlp_ratio * d_model), nn.GELU(),
+            nn.Linear(mlp_ratio * d_model, d_model))
+    def forward(self, x, mask=None):
+        x = x + self.attn(self.ln1(x), mask)   # pre-norm: norm INSIDE the residual
+        x = x + self.mlp(self.ln2(x))
+        return x</code></pre>
+<p><strong>Probes:</strong> pre-norm vs post-norm (norm location relative to residual; pre-norm trains more stably), attention mixes across tokens / MLP processes each token, the residual <code>x +</code> as the gradient highway.</p>
+<hr>
+<h2 class="section" id="s8">8. KV-cache generation loop</h2>
+<pre><code>@torch.no_grad()
+def generate(model, idx, max_new, kv_cache=None):
+    for _ in range(max_new):
+        logits = model(idx[:, -1:], kv_cache)   # only feed the LAST token; cache holds the rest
+        probs = F.softmax(logits[:, -1], dim=-1)
+        nxt = torch.multinomial(probs, 1)
+        idx = torch.cat([idx, nxt], dim=1)
+    return idx</code></pre>
+<p><strong>Probes:</strong> why cache K/V (they don&#x27;t change for past tokens → avoid recompute), why decode is memory-bandwidth-bound, cache size grows linearly with T (→ GQA/MQA shrink it).</p>
+<hr>
+<h2 class="section" id="s9">9. Top-k / top-p (nucleus) sampling</h2>
+<pre><code>def sample(logits, temperature=1.0, top_k=None, top_p=None):
+    logits = logits / temperature
+    if top_k is not None:
+        kth = torch.topk(logits, top_k).values[..., -1, None]
+        logits = logits.masked_fill(logits &lt; kth, float(&#x27;-inf&#x27;))
+    if top_p is not None:
+        s, idx = torch.sort(logits, descending=True)
+        cum = torch.softmax(s, dim=-1).cumsum(-1)
+        s = s.masked_fill(cum - torch.softmax(s, -1) &gt; top_p, float(&#x27;-inf&#x27;))
+        logits = torch.full_like(logits, float(&#x27;-inf&#x27;)).scatter(-1, idx, s)
+    return torch.multinomial(F.softmax(logits, dim=-1), 1)</code></pre>
+<p><strong>Probes:</strong> temperature (sharpens/flattens the distribution), top-k (fixed count) vs top-p (smallest set whose cumulative prob ≥ p — adaptive).</p>
+<hr>
+<h2 class="section" id="s10">10. DPO loss (high-probability post-training ask)</h2>
+<pre><code>def dpo_loss(pi_logps_w, pi_logps_l, ref_logps_w, ref_logps_l, beta=0.1):
+    # each arg: (B,) = sum of token log-probs of the response under that model
+    pi_logratio  = pi_logps_w  - pi_logps_l           # policy&#x27;s preferred-vs-dispreferred margin
+    ref_logratio = ref_logps_w - ref_logps_l          # reference&#x27;s margin
+    logits = beta * (pi_logratio - ref_logratio)      # implicit reward difference
+    return -F.logsigmoid(logits).mean()</code></pre>
+<p><strong>Probes:</strong> where the <code>β log(π/π_ref)</code> implicit reward comes from (DPO derivation), why it&#x27;s relative to a frozen reference (controls deviation, like the KL term), and how you&#x27;d get the per-response log-probs (sum token log-probs over the response, masking the prompt).</p>
+<p>Helper they may ask for — sequence log-prob with prompt masking:</p>
+<pre><code>def sequence_logp(logits, labels, prompt_len):
+    # logits: (B, T, V); labels: (B, T); only score response tokens
+    logp = F.log_softmax(logits[:, :-1], dim=-1)
+    tok = logp.gather(-1, labels[:, 1:].unsqueeze(-1)).squeeze(-1)  # (B, T-1)
+    mask = torch.arange(tok.size(1)) &gt;= (prompt_len - 1)            # ignore prompt
+    return (tok * mask).sum(-1)</code></pre>
+<hr>
+<h2 class="section" id="s11">11. Reward model head + Bradley-Terry loss</h2>
+<pre><code>class RewardModel(nn.Module):
+    def __init__(self, backbone, d_model):
+        super().__init__()
+        self.backbone = backbone                 # an LLM producing (B, T, D)
+        self.head = nn.Linear(d_model, 1)        # scalar reward
+    def forward(self, x):
+        h = self.backbone(x)                     # (B, T, D)
+        return self.head(h[:, -1]).squeeze(-1)   # reward at last token -&gt; (B,)
+
+def reward_loss(r_w, r_l):
+    # r_w, r_l: (B,) rewards for preferred / dispreferred responses
+    return -F.logsigmoid(r_w - r_l).mean()       # Bradley-Terry</code></pre>
+<p><strong>Probes:</strong> why score the <strong>last token</strong> (it has seen the whole response), why only score <em>differences</em> matter (absolute scale is arbitrary), and how this RM feeds PPO.</p>
+<hr>
+<h2 class="section" id="s12">12. PPO clipped objective (core)</h2>
+<pre><code>def ppo_loss(logp, old_logp, advantages, eps=0.2):
+    ratio = torch.exp(logp - old_logp)                 # π_new / π_old
+    unclipped = ratio * advantages
+    clipped = torch.clamp(ratio, 1 - eps, 1 + eps) * advantages
+    return -torch.min(unclipped, clipped).mean()       # maximize -&gt; negate</code></pre>
+<p><strong>Probes:</strong> why the ratio (importance sampling lets you reuse the batch for several steps), why clip (trust region — bound the step), why <code>min</code> (pessimistic bound removes incentive to exceed the clip). Full PPO adds value loss + entropy.</p>
+<hr>
+<h2 class="section" id="s13">13. Best-of-n / rejection sampling</h2>
+<pre><code>@torch.no_grad()
+def best_of_n(model, reward_model, prompt, n=8):
+    cands = [model.generate(prompt) for _ in range(n)]   # n samples
+    scores = torch.stack([reward_model(c) for c in cands])
+    return cands[scores.argmax()]</code></pre>
+<p><strong>Probes:</strong> simple but strong baseline; bounded by the base model&#x27;s best sample; used to bootstrap better SFT data (rejection sampling = SFT on the best-of-n).</p>
+<hr>
+<h2 class="section" id="s14">14. (Bonus) Backprop for a 2-layer MLP in NumPy</h2>
+<pre><code># forward:  z1 = W1@x + b1 ; a1 = relu(z1) ; z2 = W2@a1 + b2 ; p = softmax(z2)
+# loss = cross_entropy(p, y)
+d2  = p - y_onehot              # dL/dz2  (the ŷ - y identity)
+dW2 = d2 @ a1.T                 # outer product
+db2 = d2
+da1 = W2.T @ d2                 # push back through linear
+d1  = da1 * (z1 &gt; 0)            # back through ReLU = mask
+dW1 = d1 @ x.T
+db1 = d1</code></pre>
+<p><strong>Probes:</strong> the three rules — weight grad <code>= δ aᵀ</code>, back through linear <code>= Wᵀδ</code>, back through activation <code>= ⊙ φ&#x27;</code>. (Full detail in Day 1 §2.)</p>
+<hr>
+<h2 class="section" id="s15">Drill checklist (re-type each from blank, timed)</h2>
+<ul>
+<li>stable softmax + cross-entropy</li>
+<li>scaled dot-product attention + causal mask</li>
+<li>multi-head attention (shapes from memory)</li>
+<li>cross-attention</li>
+<li>LayerNorm / RMSNorm</li>
+<li>transformer block (pre-norm)</li>
+<li>KV-cache generate loop</li>
+<li>top-k / top-p sampling</li>
+<li><strong>DPO loss</strong> + sequence log-prob with prompt masking</li>
+<li><strong>reward model head + Bradley-Terry loss</strong></li>
+<li><strong>PPO clipped objective</strong></li>
+<li>best-of-n</li>
+<li>2-layer MLP backprop (NumPy)</li>
+</ul>
+<p><strong>Interview style reminders:</strong> narrate shapes as you go; test on a tiny example; handle batch dim and edge cases (T=1, empty); call out complexity (attention O(T²·d)); mention numerical stability (logsumexp, subtract max). For Weiyue: emphasize correctness + efficiency. For Fei: connect to reasoning/agents/multimodal.</p>
+</main></div>
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<script>
+  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
+  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
+  const KEY=document.title.replace(/\W/g,'_');
+  document.querySelectorAll('.qa').forEach((qa,i)=>{const k=KEY+'_qa_'+i;if(localStorage.getItem(k)==='1')qa.classList.add('open');qa.querySelector('.q').addEventListener('click',()=>{qa.classList.toggle('open');localStorage.setItem(k,qa.classList.contains('open')?'1':'0');});});
+  const tl=[...document.querySelectorAll('nav.toc a')],secs=tl.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll',()=>{let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<=120)cur=s;}tl.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+(cur&&cur.id)));});
+</script>
+</body></html>
