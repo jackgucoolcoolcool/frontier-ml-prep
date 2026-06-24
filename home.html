@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontier ML Interview Prep</title>
+<style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--border:#2a3340;}
+  *{box-sizing:border-box;} body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;}
+  .wrap{max-width:880px;margin:0 auto;padding:56px 28px 100px;}
+  header{margin-bottom:38px;}
+  h1{font-size:32px;margin:0 0 8px;}
+  .sub{color:var(--muted);font-size:15.5px;margin:4px 0;}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:38px 0 14px;}
+  .grid{display:grid;gap:14px;}
+  a.card{display:block;text-decoration:none;color:inherit;border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:12px;padding:18px 20px;transition:border-color .15s,transform .15s;}
+  a.card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .card .day{font-size:13px;color:var(--accent-2);font-weight:700;letter-spacing:.04em;}
+  .card .title{font-size:18px;margin:4px 0 4px;color:#eaf0f7;}
+  .card .desc{font-size:14px;color:var(--muted);}
+  .pill{display:inline-block;background:var(--panel);border:1px solid var(--border);color:var(--accent-2);padding:3px 10px;border-radius:20px;font-size:12.5px;margin-right:6px;}
+  footer{margin-top:50px;color:var(--muted);font-size:13.5px;border-top:1px solid var(--border);padding-top:18px;}
+  a.inline{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Frontier ML Interview Prep</h1>
+    <p class="sub">A 5-day study program for a Research Scientist loop at a frontier lab — derivations, intuition, embedded videos, and collapsible self-tests.</p>
+    <p class="sub" style="margin-top:10px;"><span class="pill">Research Scientist</span><span class="pill">Concepts first</span><span class="pill">Self-test Q&amp;A</span></p>
+  </header>
+
+  <h2>The 5-Day Plan</h2>
+  <div class="grid">
+    <a class="card" href="Day1_Deep_Learning_Fundamentals.html">
+      <div class="day">DAY 1</div>
+      <div class="title">Deep Learning Fundamentals</div>
+      <div class="desc">Backprop from scratch, normalization &amp; residuals, optimizers, and a training-debugging playbook.</div>
+    </a>
+    <a class="card" href="Day2_Transformers_and_LLMs.html">
+      <div class="day">DAY 2</div>
+      <div class="title">Transformers &amp; LLMs</div>
+      <div class="desc">Attention derivation, KV cache, scaling laws, and the SFT→RLHF→DPO post-training landscape.</div>
+    </a>
+    <a class="card" href="Day3_Data_and_Evaluation.html">
+      <div class="day">DAY 3</div>
+      <div class="title">Data + Evaluation &amp; Benchmarking</div>
+      <div class="desc">Data as an experimental variable, contamination detection, ablations, and the eval-design framework.</div>
+    </a>
+    <a class="card" href="Day4_Multimodal_and_Agents.html">
+      <div class="day">DAY 4</div>
+      <div class="title">Multimodal &amp; Agentic AI</div>
+      <div class="desc">CLIP/ViT, audio/video, agents &amp; tool use, RAG — plus a 65-question full mock drill.</div>
+    </a>
+    <a class="card" href="Day5_Research_Taste_and_Papers.html">
+      <div class="day">DAY 5</div>
+      <div class="title">Research Taste + Paper Deep-Dives</div>
+      <div class="desc">The weak→strong answer pattern, the 5-point paper frame: Chinchilla, RL/DPO, FlashAttention.</div>
+    </a>
+  </div>
+
+  <h2>Topic Notes &amp; Q&amp;A</h2>
+  <div class="grid">
+    <a class="card" href="Notes_Activation_Functions.html">
+      <div class="day">NOTES</div>
+      <div class="title">Activation Functions — Deep Dive</div>
+      <div class="desc">Softmax (multivariate sigmoid), why sigmoid/tanh saturate, ReLU vs GELU. Rendered math.</div>
+    </a>
+    <a class="card" href="Interview_QA_Log.html">
+      <div class="day">RUNNING LOG</div>
+      <div class="title">Interview Q&amp;A Log</div>
+      <div class="desc">A growing log of every technical question asked, with concise answers and key equations.</div>
+    </a>
+  </div>
+
+  <footer>
+    Built as a personal study set. Source &amp; markdown versions on
+    <a class="inline" href="https://github.com/jackgucoolcoolcool/frontier-ml-prep">GitHub</a>.
+  </footer>
+</div>
+</body>
+</html>

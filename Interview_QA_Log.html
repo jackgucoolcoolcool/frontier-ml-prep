@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interview Prep — Q&A Log</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .wrap{max-width:880px;margin:0 auto;padding:40px 28px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:24px 28px;margin-bottom:28px;}
+  header.hero h1{margin:0 0 8px;font-size:28px;}
+  header.hero p{margin:4px 0;color:var(--muted);font-size:14.5px;}
+  .index{border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:30px;background:var(--panel);}
+  .index h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;border:none;padding:0;}
+  .index ol{margin:0;padding-left:22px;} .index li{margin:5px 0;}
+  .index a{color:var(--accent);text-decoration:none;} .index a:hover{text-decoration:underline;}
+  h2.qhead{font-size:21px;margin:40px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:16px;}
+  h2.qhead .tag{font-size:13px;color:var(--accent-2);font-weight:600;}
+  h3{font-size:17px;margin:22px 0 8px;color:#eaf0f7;}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  ul,ol{padding-left:24px;} li{margin:7px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .short{border-left:3px solid var(--accent-2);background:rgba(126,224,192,.06);padding:10px 16px;border-radius:0 8px 8px 0;margin:12px 0;}
+  .ref{color:var(--muted);font-size:13.5px;margin-top:10px;}
+  mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}
+  hr{border:none;border-top:1px solid var(--border);margin:34px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="wrap">
+
+<header class="hero">
+  <h1>Interview Prep — Q&amp;A Log</h1>
+  <p>A running log of technical questions and answers, captured for review. Newest entries at the bottom.</p>
+  <p>Equations rendered with MathJax (needs internet to load the renderer).</p>
+</header>
+
+<div class="index">
+  <h2>Index</h2>
+  <ol>
+    <li><a href="#q1">Multivariate sigmoid function</a></li>
+    <li><a href="#q2">Why do sigmoid and tanh saturate?</a></li>
+    <li><a href="#q3">Compare ReLU and GELU</a></li>
+    <li><a href="#q4">What is GELU / what is Φ?</a></li>
+  </ol>
+</div>
+
+<h2 class="qhead" id="q1">Q1 — Write down the multivariate sigmoid function</h2>
+<div class="short"><strong>Short answer:</strong> The multivariate generalization of the sigmoid is the <strong>softmax</strong>.</div>
+<ul>
+  <li>Scalar sigmoid: $\sigma(z) = \dfrac{1}{1+e^{-z}} \in (0,1)$ — binary.</li>
+  <li>Softmax (multiclass), for logits $\mathbf{z}=(z_1,\dots,z_K)$:
+    $$\text{softmax}(\mathbf{z})_i = \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}$$
+    Components are in $(0,1)$ and <strong>sum to 1</strong>; it's <strong>shift-invariant</strong> (subtract $\max_j z_j$ for numerical stability).</li>
+  <li>For $K=2$ it <strong>reduces to the sigmoid</strong>: $\text{softmax}(\mathbf z)_1 = \sigma(z_1-z_2)$.</li>
+  <li>Distinct from the <strong>elementwise sigmoid</strong> $\sigma(z_i)$ (multi-label: independent yes/no per class, does <em>not</em> sum to 1).</li>
+</ul>
+<p class="ref">📄 Full write-up: <code>Notes_Activation_Functions.html</code>, §1.</p>
+
+<hr>
+
+<h2 class="qhead" id="q2">Q2 — Why do sigmoid and tanh saturate?</h2>
+<div class="short"><strong>Short answer:</strong> Both are <strong>bounded squashing functions</strong> that compress all of $\mathbb{R}$ into a finite interval. Mapping an infinite domain into a finite range <em>must</em> flatten at the extremes, and a flat region means the derivative → 0. That near-zero gradient is "saturation."</div>
+<ul>
+  <li>Sigmoid: $\sigma'(z)=\sigma(z)(1-\sigma(z))$; max $0.25$ at $z=0$, → 0 as $|z|\to\infty$.</li>
+  <li>Tanh: $\tanh'(z)=1-\tanh^2(z)$; max $1$ at $z=0$, → 0 as $\tanh\to\pm1$. (Better than sigmoid — bigger max gradient, zero-centered — but same flat-tail flaw.)</li>
+  <li><strong>Why it matters:</strong> backprop multiplies these small per-layer factors; saturated layers contribute ≈ 0, so gradients <strong>vanish</strong> in deep nets → early layers stop learning. Motivates ReLU (derivative 1 on active branch) and normalization (keeps pre-activations near 0, the high-gradient region).</li>
+</ul>
+<p class="ref">📄 Full write-up: <code>Notes_Activation_Functions.html</code>, §2.</p>
+
+<hr>
+
+<h2 class="qhead" id="q3">Q3 — Compare ReLU and GELU</h2>
+<div class="short"><strong>Short answer:</strong> ReLU $=\max(0,z)$ is a hard, cheap gate (gradient 1 or 0) but suffers <strong>dead neurons</strong>. GELU $=z\,\Phi(z)$ ($\Phi$ = Gaussian CDF) is a smooth, probabilistic gate that passes a small nonzero signal for negative inputs, avoiding dead neurons and giving smoother optimization at higher compute cost. Both avoid positive-side saturation.</div>
+<table>
+  <thead><tr><th></th><th>ReLU</th><th>GELU</th></tr></thead>
+  <tbody>
+    <tr><td>Formula</td><td>$\max(0,z)$</td><td>$z\,\Phi(z)$</td></tr>
+    <tr><td>Smoothness</td><td>Hard kink at 0</td><td>Smooth everywhere</td></tr>
+    <tr><td>Negatives</td><td>Hard 0</td><td>Small negative dip → 0</td></tr>
+    <tr><td>Dead neurons</td><td>Yes</td><td>Largely avoided</td></tr>
+    <tr><td>Compute</td><td>Cheapest</td><td>Pricier (CDF/tanh/erf)</td></tr>
+    <tr><td>Used in</td><td>CNNs, MLPs</td><td>Transformers</td></tr>
+  </tbody>
+</table>
+<p><strong>Why transformers use GELU:</strong> smoothness + nonzero negative gradient give a small but reliable quality gain that compounds at scale (worth the extra FLOPs). <strong>Dying-ReLU symptom:</strong> a growing fraction of permanently-zero activations → suspect LR/init, or switch to GELU/LeakyReLU.</p>
+<p class="ref">📄 Full write-up: <code>Notes_Activation_Functions.html</code>, §3.</p>
+
+<hr>
+
+<h2 class="qhead" id="q4">Q4 — What is GELU again, what is Φ?</h2>
+<div class="short"><strong>Short answer:</strong> GELU is the activation $\text{GELU}(z) = z\cdot\Phi(z)$. The symbol is <strong>Φ ("Phi"), not θ (theta)</strong> — it's the <strong>standard Gaussian CDF</strong>.</div>
+<ul>
+  <li>$\Phi(z) = \Pr[Z \le z]$ for $Z\sim\mathcal N(0,1)$ — the probability a standard normal is $\le z$. Ranges 0→1, S-shaped, $\Phi(0)=0.5$. Equivalently $\Phi(z)=\tfrac12\big(1+\operatorname{erf}(z/\sqrt2)\big)$.</li>
+  <li><strong>Soft gate intuition</strong> — GELU multiplies $z$ by the probability it should be "kept":
+    <ul>
+      <li>large $+z$ → $\Phi\approx1$ → output ≈ $z$ (on)</li>
+      <li>large $-z$ → $\Phi\approx0$ → output ≈ 0 (off)</li>
+      <li>near 0 → $\Phi\approx0.5$ → output ≈ $z/2$ (the smooth part)</li>
+    </ul>
+  </li>
+  <li>vs <strong>ReLU</strong> = a hard step (keep if $z>0$ else 0). GELU's smoothness avoids the kink / dead-neuron problem.</li>
+</ul>
+<p><strong>Symbol guide:</strong> $\Phi$ (Phi) = Gaussian <strong>CDF</strong> (the GELU gate); $\varphi$ (lowercase phi) = Gaussian <strong>PDF</strong> (bell curve, $=\Phi'$); $\theta$ (theta) = unrelated, usually model <strong>parameters</strong>.</p>
+<p class="ref">📄 Related: <code>Notes_Activation_Functions.html</code>, §3.</p>
+
+<hr>
+<p class="ref"><em>Log started 2026-06-21. New Q&amp;A appended below as asked.</em></p>
+
+</div>
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<script>
+  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
+  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
+</script>
+</body>
+</html>
