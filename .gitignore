@@ -9,3 +9,6 @@ assets/
 
 # build script
 _convert.py
+
+# private interview strategy (never publish)
+_PRIVATE_*
