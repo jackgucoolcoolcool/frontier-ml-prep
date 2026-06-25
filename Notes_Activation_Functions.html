@@ -20,6 +20,9 @@
   h3{font-size:18px;margin:26px 0 8px;color:#eaf0f7;}
   p{margin:12px 0;} a{color:var(--accent);}
   code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13px;line-height:1.55;}
+  h3.codeh{font-size:15px;margin:20px 0 6px;color:var(--accent);}
   ul,ol{padding-left:24px;} li{margin:7px 0;}
   strong{color:#f0f4f9;}
   table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
@@ -138,6 +141,71 @@
 </div>
 
 <hr>
+
+<hr>
+
+<h2>4. Code — NumPy, JAX, PyTorch</h2>
+<p>From-scratch (NumPy) shows you understand the derivative; the framework versions get it from autodiff for free.</p>
+
+<h3 class="codeh">NumPy — from scratch (forward + analytic derivative)</h3>
+<pre><code>import numpy as np
+from scipy.special import erf            # or math.erf for scalars
+
+# forward
+def sigmoid(z):
+    return np.where(z &gt;= 0, 1/(1+np.exp(-z)),
+                    np.exp(z)/(1+np.exp(z)))   # stable on both sides
+def tanh(z): return np.tanh(z)
+def relu(z): return np.maximum(0.0, z)
+def gelu(z): return 0.5*z*(1 + erf(z/np.sqrt(2)))   # exact: z * Phi(z)
+
+# analytic derivatives
+def d_sigmoid(z): s = sigmoid(z); return s*(1 - s)        # s(1-s)
+def d_tanh(z):    t = np.tanh(z);  return 1 - t**2        # 1 - tanh^2
+def d_relu(z):    return (z &gt; 0).astype(z.dtype)         # 1 if z&gt;0 else 0
+def d_gelu(z):                                            # Phi(z) + z*phi(z)
+    Phi = 0.5*(1 + erf(z/np.sqrt(2)))
+    pdf = np.exp(-z**2/2)/np.sqrt(2*np.pi)
+    return Phi + z*pdf</code></pre>
+
+<h3 class="codeh">JAX — built-ins + autodiff (no manual derivative)</h3>
+<pre><code>import jax, jax.numpy as jnp
+from jax import grad, vmap
+import jax.nn as jnn
+
+z = jnp.linspace(-6, 6, 100)
+
+# built-in forward
+jnn.sigmoid(z); jnp.tanh(z); jnn.relu(z)
+jnn.gelu(z, approximate=False)     # exact erf; default approximate=True is tanh approx
+
+# from scratch (exact gelu)
+gelu = lambda z: 0.5*z*(1 + jax.lax.erf(z/jnp.sqrt(2)))
+
+# derivatives for free via autodiff (vmap because grad needs scalar output)
+d_sigmoid = vmap(grad(jnn.sigmoid))
+d_gelu    = vmap(grad(lambda z: jnn.gelu(z, approximate=False)))
+d_gelu(z)                          # == Phi(z) + z*phi(z), computed automatically</code></pre>
+
+<h3 class="codeh">PyTorch — built-ins + autograd</h3>
+<pre><code>import torch
+import torch.nn.functional as F
+
+z = torch.linspace(-6, 6, 100, requires_grad=True)
+
+# built-in forward
+torch.sigmoid(z); torch.tanh(z); F.relu(z)
+F.gelu(z, approximate='none')      # exact; approximate='tanh' = tanh approx
+# modules: torch.nn.Sigmoid(), torch.nn.ReLU(), torch.nn.GELU(approximate='none')
+
+# derivative via autograd
+y = F.gelu(z, approximate='none').sum()
+y.backward()
+z.grad                             # == Phi(z) + z*phi(z)</code></pre>
+
+<div class="callout">
+  <strong>Gotchas:</strong> JAX <code>jax.nn.gelu</code> defaults to the <em>tanh approximation</em> (<code>approximate=True</code>); PyTorch <code>F.gelu</code> defaults to <em>exact</em> (<code>approximate='none'</code>) — they differ out of the box. Naive <code>1/(1+exp(-z))</code> overflows for large negative z (use the library sigmoid or the <code>np.where</code> form). In JAX/PyTorch you never hand-write the derivative — <code>grad</code> / <code>.backward()</code> derive it; the NumPy block is to <em>show</em> you know it.
+</div>
 
 <h2>Interview-ready summaries</h2>
 <div class="summary">

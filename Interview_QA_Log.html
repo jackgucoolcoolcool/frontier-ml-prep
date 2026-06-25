@@ -57,6 +57,10 @@
     <li><a href="#q2">Why do sigmoid and tanh saturate?</a></li>
     <li><a href="#q3">Compare ReLU and GELU</a></li>
     <li><a href="#q4">What is GELU / what is Φ?</a></li>
+    <li><a href="#q5">Why is GELU z·Φ(z)? (input × CDF motivation)</a></li>
+    <li><a href="#q6">Why does the stable sigmoid need np.where?</a></li>
+    <li><a href="#q7">Bounded (tanh/sigmoid) vs unbounded (ReLU) activations</a></li>
+    <li><a href="#q8">Derive ∂L/∂z₂ = ŷ − y (softmax + cross-entropy)</a></li>
   </ol>
 </div>
 
@@ -118,6 +122,77 @@
 </ul>
 <p><strong>Symbol guide:</strong> $\Phi$ (Phi) = Gaussian <strong>CDF</strong> (the GELU gate); $\varphi$ (lowercase phi) = Gaussian <strong>PDF</strong> (bell curve, $=\Phi'$); $\theta$ (theta) = unrelated, usually model <strong>parameters</strong>.</p>
 <p class="ref">📄 Related: <code>Notes_Activation_Functions.html</code>, §3.</p>
+
+<hr>
+
+<h2 class="qhead" id="q5">Q5 — Why is GELU z·Φ(z)? (the input × CDF motivation)</h2>
+<div class="short"><strong>Short answer:</strong> Every activation is <em>input × gate</em>: $z\cdot g(z)$ with $g\in[0,1]$. ReLU's gate is the <strong>hard Heaviside step</strong> $\mathbf{1}[z>0]$; GELU's gate is the <strong>Gaussian CDF</strong> $\Phi(z)$ — the smooth, probabilistic version of that step. A CDF is the natural soft step (monotone 0→1, differentiable).</div>
+<p><strong>Why that CDF specifically:</strong></p>
+<ul>
+  <li><strong>Gaussian-smoothed step:</strong> convolving the hard step with a Gaussian gives exactly $\Phi$ → GELU = ReLU gate averaged over Gaussian input noise.</li>
+  <li><strong>Stochastic-regularizer derivation (the real motivation):</strong> mask the neuron with $m\sim\text{Bernoulli}(\Phi(z))$ (keep-probability depends on the input; bigger inputs kept more often), then take the expectation: $$\mathbb{E}[z\,m] = z\,\Pr[m=1] = z\,\Phi(z) = \text{GELU}(z).$$ So GELU blends dropout-style stochastic gating with the data — the CDF appears because it <em>is</em> the probability of keeping the unit.</li>
+</ul>
+<p><strong>Consequences:</strong> self-gating (the input gates itself) — same family as Swish/SiLU $z\,\sigma(\beta z)$, with $\text{GELU}(z)\approx z\,\sigma(1.702\,z)$. Derivative $\text{GELU}'(z)=\Phi(z)+z\,\varphi(z)$ → slightly negative for small negative $z$ → <strong>non-monotonic</strong>, a touch more expressive.</p>
+<div class="short"><strong>One-liner:</strong> "GELU is input × Gaussian-CDF gate — the smooth/probabilistic ReLU. It's the expectation of randomly keeping a neuron with probability $\Phi(z)$, unifying dropout-style regularization with input-dependent gating."</div>
+<p class="ref">📄 Related: <code>Notes_Activation_Functions.html</code> §3; Q3, Q4 above.</p>
+
+<hr>
+
+<h2 class="qhead" id="q6">Q6 — Why does the stable sigmoid need np.where?</h2>
+<div class="short"><strong>Short answer:</strong> It's not math — the two forms $\frac{1}{1+e^{-z}}$ and $\frac{e^z}{1+e^z}$ are algebraically identical. It's <strong>floating-point overflow</strong>: you must never compute <code>exp(large positive)</code>.</div>
+<ul>
+  <li><strong>Form A</strong> <code>1/(1+exp(-z))</code>: clean for $z\ge 0$; for $z\ll 0$, <code>exp(-z)=inf</code> (overflow).</li>
+  <li><strong>Form B</strong> <code>exp(z)/(1+exp(z))</code>: clean for $z&lt;0$; for $z\gg 0$, <code>exp(z)=inf</code> → <code>inf/inf = NaN</code>.</li>
+  <li>Each form blows up on one side. <code>np.where(z&gt;=0, A, B)</code> picks the form whose exponent is $\le 0$ (so <code>exp</code> stays bounded in $(0,1]$). Same function, different rearrangement.</li>
+</ul>
+<p><strong>Caveats:</strong></p>
+<ul>
+  <li><code>np.where</code> evaluates <strong>both</strong> branches (no short-circuit), so the discarded branch can still emit an overflow <em>warning</em> — the selected value is still correct.</li>
+  <li>A genuine single stable equation: $\sigma(z)=\tfrac12\big(1+\tanh(z/2)\big)$ → <code>0.5*(1+np.tanh(0.5*z))</code>.</li>
+  <li>In practice use <code>scipy.special.expit</code> / <code>torch.sigmoid</code> / <code>jax.nn.sigmoid</code> (stable internally). The from-scratch branch is to <em>show</em> you understand the overflow issue.</li>
+</ul>
+<p class="ref">📄 Related: <code>Notes_Activation_Functions.html</code> §4 (code).</p>
+
+<hr>
+
+<h2 class="qhead" id="q7">Q7 — Bounded (tanh/sigmoid) vs unbounded (ReLU) activations</h2>
+<div class="short"><strong>Short answer:</strong> Bounded activations self-limit their output range; unbounded ones don't — and that drives several practical behaviors.</div>
+<table>
+  <thead><tr><th></th><th>Bounded (sigmoid, tanh)</th><th>Unbounded (ReLU, GELU)</th></tr></thead>
+  <tbody>
+    <tr><td>Range</td><td>(0,1) / (−1,1)</td><td>(0,∞)</td></tr>
+    <tr><td>Tails</td><td>saturate → grad→0</td><td>no positive saturation → grad ~1</td></tr>
+    <tr><td>Deep nets</td><td>vanishing gradients</td><td>trains deep nets</td></tr>
+    <tr><td>Scale</td><td>self-limiting (stable)</td><td>can grow → needs normalization</td></tr>
+    <tr><td>Sparsity</td><td>dense</td><td>ReLU → exact zeros (sparse)</td></tr>
+    <tr><td>Cost</td><td>exp (pricier)</td><td>max (cheap)</td></tr>
+    <tr><td>Failure</td><td>saturation</td><td>dead neurons</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><strong>Gradient flow:</strong> bounded saturate → vanishing gradients in depth; unbounded keep gradients alive → why deep nets use the ReLU family.</li>
+  <li><strong>Scale:</strong> bounded = built-in stability; unbounded = rely on LayerNorm/BatchNorm + residual scaling to control magnitude.</li>
+  <li><strong>Info at extremes:</strong> bounded discard magnitude (sigmoid(5)≈sigmoid(50)≈1); unbounded preserve "how big."</li>
+  <li><strong>Sparsity/compute:</strong> ReLU = exact zeros + cheap max; bounded = dense + exp.</li>
+  <li><strong>Where used:</strong> unbounded → hidden layers (representation, gradient flow); bounded → where the range <em>is</em> the point: gates (LSTM/GRU, GLU — sigmoid = "how much to pass"), probabilities (sigmoid/softmax output), bounded regression (tanh).</li>
+  <li><strong>Zero-centering:</strong> tanh zero-centered (cleaner updates) vs sigmoid all-positive (biased / zig-zag).</li>
+</ul>
+<div class="short"><strong>One-liner:</strong> "Bounded self-limit → ideal as gates/probabilities but saturate and vanish gradients in depth; unbounded preserve magnitude and keep gradients alive (deep nets) but need normalization and risk dead neurons. Bounded at gates/outputs, unbounded in hidden layers."</div>
+<p class="ref">📄 Related: <code>Notes_Activation_Functions.html</code>; Q2 (saturation), Q3 (ReLU vs GELU).</p>
+
+<hr>
+
+<h2 class="qhead" id="q8">Q8 — Derive ∂L/∂z₂ = ŷ − y (softmax + cross-entropy)</h2>
+<div class="short"><strong>Setup:</strong> logits $z_2\in\mathbb{R}^K$, one-hot label $y$ (true class $c$). $$\hat{y}_i = \frac{e^{z_{2,i}}}{\sum_j e^{z_{2,j}}}, \qquad L = -\sum_k y_k\log\hat{y}_k = -\log\hat{y}_c$$</div>
+<p><strong>Method 1 — substitute softmax first (elegant):</strong></p>
+<p>$$L = -\log\frac{e^{z_{2,c}}}{\sum_j e^{z_{2,j}}} = -z_{2,c} + \log\sum_j e^{z_{2,j}}$$</p>
+<p>Differentiate w.r.t. $z_{2,i}$: the first term gives $-y_i$ ($=-1$ at $i=c$, else 0); the second term (log-sum-exp) differentiates to softmax itself, $\dfrac{e^{z_{2,i}}}{\sum_j e^{z_{2,j}}}=\hat{y}_i$. Adding:</p>
+<p>$$\frac{\partial L}{\partial z_{2,i}} = \hat{y}_i - y_i \quad\Longrightarrow\quad \frac{\partial L}{\partial z_2} = \hat{y} - y$$</p>
+<p><strong>Method 2 — full chain rule:</strong> $\dfrac{\partial L}{\partial z_{2,i}} = \sum_k \dfrac{\partial L}{\partial\hat{y}_k}\dfrac{\partial\hat{y}_k}{\partial z_{2,i}}$ with CE gradient $\dfrac{\partial L}{\partial\hat{y}_k}=-\dfrac{y_k}{\hat{y}_k}$ and softmax Jacobian $\dfrac{\partial\hat{y}_k}{\partial z_{2,i}}=\hat{y}_k(\delta_{ki}-\hat{y}_i)$. The $\hat{y}_k$ cancels:</p>
+<p>$$-\sum_k y_k(\delta_{ki}-\hat{y}_i) = -y_i + \hat{y}_i\sum_k y_k = \hat{y}_i - y_i$$</p>
+<p>using $\sum_k y_k\delta_{ki}=y_i$ and $\sum_k y_k=1$ (where one-hot / normalization enters).</p>
+<div class="short"><strong>Why it matters:</strong> gradient = prediction − truth (same form as logistic regression); clean and numerically stable → frameworks fuse softmax + cross-entropy into one op (no division by $\hat{y}_k$ as in Method 2's intermediate).</div>
+<p class="ref">📄 Related: Day 1 §2.2; Q1 (softmax).</p>
 
 <hr>
 <p class="ref"><em>Log started 2026-06-21. New Q&amp;A appended below as asked.</em></p>
