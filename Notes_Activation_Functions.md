@@ -121,6 +121,67 @@ A "marginal gains compound at scale" story: GELU's smoothness and nonzero negati
 
 ---
 
+## 4. Code — NumPy, JAX, PyTorch
+
+From-scratch (NumPy) shows you understand the derivative; the framework versions get it from autodiff for free.
+
+### NumPy — from scratch (forward + analytic derivative)
+```python
+import numpy as np
+from scipy.special import erf            # or math.erf for scalars
+
+def sigmoid(z):
+    return np.where(z >= 0, 1/(1+np.exp(-z)),
+                    np.exp(z)/(1+np.exp(z)))   # stable on both sides
+def tanh(z): return np.tanh(z)
+def relu(z): return np.maximum(0.0, z)
+def gelu(z): return 0.5*z*(1 + erf(z/np.sqrt(2)))   # exact: z * Phi(z)
+
+def d_sigmoid(z): s = sigmoid(z); return s*(1 - s)        # s(1-s)
+def d_tanh(z):    t = np.tanh(z);  return 1 - t**2        # 1 - tanh^2
+def d_relu(z):    return (z > 0).astype(z.dtype)          # 1 if z>0 else 0
+def d_gelu(z):                                            # Phi(z) + z*phi(z)
+    Phi = 0.5*(1 + erf(z/np.sqrt(2)))
+    pdf = np.exp(-z**2/2)/np.sqrt(2*np.pi)
+    return Phi + z*pdf
+```
+
+### JAX — built-ins + autodiff (no manual derivative)
+```python
+import jax, jax.numpy as jnp
+from jax import grad, vmap
+import jax.nn as jnn
+
+z = jnp.linspace(-6, 6, 100)
+
+jnn.sigmoid(z); jnp.tanh(z); jnn.relu(z)
+jnn.gelu(z, approximate=False)     # exact erf; default approximate=True is tanh approx
+
+gelu = lambda z: 0.5*z*(1 + jax.lax.erf(z/jnp.sqrt(2)))   # from scratch
+
+d_sigmoid = vmap(grad(jnn.sigmoid))                       # derivatives for free
+d_gelu    = vmap(grad(lambda z: jnn.gelu(z, approximate=False)))
+d_gelu(z)                          # == Phi(z) + z*phi(z), automatically
+```
+
+### PyTorch — built-ins + autograd
+```python
+import torch
+import torch.nn.functional as F
+
+z = torch.linspace(-6, 6, 100, requires_grad=True)
+
+torch.sigmoid(z); torch.tanh(z); F.relu(z)
+F.gelu(z, approximate='none')      # exact; approximate='tanh' = tanh approx
+# modules: torch.nn.Sigmoid(), torch.nn.ReLU(), torch.nn.GELU(approximate='none')
+
+y = F.gelu(z, approximate='none').sum()   # derivative via autograd
+y.backward()
+z.grad                             # == Phi(z) + z*phi(z)
+```
+
+**Gotchas:** JAX `jax.nn.gelu` defaults to the *tanh approximation* (`approximate=True`); PyTorch `F.gelu` defaults to *exact* (`approximate='none'`) — they differ out of the box. Naive `1/(1+exp(-z))` overflows for large negative z (use the library sigmoid or the `np.where` form). In JAX/PyTorch you never hand-write the derivative — `grad` / `.backward()` derive it; the NumPy block is to *show* you know it.
+
 ## Interview-ready summaries
 
 - **Saturation:** "Sigmoid and tanh are bounded squashing functions, so outputs flatten at the extremes; a flat output means derivative → 0. Sigmoid's gradient maxes at 0.25, tanh's at 1, but both collapse to ~0 for large $|z|$. In deep nets, backprop multiplies these small factors across layers, so gradients vanish and early layers stop learning — hence ReLU and normalization."
