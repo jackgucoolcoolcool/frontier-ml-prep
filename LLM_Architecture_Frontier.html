@@ -1,0 +1,236 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Architecture Frontier — Deep Dive</title><style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .layout{display:flex;max-width:1240px;margin:0 auto;}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+  nav.toc a:hover{color:var(--text);background:var(--panel);}
+  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
+  main{flex:1;min-width:0;padding:40px 48px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
+  header.hero h1{margin:0 0 10px;font-size:30px;}
+  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
+  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;}
+  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
+  ul,ol{padding-left:24px;} li{margin:6px 0;}
+  ul ul,ol ul{margin:6px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
+  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
+  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
+  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
+  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .qa .q:hover{background:var(--panel-2);}
+  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
+  .qa.open .q .chev{transform:rotate(90deg);}
+  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
+  .qa.open .a{display:block;}
+  .qa .a code{background:#0d1612;}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
+</style></head><body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2><a href="#top">Overview</a>
+<a href="#s1">§1</a>
+<a href="#s2">§2</a>
+<a href="#s3">§3</a>
+<a href="#s4">§4</a>
+<a href="#s5">§5</a>
+<a href="#s6">§6</a>
+<a href="#s7">§7</a>
+<a href="#s8">Cheat sheet</a></nav>
+<main>
+<header class="hero" id="top"><h1>LLM Architecture Frontier — Deep Dive</h1><p style="margin:4px 0;color:var(--muted)"><strong>Why this doc:</strong> Your research round is with an LLM-architecture expert whose recent work spans <strong>MoE, long-context/memory layers, efficiency &amp; test-time compute, model merging, and unified multimodal</strong>. This goes deeper than the Day-2 transformer basics into the <em>frontier architecture</em> topics that decide an architecture-heavy research conversation.</p><p style="margin:4px 0;color:var(--muted)"><strong>The bar:</strong> for each topic, know the <strong>mechanism</strong>, the <strong>tradeoff</strong>, the <strong>failure mode</strong>, and <strong>one experiment you&#x27;d run</strong>. Architecture interviews reward &quot;why this design, what breaks, what would you try&quot; — not memorized definitions.</p><p style="margin:4px 0;color:var(--muted)">Builds on Day 2 (transformers) and the Post-Training/RL doc. Equations in code blocks.</p></header>
+<hr>
+<h2 class="section" id="s1">§1 — Mixture-of-Experts (MoE)</h2>
+<p>The single most important frontier-architecture topic. <strong>The idea:</strong> replace a dense FFN with <strong>many expert FFNs</strong> and a <strong>router</strong> that sends each token to only a few experts. You get more <strong>parameters</strong> (capacity) without proportionally more <strong>FLOPs</strong> (compute), because each token only activates a small subset.</p>
+<h3>1.1 Mechanism</h3>
+<pre><code>For each token x:
+  router logits  g = W_r · x                      # (n_experts,)
+  pick top-k experts (k usually 1 or 2)
+  weights = softmax(top-k logits)
+  output = Σ_{i in top-k} weights_i · Expert_i(x)  # only k FFNs run</code></pre>
+<ul>
+<li><strong>Sparse activation:</strong> total params scale with <code>n_experts</code>, but per-token compute scales with <code>k</code>. E.g. 64 experts, top-2 → ~32× params at ~2× the FFN FLOPs.</li>
+<li><strong>Decouples capacity from compute</strong> — the core reason MoE is central to scaling frontier models cheaply.</li>
+</ul>
+<h3>1.2 Load balancing (the central problem)</h3>
+<p>Left alone, the router <strong>collapses</strong> — it sends most tokens to a few favored experts, leaving others untrained (&quot;dead experts&quot;). Fixes:</p>
+<ul>
+<li><strong>Auxiliary load-balancing loss:</strong> penalize imbalance so token assignment spreads across experts. Classic form:</li>
+</ul>
+<pre><code>L_aux = α · n_experts · Σ_i (f_i · P_i)
+  f_i = fraction of tokens routed to expert i
+  P_i = mean router prob mass on expert i</code></pre>
+<p>This is minimized when load is uniform.</p>
+<ul>
+<li><strong>Capacity factor:</strong> cap how many tokens each expert takes per batch; overflow tokens are <strong>dropped</strong> (skip the FFN via the residual). Tradeoff: higher capacity = less dropping but more compute/memory.</li>
+<li><strong>Noisy / parameter-free routing:</strong> add noise for exploration, or selection schemes that balance without a learned gate (your interviewer&#x27;s <em>GatePro</em> line — parameter-free expert selection optimization). Be ready to discuss alternatives to the standard learned top-k gate.</li>
+</ul>
+<h3>1.3 Design axes &amp; variants</h3>
+<ul>
+<li><strong>Fine-grained experts:</strong> more, smaller experts → better specialization and combinatorial flexibility (DeepSeek-MoE style).</li>
+<li><strong>Shared experts:</strong> a few experts every token uses (capture common knowledge) + routed experts for specialization.</li>
+<li><strong>Top-1 (Switch) vs Top-2:</strong> top-1 is cheapest; top-2 gives the router a comparison signal and usually better quality.</li>
+<li><strong>Routing granularity:</strong> per-token (standard) vs per-sequence; token-choice (token picks experts) vs expert-choice (expert picks tokens — naturally balanced).</li>
+</ul>
+<h3>1.4 Tradeoffs &amp; failure modes (say these)</h3>
+<ul>
+<li><strong>Pro:</strong> huge capacity per FLOP; strong quality-per-training-compute.</li>
+<li><strong>Con — inference:</strong> all experts must be <strong>in memory</strong> even though each token uses few → high memory footprint; routing causes load imbalance across devices (<strong>expert parallelism</strong> + all-to-all communication overhead).</li>
+<li><strong>Con — training instability:</strong> router is discrete/noisy; needs the aux loss tuned (too strong hurts quality, too weak → collapse). <strong>Z-loss</strong> often added for router-logit stability.</li>
+<li><strong>Failure modes:</strong> expert collapse, token dropping at low capacity, training/inference load mismatch.</li>
+</ul>
+<h3>1.5 Experiments you&#x27;d propose</h3>
+<ul>
+<li>Sweep <code>n_experts</code> × <code>k</code> × capacity factor at fixed <em>active</em> params, measuring quality-per-training-FLOP and inference memory.</li>
+<li>Compare token-choice vs expert-choice routing on load balance and quality.</li>
+<li>Ablate shared-expert count.</li>
+</ul>
+<h3>Self-test §1</h3>
+<div class="qa"><div class="q"><span><strong>Why MoE?</strong></span><span class="chev">▶</span></div><div class="a">Decouples parameters (capacity) from per-token FLOPs via sparse top-k activation — more capacity at ~constant compute.</div></div>
+<div class="qa"><div class="q"><span><strong>Main training problem and fix?</strong></span><span class="chev">▶</span></div><div class="a">Router collapse / load imbalance; fixed with an auxiliary load-balancing loss (+ capacity factor, z-loss, expert-choice routing).</div></div>
+<div class="qa"><div class="q"><span><strong>Why is MoE inference-expensive despite low FLOPs?</strong></span><span class="chev">▶</span></div><div class="a">All experts must reside in memory; routing creates load imbalance and all-to-all communication across devices.</div></div>
+<div class="qa"><div class="q"><span><strong>Top-1 vs top-2 vs fine-grained/shared experts?</strong></span><span class="chev">▶</span></div><div class="a">top-1 cheapest; top-2 gives comparison signal/quality; fine-grained = specialization; shared = common knowledge.</div></div>
+<hr>
+<h2 class="section" id="s2">§2 — Long context &amp; memory</h2>
+<h3>2.1 The two costs of long context (recap + go deeper)</h3>
+<ul>
+<li><strong>Attention is O(T²)</strong> in compute/memory (the score matrix).</li>
+<li><strong>KV cache grows O(T)</strong> and dominates inference memory.</li>
+</ul>
+<p>Long-context work attacks both.</p>
+<h3>2.2 Attention-level approaches</h3>
+<ul>
+<li><strong>GQA / MQA:</strong> share K/V across heads → shrink KV cache (Day 2 §3). The standard production lever.</li>
+<li><strong>Sliding-window / local attention:</strong> each token attends to a window of w recent tokens → O(T·w). Often interleaved with a few global layers (e.g. Mistral, Longformer).</li>
+<li><strong>Sparse attention:</strong> attend to a structured subset (strided/block patterns).</li>
+<li><strong>Linear attention / state-space (Mamba):</strong> reformulate attention as a recurrence with O(T) compute and O(1) state — trades exact all-pairs mixing for efficiency; strong for very long sequences.</li>
+<li><strong>FlashAttention:</strong> exact, IO-aware — reduces <em>memory traffic</em> (not the quadratic). (Day 5.)</li>
+</ul>
+<h3>2.3 Memory layers (your interviewer&#x27;s UltraMem line)</h3>
+<p><strong>Memory layers / product-key memory:</strong> a giant trainable <strong>key-value memory</strong> table queried by attention-like lookup. The model retrieves from a huge memory with sub-linear cost (product keys factorize the lookup), adding <strong>parameters/knowledge capacity without proportional FLOPs</strong> — conceptually MoE-adjacent (sparse access to a big parameter store). UltraMem-style work scales these to 100B+ params with strong long-context behavior. <strong>Be ready to compare</strong> memory layers vs MoE: both add sparse-access capacity; memory layers store <em>facts</em> in a KV table, MoE routes to <em>FFN experts</em>.</p>
+<h3>2.4 Position &amp; context extension</h3>
+<ul>
+<li><strong>RoPE scaling</strong> (position interpolation, NTK-aware, YaRN): rescale rotary frequencies so a model trained at 4k runs at 32k–128k+. (Day 2 §1.3.)</li>
+<li><strong>Lost-in-the-middle:</strong> models under-use mid-context info → motivates better long-context training + retrieval.</li>
+<li><strong>Long-context vs RAG:</strong> stuff everything in context (simple, expensive, lost-in-middle) vs retrieve on demand (cheaper, needs a retriever). Often combined.</li>
+</ul>
+<h3>Self-test §2</h3>
+<div class="qa"><div class="q"><span><strong>Ways to make attention cheaper for long context?</strong></span><span class="chev">▶</span></div><div class="a">GQA/MQA (KV cache), sliding-window/local, sparse, linear/state-space (Mamba), FlashAttention (IO, not quadratic).</div></div>
+<div class="qa"><div class="q"><span><strong>What is a memory layer and how does it relate to MoE?</strong></span><span class="chev">▶</span></div><div class="a">A large trainable KV memory queried by factorized (product-key) lookup; adds capacity without proportional FLOPs — like MoE but stores facts in a KV table vs routing to FFN experts.</div></div>
+<div class="qa"><div class="q"><span><strong>How do you extend a model&#x27;s context length?</strong></span><span class="chev">▶</span></div><div class="a">RoPE rescaling (position interpolation / NTK / YaRN) + long-context fine-tuning; watch lost-in-the-middle.</div></div>
+<hr>
+<h2 class="section" id="s3">§3 — Efficiency &amp; test-time compute</h2>
+<h3>3.1 Looped / recurrent-depth transformers (your interviewer&#x27;s Parallel Loop Transformer)</h3>
+<p><strong>Idea:</strong> instead of N distinct layers, <strong>reuse</strong> a block by looping it multiple times (weight sharing across depth / recurrence in depth). Benefits: <strong>parameter efficiency</strong> (fewer unique weights) and <strong>adaptive compute</strong> (loop more for harder inputs). &quot;Parallel loop&quot; variants restructure the recurrence to parallelize the test-time compute scaling. <strong>Tradeoff:</strong> weight sharing can cap representational diversity; gains depend on the task.</p>
+<h3>3.2 Adaptive computation</h3>
+<p>Spend variable compute per token/example: early-exit (stop at a shallow layer when confident), Mixture-of-Depths (route only some tokens through a layer), ACT-style halting. <strong>Theme:</strong> not every token needs full depth.</p>
+<h3>3.3 Test-time compute scaling (the big recent shift)</h3>
+<p><strong>Spend more compute at inference to get better answers</strong> — the &quot;thinking&quot; paradigm:</p>
+<ul>
+<li><strong>Chain-of-thought / longer reasoning traces:</strong> more tokens of reasoning → better answers (compute as a knob at test time).</li>
+<li><strong>Best-of-n / self-consistency:</strong> sample many, vote/pick best.</li>
+<li><strong>Search / verifier-guided</strong> (tree search, process-reward-guided): explore multiple paths, score with a verifier.</li>
+<li><strong>Why it matters:</strong> a <em>smaller</em> model that &quot;thinks longer&quot; can beat a bigger model answering instantly — shifting the scaling frontier from train-time to <strong>test-time</strong> compute. Pairs with verifiable-reward RL (Post-Training doc §6).</li>
+</ul>
+<h3>3.4 Speculative decoding (inference latency)</h3>
+<p>Small draft model proposes several tokens; the big model verifies them in <strong>one</strong> parallel forward pass → multiple tokens per expensive step when the draft agrees. Exact (same distribution). (Day 2 §4.2.)</p>
+<h3>Self-test §3</h3>
+<div class="qa"><div class="q"><span><strong>What&#x27;s a looped/recurrent-depth transformer and its tradeoff?</strong></span><span class="chev">▶</span></div><div class="a">Reuse a block across depth (weight sharing/recurrence) for parameter efficiency + adaptive compute; risk: limited representational diversity.</div></div>
+<div class="qa"><div class="q"><span><strong>What is test-time compute scaling?</strong></span><span class="chev">▶</span></div><div class="a">Spend more inference compute (longer CoT, best-of-n, search/verifier) to improve answers; a small &quot;thinking&quot; model can beat a big instant one — shifts the frontier to inference.</div></div>
+<div class="qa"><div class="q"><span><strong>How does speculative decoding speed up decoding?</strong></span><span class="chev">▶</span></div><div class="a">Draft model proposes tokens, big model verifies in parallel; multiple tokens per step, exact output.</div></div>
+<hr>
+<h2 class="section" id="s4">§4 — Model merging</h2>
+<h3>4.1 What &amp; why</h3>
+<p>Combine <strong>multiple trained models (or checkpoints) into one</strong> by operating on weights — no extra training (or little). Why it works: independently trained models often lie in a connected low-loss region, so averaging can land in a good basin and <strong>average out noise</strong> while combining capabilities.</p>
+<h3>4.2 Methods</h3>
+<ul>
+<li><strong>Model soups:</strong> average the weights of multiple fine-tunes (same init) → better, more robust than any single one.</li>
+<li><strong>Weight averaging across training (EMA / checkpoint averaging):</strong> average checkpoints along a run for a flatter, better-generalizing solution.</li>
+<li><strong>Task arithmetic:</strong> add/subtract <strong>task vectors</strong> (Δ = finetuned − base) to add or remove capabilities.</li>
+<li><strong>TIES / DARE:</strong> resolve sign conflicts / sparsify deltas before merging to reduce interference.</li>
+<li><strong>Merging in pretraining</strong> (your interviewer&#x27;s line): merge models/branches <em>during</em> pretraining to combine data/skills or stabilize — an active frontier direction.</li>
+</ul>
+<h3>4.3 Tradeoffs</h3>
+<p>Cheap (no/low training), combines capabilities, improves robustness — <strong>but</strong> only works when models are compatible (shared init / nearby in weight space); naive averaging of unrelated models fails (interference). Sign conflicts and scale mismatches are the main failure modes.</p>
+<h3>Self-test §4</h3>
+<div class="qa"><div class="q"><span><strong>Why does weight averaging (model soups) work?</strong></span><span class="chev">▶</span></div><div class="a">Same-init fine-tunes lie in a connected low-loss region; averaging lands in a good, flatter basin and averages out noise.</div></div>
+<div class="qa"><div class="q"><span><strong>What is a task vector?</strong></span><span class="chev">▶</span></div><div class="a">Δ = finetuned − base weights; add/subtract to compose or remove capabilities (task arithmetic).</div></div>
+<div class="qa"><div class="q"><span><strong>When does merging fail?</strong></span><span class="chev">▶</span></div><div class="a">Incompatible models (different init / far apart), sign conflicts, scale mismatch → interference (mitigated by TIES/DARE).</div></div>
+<hr>
+<h2 class="section" id="s5">§5 — Unified multimodal architectures</h2>
+<h3>5.1 The unification trend</h3>
+<p>Move from separate vision-encoder + LLM (Day 4) toward <strong>one autoregressive model that both understands and generates</strong> images (and text) in a single sequence — your interviewer&#x27;s recent direction.</p>
+<h3>5.2 The tokenization question (continuous vs discrete) — key debate</h3>
+<p>To put images into a transformer you need image &quot;tokens.&quot; Two camps:</p>
+<ul>
+<li><strong>Discrete tokens (VQ-VAE / VQ-GAN):</strong> quantize image patches to a codebook of discrete tokens → model images exactly like text (autoregressive next-token over image tokens). Clean unification; but <strong>quantization loses information</strong> and codebook training is finicky.</li>
+<li><strong>Continuous tokens:</strong> keep image representations continuous (no quantization) and model them with diffusion or continuous-output heads. <strong>Higher fidelity</strong> (no quantization loss); but breaks the clean discrete-next-token recipe — needs a continuous loss (e.g. diffusion head). Your interviewer&#x27;s &quot;unified autoregressive visual generation and understanding with <strong>continuous tokens</strong>&quot; sits here.</li>
+<li><strong>The tension:</strong> discrete = simple unification, lossy; continuous = high fidelity, harder to fit the autoregressive LLM framing. Be able to argue both sides.</li>
+</ul>
+<h3>5.3 Understanding + generation in one model</h3>
+<p>A single model that can both caption (understand) and generate images shares representations and can improve each via the other. Challenges: balancing the two objectives, tokenizer choice (above), and avoiding one task degrading the other.</p>
+<h3>Self-test §5</h3>
+<div class="qa"><div class="q"><span><strong>Continuous vs discrete visual tokens — tradeoff?</strong></span><span class="chev">▶</span></div><div class="a">Discrete (VQ-VAE): clean text-like autoregression but quantization loss; continuous: high fidelity but needs a continuous/diffusion loss, breaking simple next-token.</div></div>
+<div class="qa"><div class="q"><span><strong>Why unify understanding + generation?</strong></span><span class="chev">▶</span></div><div class="a">Shared representations, mutual improvement, one model; challenge is balancing objectives + tokenizer choice.</div></div>
+<hr>
+<h2 class="section" id="s6">§6 — Scaling &amp; width (taste)</h2>
+<ul>
+<li><strong>Scaling laws / Chinchilla</strong> (Day 2 §5): balance params &amp; data; training-optimal ≠ deployment-optimal.</li>
+<li><strong>Width vs depth:</strong> how to spend a parameter budget — wider (more per-layer capacity, parallelizes well) vs deeper (more sequential composition). Your interviewer&#x27;s <em>Virtual Width Networks</em> explores decoupling effective width from compute.</li>
+<li><strong>Normalization &amp; training dynamics</strong> (Day 1 §4): BN/LN/GN/RMSNorm + his <strong>Weight Standardization</strong> (normalize weights for micro-batch training) — a rapport touchpoint.</li>
+<li><strong>The architecture-taste meta-question:</strong> given X more compute, do you go bigger-dense, MoE, longer-context, more test-time compute, or better data? Answer with tradeoffs + a cheap proxy experiment first (Day 5 research taste).</li>
+</ul>
+<hr>
+<h2 class="section" id="s7">§7 — Consolidated self-test</h2>
+<div class="qa"><div class="q"><span>Why does MoE decouple capacity from compute, and what&#x27;s the main training problem?</span><span class="chev">▶</span></div><div class="a">§1</div></div>
+<div class="qa"><div class="q"><span>Compare memory layers and MoE.</span><span class="chev">▶</span></div><div class="a">§2.3</div></div>
+<div class="qa"><div class="q"><span>Name 4 ways to make long-context attention cheaper.</span><span class="chev">▶</span></div><div class="a">§2.2</div></div>
+<div class="qa"><div class="q"><span>What is test-time compute scaling and why can a small model beat a big one?</span><span class="chev">▶</span></div><div class="a">§3.3</div></div>
+<div class="qa"><div class="q"><span>Why does model-soup weight averaging work, and when does merging fail?</span><span class="chev">▶</span></div><div class="a">§4</div></div>
+<div class="qa"><div class="q"><span>Continuous vs discrete visual tokens — argue both sides.</span><span class="chev">▶</span></div><div class="a">§5.2</div></div>
+<div class="qa"><div class="q"><span>Looped/recurrent-depth transformers — benefit and tradeoff?</span><span class="chev">▶</span></div><div class="a">§3.1</div></div>
+<div class="qa"><div class="q"><span>Given 10× compute, MoE vs dense vs long-context vs test-time compute — how decide?</span><span class="chev">▶</span></div><div class="a">§6 (tradeoffs + cheap proxy first)</div></div>
+<h3>What &quot;great&quot; sounds like for this round</h3>
+<div class="qa"><div class="q"><span>You discuss each architecture as a <strong>capacity/compute/memory tradeoff with a failure mode</strong>, not a definition.</span><span class="chev">▶</span></div><div class="a">(self-test — recall the answer, then check the relevant section)</div></div>
+<div class="qa"><div class="q"><span>You connect topics: MoE ↔ memory layers (sparse capacity), test-time compute ↔ verifiable-reward RL, model merging ↔ flat minima.</span><span class="chev">▶</span></div><div class="a">(self-test — recall the answer, then check the relevant section)</div></div>
+<div class="qa"><div class="q"><span>Every &quot;what would you try&quot; is a <strong>specific, compute-aware, cheap-proxy-first</strong> experiment (Day 5 pattern).</span><span class="chev">▶</span></div><div class="a">(self-test — recall the answer, then check the relevant section)</div></div>
+<hr>
+<h2 class="section" id="s8">Cheat sheet</h2>
+<ul>
+<li><strong>MoE:</strong> sparse top-k experts → params≫FLOPs; router <strong>collapse</strong> → aux load-balancing loss (+ capacity factor, z-loss, expert-choice). Inference: all experts in memory + all-to-all. Fine-grained/shared experts.</li>
+<li><strong>Long context:</strong> O(T²) attn + O(T) KV cache. Fixes: GQA/MQA, sliding/sparse, linear/state-space (Mamba), FlashAttention (IO). <strong>Memory layers</strong> = factorized KV store, sparse capacity (MoE cousin). Extend via RoPE scaling; watch lost-in-the-middle.</li>
+<li><strong>Test-time compute:</strong> looped/recurrent depth (param-efficient, adaptive), adaptive computation (early-exit, MoD), <strong>think longer</strong> (CoT, best-of-n, search+verifier) — small thinking model &gt; big instant one. Speculative decoding for latency.</li>
+<li><strong>Model merging:</strong> soups (avg same-init finetunes), checkpoint/EMA averaging, <strong>task vectors</strong> (Δ=ft−base), TIES/DARE; works near shared init, fails on incompatible models.</li>
+<li><strong>Unified multimodal:</strong> one AR model understands+generates; <strong>discrete (VQ, lossy) vs continuous (high-fidelity, needs diffusion/continuous loss)</strong> tokens.</li>
+<li><strong>Scaling/width:</strong> Chinchilla; width vs depth; Weight Standardization (micro-batch norm). Given more compute → weigh dense/MoE/context/test-time + cheap proxy first.</li>
+</ul>
+</main></div>
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<script>
+  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
+  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
+  const KEY=document.title.replace(/\W/g,'_');
+  document.querySelectorAll('.qa').forEach((qa,i)=>{const k=KEY+'_qa_'+i;if(localStorage.getItem(k)==='1')qa.classList.add('open');qa.querySelector('.q').addEventListener('click',()=>{qa.classList.toggle('open');localStorage.setItem(k,qa.classList.contains('open')?'1':'0');});});
+  const tl=[...document.querySelectorAll('nav.toc a')],secs=tl.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll',()=>{let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<=120)cur=s;}tl.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+(cur&&cur.id)));});
+</script>
+</body></html>
