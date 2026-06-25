@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Day 1 — Deep Learning Fundamentals</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
 <style>
   :root {
     --bg: #0f1419;
@@ -186,8 +191,7 @@
 
     <h3>1.1 What a layer actually computes</h3>
     <p>A fully-connected layer is an <strong>affine map followed by a nonlinearity</strong>:</p>
-    <pre><code>z = W x + b      # affine: linear map + shift
-a = φ(z)         # elementwise nonlinearity</code></pre>
+    <p>$$z = Wx + b \quad\text{(affine: linear map + shift)}, \qquad a = \phi(z)\quad\text{(elementwise nonlinearity)}$$</p>
     <p>An <strong>MLP</strong> stacks these: <code>a₁ = φ(W₁x+b₁)</code>, <code>a₂ = φ(W₂a₁+b₂)</code>, … and a final linear head producing logits.</p>
 
     <h3>1.2 Why the nonlinearity is non-negotiable</h3>
@@ -229,26 +233,30 @@ a = φ(z)         # elementwise nonlinearity</code></pre>
     <p>Backprop is <strong>just the chain rule applied efficiently to a computation graph</strong>, reusing intermediates so all gradients come from one backward pass. If you can derive it for a 2-layer net, you understand it.</p>
 
     <h3>2.1 Setup: a 2-layer MLP for classification</h3>
-    <pre><code>z₁ = W₁ x + b₁
-a₁ = φ(z₁)
-z₂ = W₂ a₁ + b₂        # logits
-ŷ  = softmax(z₂)
-L  = cross_entropy(ŷ, y) = −Σ_k y_k log ŷ_k</code></pre>
+    <p>$$\begin{aligned}
+    z_1 &= W_1 x + b_1 \\
+    a_1 &= \phi(z_1) \\
+    z_2 &= W_2 a_1 + b_2 &&\text{(logits)} \\
+    \hat{y} &= \operatorname{softmax}(z_2) \\
+    L &= \operatorname{CE}(\hat{y}, y) = -\sum_k y_k \log \hat{y}_k
+    \end{aligned}$$</p>
     <p>Goal: compute <code>∂L/∂W₁, ∂L/∂b₁, ∂L/∂W₂, ∂L/∂b₂</code>.</p>
 
     <h3>2.2 The identity that makes it clean: softmax + cross-entropy</h3>
     <p>A must-know result: <strong>the gradient of softmax-cross-entropy w.r.t. the logits is just <code>ŷ − y</code></strong> (predicted probabilities minus one-hot truth).</p>
-    <pre><code>∂L/∂z₂ = ŷ − y      # call this δ₂, the "error at the output"</code></pre>
+    <p>$$\frac{\partial L}{\partial z_2} = \hat{y} - y \qquad \text{(call this } \delta_2\text{, the “error at the output”)}$$</p>
     <p>Clean and numerically stable (why frameworks fuse the two ops). <em>Why:</em> CE gives <code>∂L/∂ŷ_k = −y_k/ŷ_k</code>, softmax Jacobian is <code>ŷ_k(δ_ki − ŷ_i)</code>; multiply, sum, use <code>Σ y_k = 1</code> → telescopes to <code>ŷ_i − y_i</code>.</p>
 
     <h3>2.3 Propagate backward — the chain rule, layer by layer</h3>
-    <pre><code>δ₂ = ŷ − y
-∂L/∂W₂ = δ₂ a₁ᵀ           # outer product: error × the input it multiplied
-∂L/∂b₂ = δ₂
-∂L/∂a₁ = W₂ᵀ δ₂           # push error back through the linear layer
-δ₁     = (W₂ᵀ δ₂) ⊙ φ'(z₁) # gate by local activation derivative
-∂L/∂W₁ = δ₁ xᵀ
-∂L/∂b₁ = δ₁</code></pre>
+    <p>$$\begin{aligned}
+    \delta_2 &= \hat{y} - y \\
+    \frac{\partial L}{\partial W_2} &= \delta_2\, a_1^\top &&\text{(outer product: error × the input it multiplied)} \\
+    \frac{\partial L}{\partial b_2} &= \delta_2 \\
+    \frac{\partial L}{\partial a_1} &= W_2^\top \delta_2 &&\text{(push error back through the linear layer)} \\
+    \delta_1 &= (W_2^\top \delta_2)\odot \phi'(z_1) &&\text{(gate by local activation derivative)} \\
+    \frac{\partial L}{\partial W_1} &= \delta_1\, x^\top \\
+    \frac{\partial L}{\partial b_1} &= \delta_1
+    \end{aligned}$$</p>
     <div class="callout keyidea">
       <span class="label">★ The whole of backprop, three rules</span>
       <strong>1.</strong> Gradient w.r.t. a weight = (error at its output) × (input it multiplied) → outer product <code>δ aᵀ</code>.<br>
@@ -360,7 +368,7 @@ L  = cross_entropy(ŷ, y) = −Σ_k y_k log ŷ_k</code></pre>
 
     <h3>5.2 Why AdamW decouples weight decay (favorite question)</h3>
     <p>"L2 regularization" and "weight decay" are identical for plain SGD, but <strong>not</strong> for Adam. In vanilla Adam, adding <code>λw</code> to the gradient means the decay gets divided by the adaptive denominator (<code>√v</code>) — so high-gradient params get <em>less</em> effective decay. That couples regularization to gradient magnitude.</p>
-    <pre><code>AdamW: w ← w − lr·(adam_update) − lr·λ·w   # decay applied directly, not through √v</code></pre>
+    <p>$$w \;\leftarrow\; w \;-\; \text{lr}\cdot(\text{adam update}) \;-\; \text{lr}\cdot\lambda\cdot w \qquad\text{(decay applied directly, not through }\sqrt{v}\,\text{)}$$</p>
     <p>Result: uniform pull toward 0, decoupled from adaptive scaling → reliably better generalization for transformers.</p>
 
     <h3>5.3 LR schedules & warmup</h3>
