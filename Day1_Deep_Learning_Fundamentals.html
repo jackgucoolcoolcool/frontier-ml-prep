@@ -8,6 +8,7 @@
   MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
 <style>
   :root {
@@ -144,6 +145,8 @@
     <a href="#s6">§6 · Debugging playbook</a>
     <a href="#s7">§7 · #16 self-test</a>
     <a href="#cheat">Cheat sheet</a>
+    <a href="#drill">Debug drill · depth/NaN</a>
+    <a href="#drill2">Debug drill · BN eval</a>
   </nav>
 
   <main>
@@ -242,10 +245,60 @@
     \end{aligned}$$</p>
     <p>Goal: compute <code>∂L/∂W₁, ∂L/∂b₁, ∂L/∂W₂, ∂L/∂b₂</code>.</p>
 
+    <h4>Aside — what softmax and cross-entropy are (and the KL connection)</h4>
+    <p><strong>Softmax</strong> turns the logits into a probability distribution — all positive, summing to 1:</p>
+    <p>$$\hat{y}_i = \operatorname{softmax}(z_2)_i = \frac{e^{z_{2,i}}}{\sum_{j} e^{z_{2,j}}}$$</p>
+    <p><strong>Cross-entropy (CE)</strong> measures how well a predicted distribution $q$ matches a true distribution $p$:</p>
+    <p>$$H(p, q) = -\sum_k p_k \log q_k$$</p>
+    <p>In classification the true distribution is the one-hot label ($p = y$) and the prediction is $q = \hat{y}$, so $H(y,\hat{y}) = -\sum_k y_k\log\hat{y}_k = -\log\hat{y}_c$ — only the true class $c$ survives. Intuition: CE is the <em>expected surprise</em> (in nats) of the true labels under the model's predicted probabilities; it blows up when the model puts low probability on what actually happens, and is minimized exactly when $q = p$.</p>
+
+    <p><strong>Is CE directional? Yes — it is not symmetric:</strong> $H(p,q)\neq H(q,p)$ in general. The two arguments play different roles — the <em>first</em> ($p$) is the target distribution you average over; the <em>second</em> ($q$) is the model distribution inside the $\log$. In ML we always use $H(\text{true},\,\text{model})$: average over the data, score the model's log-probabilities. Swapping them is a different (wrong) objective.</p>
+
+    <p><strong>Connection to KL divergence.</strong> Cross-entropy splits cleanly into the entropy of the truth plus a mismatch term:</p>
+    <p>$$H(p,q) = \underbrace{H(p)}_{\text{entropy of truth}} + \underbrace{D_{\mathrm{KL}}(p\,\|\,q)}_{\text{mismatch}}, \qquad D_{\mathrm{KL}}(p\,\|\,q) = \sum_k p_k\log\frac{p_k}{q_k}$$</p>
+    <p>$H(p)$ depends only on the labels, not on the model — a constant w.r.t. the parameters. So <strong>minimizing cross-entropy is exactly minimizing $D_{\mathrm{KL}}(p\,\|\,q)$</strong>, the divergence from the model to the truth. For one-hot labels $H(p)=0$, so cross-entropy <em>equals</em> the KL divergence. KL is itself directional ($D_{\mathrm{KL}}(p\|q)\neq D_{\mathrm{KL}}(q\|p)$): the "forward" KL we minimize here is <strong>mass-covering</strong> — it heavily penalizes the model for assigning near-zero probability to something that actually occurs. This is also why next-token training is maximum likelihood: minimizing cross-entropy = MLE = minimizing forward KL between the data and the model.</p>
+
     <h3>2.2 The identity that makes it clean: softmax + cross-entropy</h3>
     <p>A must-know result: <strong>the gradient of softmax-cross-entropy w.r.t. the logits is just <code>ŷ − y</code></strong> (predicted probabilities minus one-hot truth).</p>
     <p>$$\frac{\partial L}{\partial z_2} = \hat{y} - y \qquad \text{(call this } \delta_2\text{, the “error at the output”)}$$</p>
-    <p>Clean and numerically stable (why frameworks fuse the two ops). <em>Why:</em> CE gives <code>∂L/∂ŷ_k = −y_k/ŷ_k</code>, softmax Jacobian is <code>ŷ_k(δ_ki − ŷ_i)</code>; multiply, sum, use <code>Σ y_k = 1</code> → telescopes to <code>ŷ_i − y_i</code>.</p>
+    <p>Clean and numerically stable — which is why frameworks fuse softmax + cross-entropy into one op: the combined backward pass is just this subtraction, with no division by $\hat{y}_k$. Here is the derivation, two ways.</p>
+
+    <h4>Method 1 — substitute softmax first (the elegant route)</h4>
+    <p>With a one-hot label, $L = -\log\hat{y}_c$. Substitute softmax and split the log:</p>
+    <p>$$L = -\log\frac{e^{z_{2,c}}}{\sum_j e^{z_{2,j}}} = -z_{2,c} + \log\sum_j e^{z_{2,j}}$$</p>
+    <p>Differentiate w.r.t. a single logit $z_{2,i}$ — only two easy terms:</p>
+    <ul>
+      <li>the $-z_{2,c}$ term gives $-1$ when $i=c$ and $0$ otherwise — i.e. exactly $-y_i$;</li>
+      <li>the log-sum-exp term differentiates <em>back into softmax itself</em>: $\dfrac{\partial}{\partial z_{2,i}}\log\sum_j e^{z_{2,j}} = \dfrac{e^{z_{2,i}}}{\sum_j e^{z_{2,j}}} = \hat{y}_i$.</li>
+    </ul>
+    <p>Add them:</p>
+    <p>$$\frac{\partial L}{\partial z_{2,i}} = \hat{y}_i - y_i \quad\Longrightarrow\quad \frac{\partial L}{\partial z_2} = \hat{y} - y$$</p>
+    <p>The reason it's so clean: the log-sum-exp is the function whose gradient <em>is</em> the softmax, so differentiating the loss hands you the predicted distribution directly.</p>
+
+    <h4>Method 2 — full chain rule (shows the structure)</h4>
+    <div class="callout keyidea">
+      <span class="label">★ What the chain rule says</span>
+      It differentiates a <em>composition</em> by multiplying local derivatives along the path. Single-variable: if $L=f(u)$ and $u=g(z)$, then $\dfrac{dL}{dz}=\dfrac{dL}{du}\dfrac{du}{dz}$ (the sensitivities multiply). <strong>Multivariable</strong> (what we need): if $z_{2,i}$ reaches $L$ through several intermediates $\hat{y}_1,\dots,\hat{y}_K$, you multiply along each path <em>and sum over all paths</em>. The sum appears because softmax is <strong>coupled</strong> — nudging one logit $z_{2,i}$ changes <em>every</em> output $\hat{y}_k$ (it's in every denominator), so there are $K$ paths from $z_{2,i}$ to $L$ and their effects add. Picture the graph $z_{2,i}\to\{\hat{y}_1,\dots,\hat{y}_K\}\to L$: trace every path, multiply local derivatives along it, sum the paths. Backprop is exactly this rule applied across the whole network's computation graph.
+    </div>
+    <p>Keep $L=-\sum_k y_k\log\hat{y}_k$ general and chain through every softmax output:</p>
+    <p>$$\frac{\partial L}{\partial z_{2,i}} = \sum_k \frac{\partial L}{\partial \hat{y}_k}\,\frac{\partial \hat{y}_k}{\partial z_{2,i}}$$</p>
+    <p>The two pieces are the cross-entropy gradient and the softmax Jacobian:</p>
+    <p>$$\frac{\partial L}{\partial \hat{y}_k} = -\frac{y_k}{\hat{y}_k}, \qquad \frac{\partial \hat{y}_k}{\partial z_{2,i}} = \hat{y}_k(\delta_{ki}-\hat{y}_i)$$</p>
+    <p>where the Jacobian has diagonal $\hat{y}_i(1-\hat{y}_i)$ (when $k=i$) and off-diagonal $-\hat{y}_k\hat{y}_i$ (when $k\neq i$), written compactly with the Kronecker delta as $\hat{y}_k(\delta_{ki}-\hat{y}_i)$. Multiply — the $\hat{y}_k$ cancels:</p>
+    <p>$$\frac{\partial L}{\partial z_{2,i}} = -\sum_k y_k(\delta_{ki}-\hat{y}_i) = -\underbrace{\sum_k y_k\delta_{ki}}_{=\,y_i} + \hat{y}_i\underbrace{\sum_k y_k}_{=\,1} = \hat{y}_i - y_i$$</p>
+    <p>The collapse uses two facts: $\sum_k y_k\delta_{ki}=y_i$ (the delta selects index $i$) and $\sum_k y_k=1$ (the labels form a valid distribution — this is where one-hot / normalization enters). Either way, the "error at the output" is just <strong>prediction minus truth</strong> — the same form as logistic/linear regression.</p>
+
+    <h4>A concrete example</h4>
+    <p>A 3-class classifier (cat / dog / bird) outputs logits $z=[2.0,\,1.0,\,0.1]$ with true class <em>cat</em>, so $y=[1,0,0]$. Softmax (with $S=e^{2}+e^{1}+e^{0.1}=11.21$) gives</p>
+    <p>$$\hat{y} = [0.659,\ 0.242,\ 0.099], \qquad \frac{\partial L}{\partial z} = \hat{y}-y = [-0.341,\ +0.242,\ +0.099]$$</p>
+    <p>Read it directly: the <strong>true class gets a negative gradient</strong> ($-0.341$), so under $z\leftarrow z-\eta\,\nabla$ the cat logit goes <em>up</em>; the <strong>wrong classes get positive gradients</strong>, so their logits go <em>down</em>. The magnitude is exactly how much probability sat in the wrong place — a more confidently-wrong prediction yields a bigger push. (The entries sum to $0$, since $\sum_k\hat{y}_k=\sum_k y_k=1$.)</p>
+    <p>The same "prediction − target" appears across models, because each loss is paired with its matching output activation:</p>
+    <ul>
+      <li><strong>Linear regression</strong> (MSE $\tfrac12(\hat{y}-y)^2$): residual $\hat{y}-y$. Predict 250k for a 300k house → error $-50$ → push the prediction up.</li>
+      <li><strong>Logistic regression</strong> (BCE, $\hat{y}=\sigma(z)$): error $\hat{y}-y$. Spam ($y=1$), $z=0.5\Rightarrow\hat{y}=0.62$ → error $-0.38$ → raise the logit.</li>
+      <li><strong>Softmax / multiclass</strong> (CE): the vector $\hat{y}-y$ above.</li>
+    </ul>
+    <p>Not a coincidence: these are generalized linear models with their <em>canonical</em> loss–activation pairing (MSE↔identity, BCE↔sigmoid, CE↔softmax) — exactly what makes the output gradient collapse to prediction minus target. Mismatch the pair (e.g. MSE on a sigmoid output) and you lose it, getting a worse-conditioned gradient.</p>
 
     <h3>2.3 Propagate backward — the chain rule, layer by layer</h3>
     <p>$$\begin{aligned}
@@ -264,16 +317,99 @@
       <strong>3.</strong> Cross a nonlinearity by multiplying elementwise by its local derivative <code>φ'</code>. For ReLU, <code>φ'</code> is 1 where z&gt;0 else 0 — so ReLU just <em>masks</em> the gradient.
     </div>
 
+    <h4>What's an outer product? (writing $\delta_2 a_1^\top$)</h4>
+    <p>The <strong>outer product</strong> of column vectors $u\in\mathbb{R}^{m}$ and $v\in\mathbb{R}^{n}$ is the $m\times n$ matrix $u v^\top$ with entries $(uv^\top)_{ij}=u_i v_j$ — every element of $u$ times every element of $v$. (Contrast the <em>inner</em>/dot product $u^\top v$, a single scalar that needs $u,v$ the same length.)</p>
+    <p>Small example with $u=[1,2,3]^\top$, $v=[4,5]^\top$:</p>
+    <p>$$u v^\top = \begin{bmatrix}1\\2\\3\end{bmatrix}\begin{bmatrix}4 & 5\end{bmatrix} = \begin{bmatrix}4 & 5\\ 8 & 10\\ 12 & 15\end{bmatrix}\quad(3\times1 \text{ times } 1\times2 \to 3\times2)$$</p>
+    <p>Why it's the weight gradient: $\delta_2\in\mathbb{R}^{d_{\text{out}}}$ (error at each output unit) and $a_1\in\mathbb{R}^{d_{\text{in}}}$ (input to the layer), so $\delta_2 a_1^\top$ is $d_{\text{out}}\times d_{\text{in}}$ — exactly the shape of $W_2$. Each entry is $(\partial L/\partial W_2)_{ij}=\delta_{2,i}\,a_{1,j}$ = (error at output $i$) × (input from unit $j$).</p>
+    <pre><code>np.outer(d2, a1)              # or  d2[:, None] * a1[None, :]   (broadcasting)
+torch.outer(d2, a1)           # or  d2.unsqueeze(1) @ a1.unsqueeze(0)
+jnp.outer(d2, a1)             # einsum:  np.einsum('i,j->ij', d2, a1)</code></pre>
+    <p><strong>Mini-batch:</strong> sum the outer products over examples — which is just a matmul. With $\Delta=[\delta^{(1)}\dots\delta^{(N)}]$ ($d_{\text{out}}\times N$) and $A=[a^{(1)}\dots a^{(N)}]$ ($d_{\text{in}}\times N$), the weight gradient is $\Delta A^\top$ (the batch dimension contracts — why real backprop is matmuls, not loops).</p>
+
     <h3>2.4 Why vanishing/exploding gradients fall right out</h3>
     <p>Look at <code>δ₁ = (W₂ᵀ δ₂) ⊙ φ'(z₁)</code>. For an L-layer net, the layer-1 gradient is a <strong>product of L−1 weight matrices and L−1 activation-derivative factors</strong>:</p>
     <ul>
       <li>Factors consistently <strong>&lt; 1</strong> (saturated sigmoids, spectral norm &lt;1) → product shrinks geometrically → <strong>vanishing gradient</strong>, early layers barely learn.</li>
       <li>Factors consistently <strong>&gt; 1</strong> → product blows up → <strong>exploding gradient</strong>, NaNs/loss spikes.</li>
     </ul>
+
+    <h4>What exactly is the "Jacobian" here?</h4>
+    <p>A <strong>Jacobian</strong> is the matrix of all first-order partial derivatives of a vector-valued function: for $f:\mathbb{R}^n\to\mathbb{R}^m$ it is the $m\times n$ matrix $J_{ij}=\partial f_i/\partial x_j$ — the multivariable generalization of a single derivative. Every layer is a vector→vector function, so <em>each layer's local derivative is a Jacobian</em>:</p>
+    <ul>
+      <li><strong>Linear</strong> $z=Wx+b$: $\dfrac{\partial z}{\partial x}=W$ — the weight matrix <em>is</em> the Jacobian, which is why the backward step is "multiply by $W^\top$."</li>
+      <li><strong>Activation</strong> $a=\phi(z)$ (elementwise): $\dfrac{\partial a}{\partial z}=\operatorname{diag}(\phi'(z))$ — a <em>diagonal</em> Jacobian, which is why the backward step is "multiply elementwise by $\phi'$."</li>
+      <li><strong>Softmax</strong>: $\dfrac{\partial \hat{y}}{\partial z}=\operatorname{diag}(\hat{y})-\hat{y}\hat{y}^\top$ (the $\hat{y}_k(\delta_{ki}-\hat{y}_i)$ from §2.2).</li>
+    </ul>
+    <p>So the backprop "rules" are just multiplications by these (transposed) Jacobians. Written in matrix form:</p>
+    <p>$$\delta_1 = \underbrace{\operatorname{diag}(\phi'(z_1))}_{\text{activation Jacobian}}\ \underbrace{W_2^\top}_{\text{linear Jacobian}}\ (\hat{y}-y)$$</p>
+    <p>The chain rule <strong>stacks the per-layer Jacobians</strong> — the whole net's input→output derivative is their <strong>product</strong> (hence "product of Jacobians"). The factor $r\approx\lVert W\rVert\cdot|\phi'|$ is just the <em>magnitude</em> of one such Jacobian ($\lVert W\rVert$ from the linear part, $|\phi'|$ from the activation part).</p>
+    <p style="color:var(--muted);font-size:14px;">Backprop never builds these matrices — it computes a <strong>vector–Jacobian product</strong> $v^\top J$ ("multiply the incoming gradient by the Jacobian"), which for a linear layer is just $\delta^\top W$ and for an activation is the elementwise $\times\phi'$. Same result, far cheaper than forming the full $m\times n$ matrix.</p>
     <div class="callout keyidea">
       <span class="label">★ The unifying lens for all of §3–§5</span>
       This single product-of-Jacobians picture motivates <em>almost every trick</em> that follows: careful init (keep factors ~1), normalization (control activation scale), and residuals (provide a "×1" path). Keep it in your head — saying this connection out loud is a strong interview signal.
     </div>
+
+    <h4>Seeing it: how the per-layer factor compounds</h4>
+    <p>Picture the gradient travelling <em>backward</em> through 6 layers. Each layer multiplies it by a single number — its Jacobian factor, roughly $r \approx \lVert W\rVert\cdot|\phi'|$. Whether $r$ sits below, at, or above 1 decides everything, because the gradient reaching layer 1 is $\approx r^{L}$:</p>
+    <svg viewBox="0 0 660 352" width="100%" style="max-width:640px;margin:10px 0;" role="img" aria-label="Bar chart of gradient magnitude across six layers under three regimes. Factor 0.6 per layer: bars shrink geometrically (vanishing). Factor 1.0: bars stay equal (stable). Factor 1.4: bars grow and run off the chart (exploding).">
+      <line x1="178" y1="100" x2="628" y2="100" stroke="var(--border)" stroke-width="1"/>
+      <line x1="178" y1="210" x2="628" y2="210" stroke="var(--border)" stroke-width="1"/>
+      <line x1="178" y1="320" x2="628" y2="320" stroke="var(--border)" stroke-width="1"/>
+      <text x="10" y="70" fill="var(--warn)" font-size="14" font-weight="600">×0.6 / layer</text>
+      <text x="10" y="88" fill="var(--muted)" font-size="12">→ vanishes</text>
+      <text x="10" y="180" fill="var(--accent-2)" font-size="14" font-weight="600">×1.0 / layer</text>
+      <text x="10" y="198" fill="var(--muted)" font-size="12">→ stable</text>
+      <text x="10" y="290" fill="#e2655a" font-size="14" font-weight="600">×1.4 / layer</text>
+      <text x="10" y="308" fill="var(--muted)" font-size="12">→ explodes</text>
+      <rect x="190" y="54" width="44" height="46" fill="var(--warn)" rx="3"/>
+      <rect x="266" y="72" width="44" height="28" fill="var(--warn)" rx="3"/>
+      <rect x="342" y="83" width="44" height="17" fill="var(--warn)" rx="3"/>
+      <rect x="418" y="90" width="44" height="10" fill="var(--warn)" rx="3"/>
+      <rect x="494" y="94" width="44" height="6" fill="var(--warn)" rx="3"/>
+      <rect x="570" y="96" width="44" height="4" fill="var(--warn)" rx="3"/>
+      <rect x="190" y="164" width="44" height="46" fill="var(--accent-2)" rx="3"/>
+      <rect x="266" y="164" width="44" height="46" fill="var(--accent-2)" rx="3"/>
+      <rect x="342" y="164" width="44" height="46" fill="var(--accent-2)" rx="3"/>
+      <rect x="418" y="164" width="44" height="46" fill="var(--accent-2)" rx="3"/>
+      <rect x="494" y="164" width="44" height="46" fill="var(--accent-2)" rx="3"/>
+      <rect x="570" y="164" width="44" height="46" fill="var(--accent-2)" rx="3"/>
+      <rect x="190" y="274" width="44" height="46" fill="#e2655a" rx="3"/>
+      <rect x="266" y="256" width="44" height="64" fill="#e2655a" rx="3"/>
+      <rect x="342" y="232" width="44" height="88" fill="#e2655a" rx="3"/>
+      <rect x="418" y="232" width="44" height="88" fill="#e2655a" rx="3"/>
+      <rect x="494" y="232" width="44" height="88" fill="#e2655a" rx="3"/>
+      <rect x="570" y="232" width="44" height="88" fill="#e2655a" rx="3"/>
+      <text x="556" y="226" fill="#e2655a" font-size="11">↑ off-chart</text>
+      <text x="205" y="340" fill="var(--muted)" font-size="11">L1</text>
+      <text x="281" y="340" fill="var(--muted)" font-size="11">L2</text>
+      <text x="357" y="340" fill="var(--muted)" font-size="11">L3</text>
+      <text x="433" y="340" fill="var(--muted)" font-size="11">L4</text>
+      <text x="509" y="340" fill="var(--muted)" font-size="11">L5</text>
+      <text x="585" y="340" fill="var(--muted)" font-size="11">L6</text>
+    </svg>
+    <p style="color:var(--muted);font-size:14px;margin-top:-2px;">Bar height = gradient magnitude at each layer (going backward). A factor just below 1 decays geometrically; exactly 1 stays flat; above 1 blows up.</p>
+
+    <p>The compounding is brutal because it's a <strong>power</strong> $r^{L}$ — small deviations from 1 explode over depth:</p>
+    <table>
+      <thead><tr><th>per-layer factor $r$</th><th>after 10 layers ($r^{10}$)</th><th>regime</th></tr></thead>
+      <tbody>
+        <tr><td>0.5</td><td>0.001</td><td>vanish (fast)</td></tr>
+        <tr><td>0.8</td><td>0.107</td><td>vanish (slow)</td></tr>
+        <tr><td>1.0</td><td>1.0</td><td><strong>stable</strong></td></tr>
+        <tr><td>1.1</td><td>2.6</td><td>explode</td></tr>
+        <tr><td>1.5</td><td>57.7</td><td>explode</td></tr>
+      </tbody>
+    </table>
+
+    <p>Now every §3–§5 trick is just "<strong>keep $r$ near 1</strong>":</p>
+    <ul>
+      <li><strong>Initialization</strong> (Xavier/He) sets $\lVert W\rVert\approx1$ so the <em>starting</em> factor is ≈1 — neither tail.</li>
+      <li><strong>Normalization</strong> keeps activations unit-scale, so $\phi'$ stays in its responsive (non-saturated) region and the effective factor stays ≈1 throughout training.</li>
+      <li><strong>Residual connections</strong> make a layer compute $y=x+F(x)$, so its Jacobian is $I+\partial F/\partial x$ — there is always a literal $\times 1$ path, so the product can't collapse to 0 no matter how deep.</li>
+      <li><strong>Warmup &amp; gradient clipping</strong> stop $r$ from <em>transiently</em> spiking above 1 early in training (the exploding row).</li>
+    </ul>
+    <p>Concretely: a <strong>sigmoid</strong> layer has $\phi'\le0.25$, so its factor is $\le0.25$ — the vanishing row, which is exactly why deep sigmoid nets wouldn't train. A <strong>ReLU</strong> layer on its active side has $\phi'=1$, and with $\lVert W\rVert\approx1$ the factor is ≈1 — the stable row.</p>
 
     <div class="callout practice">
       <span class="label">⚙ In Practice — frameworks fuse softmax+CE</span>
@@ -289,6 +425,10 @@
     <!-- ===================== §3 ===================== -->
     <h2 class="section" id="s3">§3 — Initialization & gradient flow</h2>
     <h3>3.1 The goal of initialization</h3>
+    <div class="callout keyidea">
+      <span class="label">★ First: what is fan_in?</span>
+      <strong>fan_in</strong> = the number of inputs feeding into a neuron (the input dimension; how many weighted connections get summed for one output). <strong>fan_out</strong> = number of outgoing connections (output dimension). For a linear layer $512\to256$ (so $W$ is $256\times512$): $\text{fan\_in}=512$, $\text{fan\_out}=256$. For a conv layer: $\text{fan\_in}=\text{in\_channels}\times k_h\times k_w$. It matters because a neuron sums $\text{fan\_in}$ products, so the output variance grows linearly with it — more inputs → bigger sum → weights must be smaller (scale $\propto 1/\text{fan\_in}$) to keep the scale constant.
+    </div>
     <p>Keep the <strong>variance of activations (forward) and gradients (backward) roughly constant across layers</strong> at the start. If each layer multiplies variance by a factor ≠ 1, signal explodes/vanishes before the first useful step.</p>
     <ul>
       <li><strong>Xavier/Glorot:</strong> scale ≈ <code>1/√fan_in</code> — balances forward/backward variance (linear/tanh regime).</li>
@@ -296,8 +436,32 @@
     </ul>
     <p>The principle, not the constants, is the point: init preserves variance layer-to-layer. Get it wrong and you start in a vanishing/exploding regime.</p>
 
+    <h4>Why constant variance — and where the 2 comes from (derivation)</h4>
+    <p><strong>Why constant variance?</strong> A layer's pre-activation $z=Wx$ sums over $\text{fan\_in}$ inputs. If each layer multiplies the signal's variance by a factor $\neq 1$, then over $L$ layers it scales like $(\text{factor})^L$ — same compounding as §2.4. Factor $&lt;1$ → activations shrink to $0$ over depth (dead signal, saturated units); factor $&gt;1$ → they blow up. The identical recursion governs the backward gradients (their layer Jacobian is $W$ too). So we want each layer to <strong>preserve variance</strong>, keeping forward signal <em>and</em> backward gradient at an $O(1)$ scale through depth.</p>
+    <p><strong>The recursion (gives $1/\text{fan\_in}$).</strong> Write $z_i=\sum_{j=1}^{n} W_{ij}x_j$ ($n=\text{fan\_in}$), with $W$ i.i.d. mean-0 variance $\text{Var}(W)$, inputs mean-0 variance $\text{Var}(x)$, independent. Variances of independent terms add:</p>
+    <p>$$\text{Var}(z) = n\cdot\text{Var}(W)\cdot\text{Var}(x)$$</p>
+    <p>Preserve variance ($\text{Var}(z)=\text{Var}(x)$) → $n\,\text{Var}(W)=1$ → $\text{Var}(W)=\tfrac1n$ → $\text{std}(W)=\tfrac{1}{\sqrt{\text{fan\_in}}}$. That's <strong>Xavier</strong> (it assumes the unit passes signal through roughly linearly — symmetric, zero-mean, as tanh is near 0).</p>
+    <p><strong>Where the 2 comes from (He, for ReLU).</strong> ReLU $a=\max(0,z)$ zeroes the negative half of its inputs. If $z$ is symmetric about 0, exactly half is killed, so the second moment passed forward is <em>halved</em>:</p>
+    <p>$$E[a^2] = E[\max(0,z)^2] = E[z^2\,\mathbf{1}\{z&gt;0\}] = \tfrac12 E[z^2] = \tfrac12\text{Var}(z)$$</p>
+    <p>Redo the recursion with this extra $\tfrac12$: $\text{Var}(z^{l}) = n\cdot\text{Var}(W)\cdot\tfrac12\text{Var}(z^{l-1})$. Preserve it → $n\,\text{Var}(W)\cdot\tfrac12 = 1$ → $\text{Var}(W)=\dfrac{2}{n}$ → $\text{std}(W)=\sqrt{\dfrac{2}{\text{fan\_in}}}$.</p>
+    <div class="callout keyidea">
+      <span class="label">★ That's the 2</span>
+      ReLU loses a factor of $\tfrac12$ in variance by zeroing half the units; the $2$ in $\sqrt{2/\text{fan\_in}}$ exactly cancels it. Use Xavier's $1/\text{fan\_in}$ on a ReLU net and the signal shrinks by ~½ every layer and vanishes over depth — He <strong>doubles the weight scale to compensate for the half ReLU kills</strong>, keeping the variance constant.
+    </div>
+
     <h3>3.2 Why this still matters with normalization</h3>
     <p>LN/BN reduce init sensitivity, but at the <em>start</em> and at large scale, init still governs early stability. Modern LLMs often scale residual-branch weights by <code>1/√N_layers</code> so the residual stream variance doesn't grow with depth. Ties back to §2.4 — keep the product-of-Jacobians near 1.</p>
+
+    <h4>Why 1/√N? (residual stream variance)</h4>
+    <p>A residual block <em>adds</em> its sublayer output into a running "residual stream": $x_l = x_{l-1} + F_l(x_{l-1})$. The stream is therefore a <em>sum</em> over all blocks, and since variances of (roughly uncorrelated) added terms add, if each block contributes variance $\approx\sigma^2$ then</p>
+    <p>$$\text{Var}(x_N) \approx \text{Var}(x_0) + \sum_{l=1}^{N}\sigma^2 = \text{Var}(x_0) + N\sigma^2$$</p>
+    <p>so the residual stream's variance <strong>grows linearly with depth</strong> (its std like $\sqrt N$). In a deep net that means late-layer activations are far larger than early ones — a scale mismatch that destabilizes training and shrinks each new block's relative contribution to $\sim 1/l$.</p>
+    <p>Scale each residual branch by $\alpha$, i.e. $x_l = x_{l-1} + \alpha\,F_l(x_{l-1})$, and each contributes $\alpha^2\sigma^2$, so $\text{Var}(x_N)\approx \text{Var}(x_0) + N\alpha^2\sigma^2$. Choose $\alpha=1/\sqrt N$ and the depth cancels:</p>
+    <p>$$N\cdot\Big(\tfrac{1}{\sqrt N}\Big)^2\sigma^2 = N\cdot\tfrac1N\sigma^2 = \sigma^2 \quad\text{(constant, regardless of depth)}$$</p>
+    <div class="callout keyidea">
+      <span class="label">★ Same √(count) pattern as fan_in</span>
+      Why $\sqrt N$ and not $1/N$? Because <em>variances</em> add, not std. You're summing $N$ block-contributions into the stream, and a sum of $N$ independent terms has variance $\propto N$ — so you divide the std by $\sqrt N$ to normalize it, <strong>exactly as $1/\sqrt{\text{fan\_in}}$ normalizes the sum of fan_in inputs inside a layer</strong>. fan_in init keeps each layer's sum $O(1)$; $1/\sqrt N$ keeps the across-depth residual sum $O(1)$. (GPT-2 scaled residual-projection weights by $1/\sqrt N$ at init; DeepNorm / Fixup / T-Fixup use depth-dependent residual scaling for the same reason.)
+    </div>
 
     <div class="callout practice">
       <span class="label">⚙ In Practice — init symptoms</span>
@@ -323,11 +487,42 @@
     </table>
 
     <h3>4.2 Why transformers use LN/RMSNorm, not BatchNorm</h3>
+
+    <h4>What exactly are LN and RMSNorm?</h4>
+    <p><strong>LayerNorm</strong> — for one token's feature vector $x\in\mathbb{R}^{d}$, normalize <em>across the $d$ features of that single example</em>:</p>
+    <p>$$\mu = \frac1d\sum_{i=1}^{d} x_i,\quad \sigma^2 = \frac1d\sum_{i=1}^{d}(x_i-\mu)^2,\quad \hat{x}_i = \frac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}},\quad y_i = \gamma_i\hat{x}_i + \beta_i$$</p>
+    <p>with learned per-feature scale $\gamma$ and shift $\beta$. The stats use only this example's features — nothing from the batch. <strong>RMSNorm</strong> drops the mean-centering and just divides by the root-mean-square:</p>
+    <p>$$\text{RMS}(x)=\sqrt{\tfrac1d\textstyle\sum_i x_i^2 + \epsilon},\qquad y_i = \gamma_i\,\frac{x_i}{\text{RMS}(x)}$$</p>
+    <p>(no $\mu$, usually no $\beta$ — cheaper, ~equal quality). <strong>BatchNorm</strong>, by contrast, normalizes <em>each feature across the batch</em>: $\mu_i = \frac1B\sum_{b} x_{b,i}$, $\sigma_i^2$ over the $B$ batch examples.</p>
+
+    <h4>Why does RMSNorm match LayerNorm? (theory + empirical)</h4>
+    <p>LayerNorm does two things — re-<strong>center</strong> (subtract $\mu$) and re-<strong>scale</strong> (divide by $\sigma$); RMSNorm keeps only the re-scaling. The hypothesis (Zhang &amp; Sennrich 2019): <strong>LayerNorm's benefit comes mainly from re-scaling invariance, not re-centering.</strong> Normalization helps optimization by <em>controlling the magnitude</em> of activations/gradients — bounding them, smoothing the loss landscape, stabilizing the per-layer effective learning rate — and that magnitude control <em>is</em> the $/\text{RMS}$ part. The mean subtraction is argued to be near-redundant because (a) the learned affine + the next linear layer can absorb any constant offset, and (b) in high dimensions the mean is small relative to the scale. Both LN and RMSNorm are also <strong>invariant to input scaling</strong> ($f(\alpha x)=f(x)$), which gives a self-stabilizing gradient (gradient roughly orthogonal to the weight direction, bounded) — RMSNorm keeps this; it only gives up the less-important <em>shift</em>-invariance. <strong>Verdict:</strong> a well-motivated hypothesis <em>plus</em> strong empirical confirmation — RMSNorm matches LN across tasks while being ~7–64% faster, and at scale the equivalence holds (LLaMA, T5, Gemma use RMSNorm). Not a theorem, but more than "just empirical."</p>
+
+    <h4>Why BN's stats are "noisy"</h4>
+    <p>BN's $\mu_i,\sigma_i^2$ are <strong>sample estimates</strong> of the true feature mean/variance from only $B$ examples. The standard error of a sample mean is $\propto 1/\sqrt B$ (variance estimate noisier still), so with small $B$ they <strong>jump from batch to batch</strong> — the normalization applied to a fixed example depends on which <em>other random examples</em> shared its batch, coupling every example to its batch-mates and injecting noise into each pass. Transformers make it worse: long sequences → small effective batch, variable-length → ragged batches, and decoding is often $B=1$ (batch stats undefined). LN/RMSNorm instead use the $d$ features of one example ($d$ large and fixed, e.g. 4096) → <strong>batch-independent, deterministic, identical at train and inference</strong> (BN uses batch stats at train but a running EMA at test — a different function in the two modes, a classic bug source).</p>
+
     <ol>
       <li><strong>Batch dependence is a liability for sequences.</strong> BN stats are noisy with small batches and ill-defined for variable-length / autoregressive decoding (one token at a time). LN normalizes within a single example → independent of batch size and position.</li>
       <li><strong>Train/inference mismatch.</strong> BN uses batch stats at train, running averages at inference — subtle bugs. LN is identical in both.</li>
       <li><strong>RMSNorm</strong> drops mean-centering (RMS rescale only): cheaper, ~equal quality — and at LLM scale that compute matters.</li>
     </ol>
+
+    <div class="callout keyidea">
+      <span class="label">★ Why "BN in train mode at eval" is a real bug (unpacked)</span>
+      <p>BatchNorm is <strong>two different functions</strong> depending on the module's mode — and forgetting to switch modes silently corrupts your eval.</p>
+      <p><strong>Train mode</strong> normalizes each example using <em>this batch's</em> statistics, and <em>simultaneously</em> updates a running estimate (EMA) of the population mean/variance:</p>
+      <p>$$\hat x = \frac{x-\mu_{\mathcal B}}{\sqrt{\sigma_{\mathcal B}^2+\epsilon}},\qquad \mu_{\text{run}}\leftarrow(1-m)\,\mu_{\text{run}}+m\,\mu_{\mathcal B},\quad \sigma^2_{\text{run}}\leftarrow(1-m)\,\sigma^2_{\text{run}}+m\,\sigma^2_{\mathcal B}$$</p>
+      <p><strong>Eval mode</strong> is supposed to use the <em>frozen running stats</em> instead — a fixed, batch-independent function:</p>
+      <p>$$\hat x = \frac{x-\mu_{\text{run}}}{\sqrt{\sigma^2_{\text{run}}+\epsilon}}$$</p>
+      <p>If you <strong>forget <code>model.eval()</code></strong> and run validation/inference in train mode, four things break:</p>
+      <ul>
+        <li><strong>Outputs depend on batch composition.</strong> The same image scores differently depending on which other images share its batch — predictions are no longer deterministic per example. Re-order the val set, get different metrics.</li>
+        <li><strong>Tiny / single-example batches blow up.</strong> At $B=1$, $\sigma_{\mathcal B}^2=0$ → divide-by-$\sqrt\epsilon$ → exploded or NaN activations. (Online/streaming inference is exactly this case.)</li>
+        <li><strong>Train/eval distribution mismatch.</strong> Eval batches often differ from training (sorted, class-balanced, different size); their batch stats don't match what the network learned to expect, so accuracy drops for no real modeling reason.</li>
+        <li><strong>Running stats keep mutating during eval.</strong> Because train mode also <em>updates</em> $\mu_{\text{run}},\sigma_{\text{run}}$, every forward pass over the val set corrupts the very statistics you'll use later — your eval pass silently changes the model.</li>
+      </ul>
+      <p>The mirror-image bug also exists: calling <code>model.train()</code> but forgetting that <strong>Dropout</strong> is likewise mode-dependent (active in train, identity in eval) — so eval in train mode <em>also</em> randomly zeroes activations. Both are caught by the same habit: <strong><code>model.eval()</code> before validation/inference, <code>model.train()</code> before the training loop</strong> (and wrap eval in <code>torch.no_grad()</code>). This is the mechanism behind the "BN in train mode at eval" row of the §6 table.</p>
+    </div>
 
     <h3>4.3 Residual connections — the key trick for depth</h3>
     <p>A residual block computes <code>y = x + F(x)</code> instead of <code>y = F(x)</code>.</p>
@@ -342,6 +537,64 @@
       <li><strong>Post-norm</strong> (original): <code>x → Sublayer → Add → LN</code>. Needs careful warmup; unstable at depth.</li>
       <li><strong>Pre-norm</strong> (modern default): <code>x → LN → Sublayer → Add</code>. Residual stream stays clean end-to-end → cleaner gradient highway, far more stable at depth. Almost all large LLMs use pre-norm.</li>
     </ul>
+
+    <h4>Equations, code, and a picture</h4>
+    <p>For a sublayer $S$ (attention or FFN):</p>
+    <p>$$\textbf{Post-norm:}\quad x_{l+1} = \text{LN}\big(x_l + S(x_l)\big) \qquad\qquad \textbf{Pre-norm:}\quad x_{l+1} = x_l + S\big(\text{LN}(x_l)\big)$$</p>
+    <pre><code>def block_postnorm(x):
+    x = ln1(x + attention(x))     # LN sits AFTER the add — on the trunk
+    x = ln2(x + ffn(x))
+    return x
+
+def block_prenorm(x):
+    x = x + attention(ln1(x))     # LN is INSIDE the branch; the skip is untouched
+    x = x + ffn(ln2(x))
+    return x
+# pre-norm stacks end with a single ln_final(x) before the output head</code></pre>
+
+    <svg viewBox="0 0 680 300" width="100%" style="max-width:660px;margin:12px 0;" role="img" aria-label="Two block diagrams. Post-norm: x goes through Sublayer, the skip from x adds in, then a LayerNorm sits on the main trunk before the output. Pre-norm: x goes through LayerNorm then Sublayer on a branch, the skip from x adds in directly, and the trunk after the add has no LayerNorm — a clean highway.">
+      <text x="120" y="18" fill="var(--text)" font-size="14" font-weight="600" text-anchor="middle">Post-norm (original)</text>
+      <text x="455" y="18" fill="var(--text)" font-size="14" font-weight="600" text-anchor="middle">Pre-norm (modern)</text>
+      <rect x="70" y="32" width="100" height="28" rx="5" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="120" y="51" fill="var(--text)" font-size="13" text-anchor="middle">x (input)</text>
+      <rect x="60" y="84" width="120" height="30" rx="5" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="120" y="104" fill="var(--text)" font-size="13" text-anchor="middle">Sublayer</text>
+      <circle cx="120" cy="150" r="13" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="120" y="155" fill="var(--text)" font-size="15" text-anchor="middle">+</text>
+      <rect x="60" y="180" width="120" height="30" rx="5" fill="rgba(255,180,84,0.16)" stroke="var(--warn)"/>
+      <text x="120" y="200" fill="var(--warn)" font-size="13" text-anchor="middle" font-weight="600">LayerNorm</text>
+      <rect x="70" y="238" width="100" height="28" rx="5" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="120" y="257" fill="var(--text)" font-size="13" text-anchor="middle">x_out</text>
+      <line x1="120" y1="60" x2="120" y2="84" stroke="var(--muted)" stroke-width="2"/>
+      <line x1="120" y1="114" x2="120" y2="137" stroke="var(--muted)" stroke-width="2"/>
+      <line x1="120" y1="163" x2="120" y2="180" stroke="var(--warn)" stroke-width="2.5"/>
+      <line x1="120" y1="210" x2="120" y2="238" stroke="var(--warn)" stroke-width="2.5"/>
+      <path d="M120,60 H218 V150 H133" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      <text x="224" y="112" fill="var(--accent)" font-size="11">skip</text>
+      <text x="120" y="288" fill="var(--muted)" font-size="11" text-anchor="middle">LN on the trunk (amber)</text>
+      <rect x="405" y="32" width="100" height="28" rx="5" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="455" y="51" fill="var(--text)" font-size="13" text-anchor="middle">x (input)</text>
+      <rect x="395" y="80" width="120" height="28" rx="5" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="455" y="99" fill="var(--text)" font-size="13" text-anchor="middle">LayerNorm</text>
+      <rect x="395" y="126" width="120" height="28" rx="5" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="455" y="145" fill="var(--text)" font-size="13" text-anchor="middle">Sublayer</text>
+      <circle cx="455" cy="186" r="13" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="455" y="191" fill="var(--text)" font-size="15" text-anchor="middle">+</text>
+      <rect x="405" y="238" width="100" height="28" rx="5" fill="var(--panel-2)" stroke="var(--border)"/>
+      <text x="455" y="257" fill="var(--text)" font-size="13" text-anchor="middle">x_out</text>
+      <line x1="455" y1="60" x2="455" y2="80" stroke="var(--muted)" stroke-width="2"/>
+      <line x1="455" y1="108" x2="455" y2="126" stroke="var(--muted)" stroke-width="2"/>
+      <line x1="455" y1="154" x2="455" y2="173" stroke="var(--muted)" stroke-width="2"/>
+      <line x1="455" y1="199" x2="455" y2="238" stroke="var(--accent-2)" stroke-width="3.5"/>
+      <path d="M455,60 H560 V186 H468" fill="none" stroke="var(--accent-2)" stroke-width="3.5"/>
+      <text x="566" y="128" fill="var(--accent-2)" font-size="11">clean</text>
+      <text x="566" y="141" fill="var(--accent-2)" font-size="11">skip</text>
+      <text x="455" y="288" fill="var(--accent-2)" font-size="11" text-anchor="middle">trunk after + is clean (green)</text>
+    </svg>
+    <p style="color:var(--muted);font-size:14px;margin-top:-2px;">Same residual, different LN placement. <strong>Post-norm</strong> puts LN on the main trunk (amber) — every backward pass crosses an LN. <strong>Pre-norm</strong> keeps LN on the branch, so the skip + post-add trunk are a clean ×1 highway (green) end-to-end.</p>
+
+    <h4>Why pre-norm is cleaner &amp; more stable</h4>
+    <p>Unroll pre-norm: $x_L = x_0 + \sum_{l=0}^{L-1} S_l(\text{LN}(x_l))$ — a <strong>pure additive identity path</strong> $x_0\to x_L$ with nothing on it. The LN sits on the <em>branch</em>, not the trunk, so the gradient keeps a clean $\times1$ highway (the $I$ in $\partial x_L/\partial x_0$) <strong>at every depth</strong>. Post-norm wraps every add in LN, so the residual trunk passes through $L$ LayerNorm Jacobians on the way back; LN's Jacobian isn't identity (it rescales/projects), so the clean path is <strong>broken</strong> and gradient magnitudes get modulated layer by layer → gradients to early layers grow/shrink with depth → needs LR <strong>warmup</strong>, unstable when deep (Xiong et al. 2020). <strong>Trade-off:</strong> pre-norm's clean trunk means the residual stream is never re-normalized, so its variance grows with depth (the §3.2 issue, fixed by $1/\sqrt N$ + a final LN). LLMs pick pre-norm because trainability beats bounded activations — you can engineer variance growth, but you can't easily train a 100-layer post-norm net.</p>
 
     <div class="callout practice">
       <span class="label">⚙ In Practice — normalization symptoms</span>
@@ -366,16 +619,275 @@
       <li><strong>AdamW:</strong> Adam + <strong>decoupled weight decay</strong>. The transformer default (§5.2).</li>
     </ul>
 
+    <h4>The math, step by step</h4>
+    <p>Let $g_t=\nabla L$ (mini-batch gradient), $\theta$ the parameters, $\eta$ the LR.</p>
+    <p><strong>SGD:</strong> $\theta_t = \theta_{t-1} - \eta\,g_t$.</p>
+    <p><strong>Momentum</strong> — a running velocity (EMA of gradients):</p>
+    <p>$$v_t = \beta v_{t-1} + g_t,\qquad \theta_t = \theta_{t-1} - \eta\,v_t \quad(\beta\approx0.9)$$</p>
+    <p>Consistent directions accumulate (accelerate), oscillating ones cancel (damp) — a heavy ball that doesn't zig-zag across ravines.</p>
+    <p><strong>RMSProp</strong> — running average of <em>squared</em> gradients, divide the step by its root:</p>
+    <p>$$s_t=\rho s_{t-1}+(1-\rho)g_t^2,\qquad \theta_t=\theta_{t-1}-\eta\,\frac{g_t}{\sqrt{s_t}+\epsilon}$$</p>
+    <p>Each parameter gets its own effective LR — big/noisy-gradient params take smaller steps, small-gradient ones take larger steps → handles parameters on very different scales.</p>
+    <p><strong>Adam</strong> = momentum + RMSProp + bias correction:</p>
+    <p>$$m_t=\beta_1 m_{t-1}+(1-\beta_1)g_t\ \ (\text{1st moment}),\qquad v_t=\beta_2 v_{t-1}+(1-\beta_2)g_t^2\ \ (\text{2nd moment})$$</p>
+    <p>$$\hat m_t=\frac{m_t}{1-\beta_1^{t}},\quad \hat v_t=\frac{v_t}{1-\beta_2^{t}},\qquad \theta_t=\theta_{t-1}-\eta\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}$$</p>
+    <p>Bias correction matters because $m,v$ start at $0$ → early estimates are biased toward $0$; dividing by $1-\beta^{t}$ (rising $0\to1$) un-biases the cold start.</p>
+
+    <div class="callout keyidea">
+      <span class="label">★ Why the cold start is biased — the full story</span>
+      <p><strong>The EMA is initialized to zero.</strong> We set $m_0=0$ and $v_0=0$ because we have no gradient history yet. But that zero is a <em>made-up</em> data point that drags every early estimate down.</p>
+      <p><strong>Unroll the recursion.</strong> Expand $m_t=\beta_1 m_{t-1}+(1-\beta_1)g_t$ all the way back to $m_0=0$:</p>
+      <p>$$m_t=(1-\beta_1)\sum_{i=1}^{t}\beta_1^{\,t-i}\,g_i$$</p>
+      <p>Take expectations, assuming the true gradient mean is roughly constant $\mathbb{E}[g_i]\approx \mathbb{E}[g]$:</p>
+      <p>$$\mathbb{E}[m_t]=\mathbb{E}[g]\cdot(1-\beta_1)\sum_{i=1}^{t}\beta_1^{\,t-i}=\mathbb{E}[g]\cdot\big(1-\beta_1^{\,t}\big)$$</p>
+      <p>So the raw EMA is <em>systematically too small</em> by exactly the factor $(1-\beta_1^{\,t})$. Dividing by it, $\hat m_t = m_t/(1-\beta_1^{\,t})$, makes $\mathbb{E}[\hat m_t]=\mathbb{E}[g]$ — an unbiased estimate. Same algebra gives $\hat v_t = v_t/(1-\beta_2^{\,t})$.</p>
+      <p><strong>Worked example with $\beta_2=0.999$ (the classic value):</strong></p>
+      <ul>
+        <li>At $t=1$: correction $=1/(1-0.999^1)=1/0.001=\mathbf{1000\times}$. Without it, $\hat v_1$ would be ~1000× too small → $\sqrt{\hat v}$ ~32× too small → a <em>wildly</em> oversized first step.</li>
+        <li>At $t=10$: $1/(1-0.999^{10})\approx 100\times$.</li>
+        <li>At $t=1000$: $1/(1-0.999^{1000})\approx 1.6\times$.</li>
+        <li>At $t=10000$: $\approx 1.0\times$ — the correction has effectively switched itself off, because $\beta^t\to 0$ and there's now enough history that the zero-init no longer matters.</li>
+      </ul>
+      <p><strong>The takeaway:</strong> bias correction is a self-disabling warmup baked into the math. It's large in the first few steps (when the zero-init dominates) and fades to 1 as real gradient history accumulates. The smaller $\beta$ is, the faster it fades — which is why $v$ (with $\beta_2=0.999$) needs much more correction than $m$ (with $\beta_1=0.9$).</p>
+
+      <div style="margin:16px 0 8px;font-weight:700;font-size:15px;">Bias-correction factor $1/(1-\beta^{t})$ over training steps</div>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="biasCorrChart"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">Both curves start huge and decay to 1×. $\beta_2=0.999$ (the 2nd moment $v$) needs far more correction for far longer than $\beta_1=0.9$ (the 1st moment $m$) — its longer memory means the zero-init lingers.</p>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var steps = [];
+      for (var t = 1; t <= 5000; t++) { if (t <= 50 || t % 50 === 0) steps.push(t); }
+      function corr(beta) { return steps.map(function(t) { return 1 / (1 - Math.pow(beta, t)); }); }
+      new Chart(document.getElementById('biasCorrChart'), {
+        type: 'line',
+        data: {
+          labels: steps,
+          datasets: [
+            { label: 'β₂ = 0.999 (2nd moment v)', data: corr(0.999), borderColor: '#3b82f6', backgroundColor: '#3b82f6', pointRadius: 0, borderWidth: 2, tension: 0.1 },
+            { label: 'β₁ = 0.9 (1st moment m)', data: corr(0.9), borderColor: '#f59e0b', backgroundColor: '#f59e0b', pointRadius: 0, borderWidth: 2, tension: 0.1 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } },
+            tooltip: { callbacks: { title: function(items) { return 'step t = ' + items[0].label; },
+              label: function(ctx) { return ctx.dataset.label + ': ' + ctx.raw.toFixed(2) + '×'; } } } },
+          scales: {
+            x: { type: 'logarithmic', title: { display: true, text: 'training step t (log scale)', font: { size: 12 } } },
+            y: { type: 'logarithmic', title: { display: true, text: 'correction factor (log scale)', font: { size: 12 } } }
+          }
+        }
+      });
+    });
+    </script>
+    <p><strong>AdamW</strong> — same, but weight decay applied <em>directly to the weights</em> (not via $g$, which routes it through $\sqrt{\hat v}$ — §5.2):</p>
+    <p>$$\theta_t=\theta_{t-1}-\eta\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}-\eta\,\lambda\,\theta_{t-1}$$</p>
+
+    <h4>How AdamW runs in production transformers</h4>
+    <ul>
+      <li><strong>AdamW is the universal default.</strong> Typical: $\beta_1=0.9$, <strong>$\beta_2=0.95$</strong> (lowered from 0.999 — a faster-adapting 2nd moment is more robust to the spiky gradients of large-batch training), $\epsilon=10^{-8}$.</li>
+      <li><strong>LR schedule:</strong> linear <strong>warmup</strong> (hundreds–few thousand steps) → <strong>cosine decay</strong> to ~10% of peak; peak LR $\sim 1\text{–}6\times10^{-4}$ (smaller for bigger models).</li>
+      <li><strong>Weight decay ≈ 0.1</strong>, decoupled, applied <strong>only to matmul weights</strong> — biases, LayerNorm/RMSNorm gains, and embeddings are <em>excluded</em>.</li>
+      <li><strong>Gradient clipping</strong> at global norm 1.0.</li>
+      <li><strong>Memory is the catch:</strong> Adam stores both $m$ and $v$ per parameter → optimizer state is <strong>2× the parameter count</strong>, plus an FP32 master copy under mixed precision. Rule of thumb: <strong>~16 bytes/parameter</strong> (2 bf16 weight + 2 grad + 4 fp32 $m$ + 4 fp32 $v$ + 4 fp32 master) → a 7B model needs ~112 GB just for states. <strong>This is why FSDP / ZeRO shard the optimizer state.</strong></li>
+      <li><strong>Precision:</strong> bf16 compute, FP32 master weights + FP32 moments.</li>
+      <li><strong>Lower-memory alternatives:</strong> <strong>Adafactor</strong> (factorized 2nd moment; T5/PaLM), <strong>Lion</strong> (sign-based, momentum-only, ~half the state), <strong>Shampoo</strong> (preconditioned, near-2nd-order), <strong>Muon</strong> (recent, matrix-aware). AdamW still dominates.</li>
+    </ul>
+
+    <div class="callout keyidea">
+      <span class="label">★ Where the 16 bytes/parameter go</span>
+      <p>Under mixed-precision AdamW, <em>every single parameter</em> drags along <strong>five</strong> stored tensors:</p>
+      <div style="position:relative;width:100%;height:200px;"><canvas id="memChart"></canvas></div>
+      <ul style="margin-top:10px;">
+        <li><strong>bf16 weight (2B)</strong> — the working copy used in the forward/backward matmuls (fast).</li>
+        <li><strong>bf16 gradient (2B)</strong> — what backprop produces for this param.</li>
+        <li><strong>fp32 $m$ (4B)</strong> — Adam's 1st-moment EMA, kept fp32 for accuracy.</li>
+        <li><strong>fp32 $v$ (4B)</strong> — Adam's 2nd-moment EMA, kept fp32 for accuracy.</li>
+        <li><strong>fp32 master weight (4B)</strong> — the high-precision copy the optimizer actually updates. <strong>This is the one people forget.</strong> A bf16 weight has only ~3 digits; a tiny update $\text{lr}\cdot\hat m/\sqrt{\hat v}$ added to it would round away to zero (mantissa underflow). So the update is applied to the fp32 master, which is then downcast to the bf16 working copy for the next forward. This <em>is</em> the "FP32 master copy" from the mixed-precision section (§5.5).</li>
+      </ul>
+      <p><strong>Total = 16 bytes/param.</strong> A 7B model → 7e9 × 16 ≈ <strong>112 GB</strong> of state alone, before activations. No single GPU holds that → FSDP/ZeRO shard it across the cluster.</p>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      new Chart(document.getElementById('memChart'), {
+        type: 'bar',
+        data: { labels: ['bytes per parameter'], datasets: [
+          { label: 'bf16 weight (2)', data: [2], backgroundColor: '#3b82f6' },
+          { label: 'bf16 grad (2)', data: [2], backgroundColor: '#60a5fa' },
+          { label: 'fp32 m (4)', data: [4], backgroundColor: '#f59e0b' },
+          { label: 'fp32 v (4)', data: [4], backgroundColor: '#fbbf24' },
+          { label: 'fp32 master (4)', data: [4], backgroundColor: '#10b981' }
+        ]},
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } },
+            tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label.replace(/\s*\(\d+\)/, '') + ': ' + ctx.raw + ' B'; } } } },
+          scales: { x: { stacked: true, title: { display: true, text: 'bytes (total = 16)', font: { size: 12 } }, max: 16 },
+                    y: { stacked: true, grid: { display: false } } } }
+      });
+    });
+    </script>
+    <div class="callout keyidea">
+      <span class="label">★ The one-line story</span>
+      Momentum smooths the gradient (1st moment) for speed; RMSProp normalizes each parameter by its recent gradient size (2nd moment) for an adaptive LR; Adam combines both with bias-correction for the cold start; AdamW decays the weights directly. Production = AdamW, $\beta_2=0.95$, warmup→cosine, decay 0.1 on weights only, clip 1.0 — and its 2× optimizer-state memory is why frontier training shards it.
+    </div>
+
     <h3>5.2 Why AdamW decouples weight decay (favorite question)</h3>
     <p>"L2 regularization" and "weight decay" are identical for plain SGD, but <strong>not</strong> for Adam. In vanilla Adam, adding <code>λw</code> to the gradient means the decay gets divided by the adaptive denominator (<code>√v</code>) — so high-gradient params get <em>less</em> effective decay. That couples regularization to gradient magnitude.</p>
     <p>$$w \;\leftarrow\; w \;-\; \text{lr}\cdot(\text{adam update}) \;-\; \text{lr}\cdot\lambda\cdot w \qquad\text{(decay applied directly, not through }\sqrt{v}\,\text{)}$$</p>
     <p>Result: uniform pull toward 0, decoupled from adaptive scaling → reliably better generalization for transformers.</p>
+
+    <div class="callout keyidea">
+      <span class="label">★ Coupled vs decoupled — side by side</span>
+      <p>The only difference is <strong>where the $\lambda w$ term sits relative to the $\sqrt{\hat v}$ denominator.</strong></p>
+      <p><strong>Adam + L2 (coupled):</strong> fold decay into the gradient <em>before</em> the moments — so it rides <em>inside</em> the fraction and gets divided by $\sqrt{\hat v}$:</p>
+      <p>$$g'_t = g_t + \lambda w,\qquad m_t,v_t \text{ built from } g'_t,\qquad w \leftarrow w - \text{lr}\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}$$</p>
+      <p>A param with a long history of big gradients has large $v$ → its decay is divided by a big number → it gets <em>weaker</em> decay. Regularization strength silently depends on gradient magnitude. <strong>That's the bug.</strong></p>
+      <p><strong>AdamW (decoupled):</strong> the moments only ever see the raw $g_t$; decay is a separate additive term, <em>outside</em> the fraction:</p>
+      <p>$$m_t,v_t \text{ built from } g_t,\qquad w \leftarrow w - \text{lr}\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon} - \text{lr}\,\lambda w$$</p>
+      <p>Now every weight shrinks by the same fraction $\text{lr}\cdot\lambda$ per step, regardless of its gradient. <strong>Uniform regularization.</strong> The fix is literally "pull $\lambda w$ out of the numerator."</p>
+    </div>
+
+    <div class="callout keyidea">
+      <span class="label">★ Make it concrete — two weights, same value, different gradients</span>
+      <p>Both weights start at $w=1.0$, with decay $\lambda=0.1$ and $\text{lr}=1$. They differ <em>only</em> in their gradient history:</p>
+      <ul>
+        <li><strong>Weight A</strong> — big, noisy gradients → large 2nd moment, $\sqrt{\hat v}=10$.</li>
+        <li><strong>Weight B</strong> — tiny gradients → small 2nd moment, $\sqrt{\hat v}=0.1$.</li>
+      </ul>
+      <p><strong>Adam + L2:</strong> decay $\lambda w$ is folded into the gradient, so it's divided by $\sqrt{\hat v}$. Shrink from decay $=\dfrac{\text{lr}\cdot\lambda w}{\sqrt{\hat v}}$:</p>
+      <ul>
+        <li>Weight A: $0.1/10 = \mathbf{0.01}$ → shrinks just <strong>1%</strong>.</li>
+        <li>Weight B: $0.1/0.1 = \mathbf{1.0}$ → shrinks <strong>100%</strong> (!) — obliterated.</li>
+      </ul>
+      <p>The high-gradient weight barely gets regularized; the quiet one gets crushed. <strong>Decay is now inversely tied to gradient size</strong> — exactly backwards from "pull all weights toward 0 equally."</p>
+      <p><strong>AdamW:</strong> decay is a separate term $\text{lr}\cdot\lambda\cdot w$, untouched by $\sqrt{\hat v}$:</p>
+      <ul>
+        <li>Weight A: $1\cdot0.1\cdot1 = \mathbf{0.1}$ → <strong>10%</strong>.</li>
+        <li>Weight B: $1\cdot0.1\cdot1 = \mathbf{0.1}$ → <strong>10%</strong>.</li>
+      </ul>
+      <p>Both shrink by the same 10%, regardless of gradient. The plot below sweeps a whole range of gradient magnitudes:</p>
+
+      <div style="margin:16px 0 8px;font-weight:700;font-size:15px;">Effective weight-decay shrink vs. a parameter's gradient magnitude</div>
+      <div style="position:relative;width:100%;height:280px;"><canvas id="decayChart"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">Adam+L2 (orange): decay collapses as gradients grow — wildly uneven across parameters. AdamW (blue): flat line — every weight decays by the same fraction. The two dots mark Weight A ($\sqrt{\hat v}=10$) and Weight B ($\sqrt{\hat v}=0.1$) from the example.</p>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var lr = 1, lam = 0.1, w = 1.0;
+      var adamL2 = [], adamw = [];
+      for (var i = -20; i <= 20; i++) {
+        var s = Math.pow(10, i / 10);   // sqrt(v_hat) from 0.01 to 100, log-spaced
+        adamL2.push({ x: s, y: lr * lam * w / s });  // decay divided by sqrt(v_hat)
+        adamw.push({ x: s, y: lr * lam * w });       // flat
+      }
+      new Chart(document.getElementById('decayChart'), {
+        type: 'line',
+        data: { datasets: [
+          { label: 'Adam + L2 (coupled): λw / √v̂', data: adamL2, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2 },
+          { label: 'AdamW (decoupled): λw', data: adamw, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2, borderDash: [6,3] },
+          { label: 'Weight A & B (Adam+L2)', data: [{x:10,y:0.01},{x:0.1,y:1.0}], type: 'scatter', backgroundColor: '#ef4444', pointRadius: 6, showLine: false }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, parsing: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } },
+            tooltip: { callbacks: { title: function(it){ return '√v̂ = ' + Number(it[0].parsed.x).toPrecision(2); },
+              label: function(ctx){ return ctx.dataset.label + ': shrink ' + ctx.parsed.y.toPrecision(2); } } } },
+          scales: {
+            x: { type: 'logarithmic', title: { display: true, text: '√v̂  (parameter gradient magnitude) →', font: { size: 12 } } },
+            y: { type: 'logarithmic', title: { display: true, text: 'fraction of weight removed per step', font: { size: 12 } } }
+          }
+        }
+      });
+    });
+    </script>
 
     <h3>5.3 LR schedules & warmup</h3>
     <ul>
       <li><strong>Warmup:</strong> start LR ≈ 0, ramp up over first hundreds/thousands of steps. <strong>Why:</strong> at init, the model and Adam's 2nd-moment estimate <code>v</code> are unreliable; big early steps diverge. Warmup lets stats settle. Especially critical for transformers.</li>
       <li><strong>Cosine decay (after warmup):</strong> anneal LR down on a cosine curve. Large LR early explores; small LR late refines. Standard for LLM pretraining.</li>
     </ul>
+
+    <div class="callout keyidea">
+      <span class="label">★ What β₁ and β₂ actually do — visually</span>
+      <p><strong>$\beta_1$ (1st moment, momentum):</strong> an EMA of the gradient itself. It <em>smooths the direction</em> — noisy per-step gradients average out into a steadier trajectory. Higher $\beta_1$ = smoother but laggier. The plot below feeds a noisy gradient signal through EMAs at different $\beta_1$.</p>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="beta1Chart"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0 14px;">$\beta_1=0.9$ keeps roughly the last ~10 gradients; $\beta_1=0.99$ keeps ~100 → much smoother but slower to turn. This is why momentum cuts through noise.</p>
+
+      <p><strong>$\beta_2$ (2nd moment): an EMA of the gradient <em>squared</em>.</strong> It tracks each parameter's recent gradient <em>magnitude</em>, and Adam divides the step by $\sqrt{\hat v}$. Net effect: a per-parameter <em>adaptive learning rate</em> — params with big/noisy gradients take smaller steps, quiet params take larger steps. The plot shows a parameter whose gradient magnitude changes: the effective step size $1/\sqrt{\hat v}$ automatically shrinks when gradients are large and grows when they're small.</p>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="beta2Chart"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0 14px;">When the raw gradient magnitude spikes (orange), the effective step multiplier $1/(\sqrt{\hat v}+\epsilon)$ (blue) drops — Adam self-throttles. That's the "adaptive" in adaptive optimizer.</p>
+
+      <p><strong>The cosine LR schedule in practice:</strong> linear warmup from ~0 to peak over the first few thousand steps, then a cosine curve down to ~10% of peak. Early high LR explores; late low LR refines.</p>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="cosineChart"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">$\text{lr}(t)=\text{lr}_{\min}+\tfrac12(\text{lr}_{\max}-\text{lr}_{\min})\big(1+\cos(\pi\,\tfrac{t-t_{\text{warm}}}{T-t_{\text{warm}}})\big)$ after warmup. The shaded region is the warmup ramp.</p>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // --- beta1: momentum smoothing of a noisy gradient ---
+      var N = 120, raw = [], xs = [];
+      var seed = 42; function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+      for (var i = 0; i < N; i++) {
+        xs.push(i);
+        var trend = Math.sin(i / 18) * 0.6;          // true underlying gradient
+        raw.push(trend + (rnd() - 0.5) * 1.4);        // + noise
+      }
+      function ema(arr, b) { var out = [], m = 0; for (var i = 0; i < arr.length; i++) { m = b * m + (1 - b) * arr[i]; out.push(m / (1 - Math.pow(b, i + 1))); } return out; }
+      new Chart(document.getElementById('beta1Chart'), {
+        type: 'line',
+        data: { labels: xs, datasets: [
+          { label: 'raw gradient (noisy)', data: raw, borderColor: 'rgba(150,150,150,0.5)', pointRadius: 0, borderWidth: 1 },
+          { label: 'EMA β₁=0.9', data: ema(raw, 0.9), borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2, tension: 0.2 },
+          { label: 'EMA β₁=0.99', data: ema(raw, 0.99), borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2, tension: 0.2 }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+          scales: { x: { title: { display: true, text: 'step', font: { size: 12 } }, ticks: { maxTicksLimit: 10 } },
+                    y: { title: { display: true, text: 'gradient', font: { size: 12 } } } } }
+      });
+
+      // --- beta2: adaptive step size 1/sqrt(v) ---
+      var gmag = [], steps2 = [];
+      for (var t = 0; t < N; t++) { steps2.push(t); gmag.push(t < 40 ? 0.3 : (t < 80 ? 1.5 : 0.3)); } // magnitude regime changes
+      var v = 0, eff = [];
+      for (var t = 0; t < N; t++) { v = 0.999 * v + 0.001 * gmag[t] * gmag[t]; var vhat = v / (1 - Math.pow(0.999, t + 1)); eff.push(1 / (Math.sqrt(vhat) + 1e-8)); }
+      new Chart(document.getElementById('beta2Chart'), {
+        type: 'line',
+        data: { labels: steps2, datasets: [
+          { label: 'raw |gradient|', data: gmag, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
+          { label: 'effective step 1/√v̂ (β₂=0.999)', data: eff, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2, yAxisID: 'y1', tension: 0.2 }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+          scales: { x: { title: { display: true, text: 'step', font: { size: 12 } }, ticks: { maxTicksLimit: 10 } },
+                    y: { position: 'left', title: { display: true, text: '|gradient|', font: { size: 11 } } },
+                    y1: { position: 'right', title: { display: true, text: 'step multiplier', font: { size: 11 } }, grid: { drawOnChartArea: false } } } }
+      });
+
+      // --- cosine schedule with warmup ---
+      var T = 1000, warm = 100, lrmax = 3e-4, lrmin = 3e-5, lrs = [], xs3 = [];
+      for (var t = 0; t <= T; t += 5) {
+        xs3.push(t);
+        var lr;
+        if (t < warm) lr = lrmax * t / warm;
+        else { var p = (t - warm) / (T - warm); lr = lrmin + 0.5 * (lrmax - lrmin) * (1 + Math.cos(Math.PI * p)); }
+        lrs.push(lr);
+      }
+      new Chart(document.getElementById('cosineChart'), {
+        type: 'line',
+        data: { labels: xs3, datasets: [
+          { label: 'learning rate', data: lrs, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true, pointRadius: 0, borderWidth: 2, tension: 0.1 }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false },
+            tooltip: { callbacks: { label: function(ctx) { return 'lr = ' + ctx.raw.toExponential(2); } } } },
+          scales: { x: { title: { display: true, text: 'training step (warmup = first 100)', font: { size: 12 } }, ticks: { maxTicksLimit: 11 } },
+                    y: { title: { display: true, text: 'learning rate', font: { size: 12 } } } } }
+      });
+    });
+    </script>
 
     <h3>5.4 Gradient clipping</h3>
     <p>Clip the global gradient norm to a threshold (e.g. rescale so <code>||g|| ≤ 1.0</code>) before the step. <strong>Why:</strong> occasionally a bad batch / sharp region produces a huge gradient that would throw weights off and spike the loss (the exploding-gradient product from §2.4). Clipping caps the step size — cheap insurance against one bad batch destroying a run.</p>
@@ -384,7 +896,123 @@
     <ul>
       <li><strong>Batch size:</strong> larger → less noise (stable, often higher LR via sqrt/linear scaling) but diminishing returns & worse exploration; smaller → noisier, sometimes generalizes better. A compute/stability/generalization tradeoff.</li>
       <li><strong>Gradient accumulation:</strong> run several micro-batches, <strong>sum gradients</strong>, step once → simulates a big batch you can't fit in memory. Gotcha: average correctly; zero grads only after the step.</li>
-      <li><strong>Mixed precision:</strong> 16-bit compute for speed/memory, FP32 master copy. <strong>BF16</strong> = FP32's exponent range, fewer mantissa bits → rarely overflows, preferred. <strong>FP16</strong> = narrow range → often needs <strong>loss scaling</strong> (scale loss up before backward, unscale before step) to stop small gradients underflowing to 0.</li>
+      <li><strong>Mixed precision:</strong> 16-bit compute for speed/memory, FP32 master copy. <strong>BF16</strong> = FP32's exponent range, fewer mantissa bits → rarely overflows, preferred. <strong>FP16</strong> = narrow range → often needs <strong>loss scaling</strong> (scale loss up before backward, unscale before step) to stop small gradients underflowing to 0.
+        <br><br>
+        <strong>What is a floating-point number?</strong> Every float = <code>(-1)^sign × 2^(exponent-bias) × 1.mantissa</code>. The <em>exponent</em> bits set the <strong>range</strong> (how big/small the number can be); the <em>mantissa</em> bits set the <strong>precision</strong> (how many significant digits).
+        <br><br>
+        <strong>FP32 (32 bits):</strong> 1 sign + 8 exponent + 23 mantissa. Range ≈ ±3.4×10³⁸, ~7 decimal digits of precision. The "gold standard" — all master weights and sensitive ops (softmax, layernorm, loss) stay here.
+        <br><br>
+        <strong>BF16 (Brain Float 16, 16 bits):</strong> 1 sign + <strong>8 exponent</strong> + 7 mantissa. <em>Same 8-bit exponent as FP32</em>, so the representable range is identical (±3.4×10³⁸). The cost: only ~2–3 digits of precision (vs FP32's 7). In practice this coarser precision rarely matters for gradient accumulation because the master copy is FP32. <strong>Key benefit:</strong> no loss scaling needed — gradients almost never overflow or underflow because the range matches FP32.
+        <br><br>
+        <strong>FP16 (IEEE half, 16 bits):</strong> 1 sign + <strong>5 exponent</strong> + 10 mantissa. Max representable value is only 65,504; min normal ≈ 6×10⁻⁵. Gradients in deep networks routinely fall below 10⁻⁵, which underflows to zero in FP16 → training silently stalls. <strong>Loss scaling</strong> fixes this: multiply the loss by a large factor (e.g. 1024) before <code>.backward()</code> so all gradients get scaled up into representable range, then divide by the same factor before <code>optimizer.step()</code>.
+        <br><br>
+        <strong>In practice:</strong> Modern GPUs (A100, H100) have native BF16 tensor cores — use BF16 by default (<code>torch.bfloat16</code>). Use FP16 + loss scaling only on older GPUs (V100) that lack BF16 hardware. Always keep a FP32 master copy of weights for the optimizer step.
+
+        <!-- Bit-layout diagram -->
+        <div style="margin:16px 0 8px;font-weight:700;font-size:15px;">Bit Layout</div>
+        <div style="margin:6px 0;display:flex;align-items:center;gap:6px;">
+          <span style="width:50px;font-weight:700;font-size:13px;text-align:right;">FP32</span>
+          <div style="display:flex;height:32px;border-radius:4px;overflow:hidden;flex:1;">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#6b7280;">1</div>
+            <div style="flex:8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#3b82f6;">8 exp</div>
+            <div style="flex:23;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#f59e0b;">23 mantissa</div>
+          </div>
+        </div>
+        <div style="margin:6px 0;display:flex;align-items:center;gap:6px;">
+          <span style="width:50px;font-weight:700;font-size:13px;text-align:right;">BF16</span>
+          <div style="display:flex;height:32px;border-radius:4px;overflow:hidden;flex:1;">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#6b7280;">1</div>
+            <div style="flex:8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#3b82f6;">8 exp</div>
+            <div style="flex:7;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#f59e0b;">7 man</div>
+          </div>
+        </div>
+        <div style="margin:6px 0;display:flex;align-items:center;gap:6px;">
+          <span style="width:50px;font-weight:700;font-size:13px;text-align:right;">FP16</span>
+          <div style="display:flex;height:32px;border-radius:4px;overflow:hidden;flex:1;">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#6b7280;">1</div>
+            <div style="flex:5;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#3b82f6;">5 exp</div>
+            <div style="flex:10;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:#f59e0b;">10 man</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;margin:8px 0 0 56px;font-size:12px;">
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6b7280;margin-right:4px;vertical-align:-1px;"></span>Sign</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3b82f6;margin-right:4px;vertical-align:-1px;"></span>Exponent (range)</span>
+          <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b;margin-right:4px;vertical-align:-1px;"></span>Mantissa (precision)</span>
+        </div>
+
+        <!-- Key numbers table -->
+        <div style="margin:16px 0 8px;font-weight:700;font-size:15px;">Key Numbers</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><th style="padding:6px 10px;text-align:left;border-bottom:2px solid #ccc;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;">Property</th><th style="padding:6px 10px;text-align:left;border-bottom:2px solid #ccc;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;">FP32</th><th style="padding:6px 10px;text-align:left;border-bottom:2px solid #ccc;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;">BF16</th><th style="padding:6px 10px;text-align:left;border-bottom:2px solid #ccc;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;">FP16</th></tr>
+          <tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Total bits</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">32</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">16</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">16</td></tr>
+          <tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Exponent bits</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">8</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">8</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">5</td></tr>
+          <tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Mantissa bits</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">23</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">7</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">10</td></tr>
+          <tr style="background:rgba(59,130,246,0.08);"><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Max value</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~3.4 × 10³⁸</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~3.4 × 10³⁸</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">65,504</td></tr>
+          <tr style="background:rgba(59,130,246,0.08);"><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Min positive (normal)</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~1.2 × 10⁻³⁸</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~1.2 × 10⁻³⁸</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~6.1 × 10⁻⁵</td></tr>
+          <tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Decimal precision</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~7 digits</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~2–3 digits</td><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">~3–4 digits</td></tr>
+        </table>
+
+        <!-- Chart.js charts -->
+        <div style="margin:16px 0 8px;font-weight:700;font-size:15px;">Representable Range (log scale)</div>
+        <div style="position:relative;width:100%;height:220px;"><canvas id="fpRangeChart"></canvas></div>
+        <p style="font-size:12px;color:#6b7280;margin:4px 0;">Each bar shows log₁₀ of max/min representable magnitudes. BF16 matches FP32; FP16's range is tiny — that's why gradients underflow.</p>
+
+        <div style="margin:16px 0 8px;font-weight:700;font-size:15px;">Precision: Spacing Between Representable Numbers Near 1.0</div>
+        <div style="position:relative;width:100%;height:220px;"><canvas id="fpPrecChart"></canvas></div>
+        <p style="font-size:12px;color:#6b7280;margin:4px 0;">BF16 trades precision (wider gaps) for FP32-matching range. FP16 has better precision than BF16 but a much narrower range.</p>
+
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          new Chart(document.getElementById('fpRangeChart'), {
+            type: 'bar',
+            data: {
+              labels: ['FP32', 'BF16', 'FP16'],
+              datasets: [{
+                label: 'log₁₀(max)',
+                data: [38.5, 38.5, 4.8],
+                backgroundColor: ['#3b82f6','#8b5cf6','#f59e0b'],
+                borderRadius: 4, barPercentage: 0.5
+              },{
+                label: 'log₁₀(min normal)',
+                data: [-37.9, -37.9, -4.2],
+                backgroundColor: ['rgba(59,130,246,0.4)','rgba(139,92,246,0.4)','rgba(245,158,11,0.4)'],
+                borderRadius: 4, barPercentage: 0.5
+              }]
+            },
+            options: {
+              indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+              scales: {
+                x: { title: { display: true, text: 'log₁₀ magnitude', font: { size: 12 } } },
+                y: { grid: { display: false } }
+              }
+            }
+          });
+          new Chart(document.getElementById('fpPrecChart'), {
+            type: 'bar',
+            data: {
+              labels: ['FP32', 'BF16', 'FP16'],
+              datasets: [{
+                label: 'Machine epsilon',
+                data: [1.19e-7, 3.91e-3, 9.77e-4],
+                backgroundColor: ['#3b82f6','#8b5cf6','#f59e0b'],
+                borderRadius: 4, barPercentage: 0.4
+              }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false },
+                tooltip: { callbacks: { label: function(ctx) { return ctx.raw.toExponential(2); } } }
+              },
+              scales: {
+                y: { type: 'logarithmic', title: { display: true, text: 'epsilon (log scale)', font: { size: 12 } } },
+                x: { grid: { display: false } }
+              }
+            }
+          });
+        });
+        </script>
+      </li>
       <li><strong>Activation (gradient) checkpointing:</strong> don't store all activations; recompute during backward. Trades ~30% compute for big memory savings. A memory technique — not numerical stability, and not model checkpoints.</li>
     </ul>
 
@@ -427,6 +1055,145 @@
       </tbody>
     </table>
 
+    <h3>6.1b Unpacking the likely causes — the mechanism behind each row</h3>
+    <p>The table lists <em>what</em> to suspect. Here's <em>why</em> each one happens, with the governing math — so you can reason from first principles instead of memorizing symptoms.</p>
+
+    <!-- ===== A. Exploding / vanishing gradients ===== -->
+    <div class="callout keyidea">
+      <span class="label">A · Exploding / vanishing gradients (spikes, NaN, flat loss, grad-norm grows with depth)</span>
+      <p>Backprop multiplies a Jacobian at every layer. For an $L$-layer net the gradient reaching layer $\ell$ is a <strong>product of Jacobians</strong>:</p>
+      <p>$$\frac{\partial \mathcal{L}}{\partial h_\ell}=\frac{\partial \mathcal{L}}{\partial h_L}\prod_{k=\ell+1}^{L} J_k,\qquad J_k=\frac{\partial h_k}{\partial h_{k-1}}$$</p>
+      <p>Take norms: if each layer multiplies the gradient by roughly a factor $\gamma$ (the Jacobian's spectral radius), then across $L-\ell$ layers the magnitude scales like</p>
+      <p>$$\Big\|\frac{\partial \mathcal{L}}{\partial h_\ell}\Big\|\;\approx\;\gamma^{\,L-\ell}\Big\|\frac{\partial \mathcal{L}}{\partial h_L}\Big\|$$</p>
+      <p>$\gamma>1\Rightarrow$ <strong>explodes</strong> exponentially with depth (→ spikes, NaN); $\gamma<1\Rightarrow$ <strong>vanishes</strong> (→ flat loss, early layers never learn); $\gamma\approx1$ is the knife-edge we engineer toward. <strong>This single product is the root cause that init scaling, normalization, residuals, warmup, and clipping all exist to control.</strong></p>
+      <div style="margin:14px 0 8px;font-weight:700;font-size:15px;">Gradient norm vs depth for three regimes</div>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="dbgGradDepth"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">Log-scale y. A 5% per-layer drift ($\gamma=1.05$ vs $0.95$) becomes a ~10²× swing over 50 layers — why deep nets are so sensitive to init and need residuals to hold $\gamma\approx1$.</p>
+    </div>
+
+    <!-- ===== B. Loss spikes & gradient clipping ===== -->
+    <div class="callout keyidea">
+      <span class="label">B · Sudden spike mid-training & why clipping fixes it</span>
+      <p>A bad batch or sharp loss region produces one giant gradient. The SGD/Adam step is proportional to $\|g\|$, so a single huge $\|g\|$ throws the weights far off the manifold → the loss spikes (and the now-corrupted weights can spiral into NaN). <strong>Gradient clipping</strong> caps the global norm before the step:</p>
+      <p>$$g \leftarrow g\cdot\min\!\Big(1,\ \frac{\tau}{\|g\|}\Big)\qquad(\tau=\text{clip threshold, e.g. }1.0)$$</p>
+      <p>If $\|g\|\le\tau$ nothing changes; if $\|g\|>\tau$ the direction is kept but the magnitude is rescaled to $\tau$. Cheap insurance against one batch destroying the run. A <em>reproducible</em> spike at the same step on resume points at a <strong>data shard</strong>, not random instability.</p>
+      <div style="margin:14px 0 8px;font-weight:700;font-size:15px;">Grad-norm trace: spike vs clipped</div>
+      <div style="position:relative;width:100%;height:240px;"><canvas id="dbgClip"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">The grad-norm trace spikes <em>before</em> the loss does — which is why you log it: it's the earliest, cheapest warning. Clipping flattens the spike to $\tau$ while preserving direction.</p>
+    </div>
+
+    <!-- ===== C. FP16 overflow/underflow ===== -->
+    <div class="callout keyidea">
+      <span class="label">C · NaN after enabling FP16 — gradients fall outside the representable window</span>
+      <p>FP16 can only represent magnitudes in roughly $[6\times10^{-5},\,6.5\times10^{4}]$. Real gradient distributions have a long tail of tiny values that <strong>underflow to 0</strong> (training silently stalls), and occasional large values that <strong>overflow to inf</strong> → NaN. <strong>Loss scaling</strong> multiplies the loss by $S$ before backward, which by linearity scales every gradient by $S$, shifting the whole distribution up into the representable window; you divide by $S$ again before the optimizer step:</p>
+      <p>$$\mathcal{L}'=S\cdot\mathcal{L}\ \Rightarrow\ g'=S\cdot g\quad(\text{shift up}),\qquad \theta \leftarrow \theta-\eta\,\tfrac{1}{S}g'\quad(\text{shift back})$$</p>
+      <div style="margin:14px 0 8px;font-weight:700;font-size:15px;">Gradient distribution vs the FP16 window</div>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="dbgLossScale"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">FP16's normal floor is $\log_{10}(6.1\times10^{-5})\approx-4.2$ — everything left of that underflows to 0. The raw gradients (orange) have a fat tail past the floor. Scaling by $S=1024$ ($+3$ on this log axis, blue) lifts the whole distribution clear of it. BF16 sidesteps this entirely by keeping FP32's exponent range (§5.5).</p>
+    </div>
+
+    <!-- ===== D. Overfitting vs underfitting ===== -->
+    <div class="callout keyidea">
+      <span class="label">D · Train good / eval bad (overfit) vs both plateau high (underfit)</span>
+      <p>Generalization gap $=\mathcal{L}_{\text{val}}-\mathcal{L}_{\text{train}}$. <strong>Overfitting:</strong> train keeps dropping while val turns up → the model memorizes noise; the gap widens. Fix with regularization (weight decay §5.2, dropout), more/cleaner data, or early stopping. <strong>Underfitting:</strong> both curves plateau high together → not enough capacity/compute or LR too low; scale the model or train longer. The <em>shape of the two curves</em> tells you which regime you're in at a glance.</p>
+      <div style="margin:14px 0 8px;font-weight:700;font-size:15px;">Train vs validation loss — the three outcomes</div>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="dbgOverfit"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">Overfit: val (dashed) lifts off train and rises — stop at the dotted minimum. Good fit: small steady gap. Underfit: both stuck high.</p>
+    </div>
+
+    <!-- ===== E. Learning-rate regimes ===== -->
+    <div class="callout keyidea">
+      <span class="label">E · Loss flat / oscillating / diverging — it's almost always the LR</span>
+      <p>For a locally quadratic loss with curvature (Hessian eigenvalue) $\kappa$, gradient descent converges only if the step satisfies $\eta\lt 2/\kappa$. Three regimes fall out:</p>
+      <p>$$\eta\ \text{too small}\Rightarrow\text{flat (creeps)};\quad \eta\approx\tfrac{1}{\kappa}\Rightarrow\text{fast, smooth};\quad \eta>\tfrac{2}{\kappa}\Rightarrow\text{oscillates / diverges}$$</p>
+      <p>This is exactly why <strong>warmup</strong> (small $\eta$ while curvature estimates settle) and the <strong>cosine schedule</strong> (large early to explore, small late to refine) exist — they keep $\eta$ inside the stable band as the landscape's curvature changes.</p>
+      <div style="margin:14px 0 8px;font-weight:700;font-size:15px;">Loss curve under three learning rates</div>
+      <div style="position:relative;width:100%;height:260px;"><canvas id="dbgLR"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">Too low (grey): barely moves. Good (blue): smooth fast descent. Too high (orange): oscillates and can climb — the wild-oscillation row in the table.</p>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var common = function(xTitle, yTitle, ylog) {
+        return { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+          scales: { x: { title: { display: true, text: xTitle, font: { size: 12 } }, ticks: { maxTicksLimit: 10 } },
+                    y: Object.assign({ title: { display: true, text: yTitle, font: { size: 12 } } }, ylog ? { type: 'logarithmic' } : {}) } };
+      };
+
+      // A. grad norm vs depth
+      var depth = [], g_exp = [], g_van = [], g_unit = [];
+      for (var l = 0; l <= 50; l++) { depth.push(l); g_exp.push(Math.pow(1.05, l)); g_van.push(Math.pow(0.95, l)); g_unit.push(1); }
+      new Chart(document.getElementById('dbgGradDepth'), { type: 'line',
+        data: { labels: depth, datasets: [
+          { label: 'γ=1.05 (exploding)', data: g_exp, borderColor: '#ef4444', pointRadius: 0, borderWidth: 2 },
+          { label: 'γ=1.0 (engineered)', data: g_unit, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2, borderDash: [6,3] },
+          { label: 'γ=0.95 (vanishing)', data: g_van, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2 } ] },
+        options: common('layers back-propagated through', 'gradient norm (×)', true) });
+
+      // B. clipping
+      var st = [], raw = [], clip = [], tau = 1.0;
+      var seed = 7; function rnd(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+      for (var t = 0; t < 120; t++) { st.push(t);
+        var base = 0.3 + 0.15*rnd();
+        if (t === 70) base = 6.5;            // the bad batch
+        if (t === 71) base = 2.2;            // aftershock
+        raw.push(base); clip.push(Math.min(base, tau)); }
+      new Chart(document.getElementById('dbgClip'), { type: 'line',
+        data: { labels: st, datasets: [
+          { label: 'raw grad norm', data: raw, borderColor: '#ef4444', pointRadius: 0, borderWidth: 2 },
+          { label: 'after clip (τ=1.0)', data: clip, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2 } ] },
+        options: common('step', 'global grad norm', false) });
+
+      // C. loss scaling vs FP16 window — histogram-like over log10(magnitude)
+      var bins = [], rawH = [], scaledH = [];
+      for (var e = -10; e <= 6; e++) bins.push(e);
+      function gauss(x, mu, s){ return Math.exp(-0.5*Math.pow((x-mu)/s,2)); }
+      for (var i = 0; i < bins.length; i++) {
+        rawH.push(gauss(bins[i], -6, 1.6));               // raw grads centered ~1e-6
+        scaledH.push(gauss(bins[i], -6 + Math.log10(1024), 1.6)); // shifted up by log10(1024)≈3
+      }
+      var fp16lo = Math.log10(6.1e-5), fp16hi = Math.log10(6.5e4);
+      new Chart(document.getElementById('dbgLossScale'), { type: 'line',
+        data: { labels: bins, datasets: [
+          { label: 'raw gradients', data: rawH, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)', fill: true, pointRadius: 0, borderWidth: 2, tension: 0.3 },
+          { label: 'scaled ×1024', data: scaledH, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.12)', fill: true, pointRadius: 0, borderWidth: 2, tension: 0.3 } ] },
+        options: common('log₁₀(gradient magnitude)', 'relative count', false) });
+
+      // D. overfit/underfit
+      var ep = [], tr = [], val = [], goodT = [], goodV = [], underT = [], underV = [];
+      for (var e2 = 0; e2 <= 50; e2++) { ep.push(e2);
+        tr.push(0.2 + 2.0*Math.exp(-e2/8));                       // train keeps dropping
+        val.push(0.6 + 1.6*Math.exp(-e2/8) + 0.02*Math.max(0,e2-18)); // val turns up (overfit)
+        goodT.push(0.5 + 1.8*Math.exp(-e2/10));
+        goodV.push(0.65 + 1.8*Math.exp(-e2/10));                  // small steady gap
+        underT.push(1.4 + 0.6*Math.exp(-e2/10));                  // plateau high
+        underV.push(1.5 + 0.6*Math.exp(-e2/10)); }
+      new Chart(document.getElementById('dbgOverfit'), { type: 'line',
+        data: { labels: ep, datasets: [
+          { label: 'overfit — train', data: tr, borderColor: '#ef4444', pointRadius: 0, borderWidth: 2 },
+          { label: 'overfit — val', data: val, borderColor: '#ef4444', pointRadius: 0, borderWidth: 2, borderDash: [6,3] },
+          { label: 'good — train', data: goodT, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 1.5 },
+          { label: 'good — val', data: goodV, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 1.5, borderDash: [6,3] },
+          { label: 'underfit (both)', data: underT, borderColor: '#9ca3af', pointRadius: 0, borderWidth: 2 } ] },
+        options: common('epoch', 'loss', false) });
+
+      // E. LR regimes
+      var s2 = [], low = [], good2 = [], high = [];
+      for (var t2 = 0; t2 <= 60; t2++) { s2.push(t2);
+        low.push(2.0 - 0.4*(1-Math.exp(-t2/40)));                 // creeps
+        good2.push(0.2 + 1.8*Math.exp(-t2/8));                    // smooth
+        high.push(1.0 + 0.9*Math.exp(-t2/30)*Math.cos(t2/2) + 0.004*t2); // oscillate + drift up
+      }
+      new Chart(document.getElementById('dbgLR'), { type: 'line',
+        data: { labels: s2, datasets: [
+          { label: 'LR too low', data: low, borderColor: '#9ca3af', pointRadius: 0, borderWidth: 2 },
+          { label: 'LR good', data: good2, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2 },
+          { label: 'LR too high', data: high, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2 } ] },
+        options: common('step', 'loss', false) });
+    });
+    </script>
+
     <h3>6.2 The general method (say this framing)</h3>
     <ol>
       <li><strong>Localize in time:</strong> gradual or sudden? Specific reproducible step (→ data/checkpoint) or random (→ numerical/LR)?</li>
@@ -436,6 +1203,180 @@
       <li><strong>Sanity baseline:</strong> can the model <strong>overfit a single batch</strong> to ~0 loss? If not, something is fundamentally broken — independent of scale. Fastest way to separate "bug" from "needs more compute."</li>
     </ol>
     <div class="callout keyidea"><span class="label">★ The meta-point</span>You treat training as an instrumented experiment: log grad norms, activation stats, and data provenance <em>before</em> you need them, and reason about likelihood rather than randomly trying fixes.</div>
+
+    <h3>6.3 Instrumentation for a "hero run" — what to log and the tools to do it</h3>
+    <p>A <strong>hero run</strong> is the big flagship training job: thousands of GPUs, weeks of wall-clock, millions of dollars. You can't re-run it casually, so the entire run is <strong>instrumented up front</strong> — the dashboard <em>is</em> the debugger. The rule: every row of the §6.1 table should be diagnosable from telemetry you're <em>already</em> logging, without attaching a debugger to a live 1000-GPU job.</p>
+
+    <h4>What to log (signal → what it catches)</h4>
+    <table>
+      <thead><tr><th>Signal</th><th>Healthy range / shape</th><th>What it catches (→ §6.1 row)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Train / val loss</strong>, per-domain</td><td>smooth ↓; small train–val gap</td><td>spikes, overfit/underfit, plateau; per-domain isolates a bad data mix</td></tr>
+        <tr><td><strong>Global grad norm</strong> $\lVert g\rVert$</td><td>stable band; brief blips</td><td>the earliest spike warning — leads the loss spike (row A/B)</td></tr>
+        <tr><td><strong>Per-layer grad norm</strong></td><td>flat across depth</td><td>grows with depth → init / residual-scaling bug (exploding through depth)</td></tr>
+        <tr><td><strong>Update-to-weight ratio</strong> $\dfrac{\lVert\Delta w\rVert}{\lVert w\rVert}$</td><td>$\sim10^{-3}$ per step</td><td>$\gg$ → LR too high; $\approx0$ → frozen / vanishing / LR≈0</td></tr>
+        <tr><td><strong>Activation stats</strong> (mean/std, % saturated, dead units)</td><td>stable, few dead</td><td>dead ReLUs, activations →0, saturation (row in table)</td></tr>
+        <tr><td><strong>Weight / param norms</strong> per layer</td><td>slow drift</td><td>runaway growth (decay too weak) or collapse (decay too strong)</td></tr>
+        <tr><td><strong>Optimizer state</strong> ($v$ magnitude, max $\hat v$)</td><td>bounded</td><td>2nd-moment blow-up → precision/overflow instabilities on resume</td></tr>
+        <tr><td><strong>Loss scale</strong> (FP16) / NaN-inf counts</td><td>scale steady; counts 0</td><td>frequent scale halving = recurring overflow → row C; first-NaN location</td></tr>
+        <tr><td><strong>% steps clipped</strong></td><td>low single digits</td><td>chronic clipping → LR/data too hot; sudden jump → bad shard region</td></tr>
+        <tr><td><strong>Throughput</strong>: tokens/s, step time, <strong>MFU</strong></td><td>flat, ~40–55% MFU</td><td>throughput drop → straggler, dataloader stall, checkpoint I/O</td></tr>
+        <tr><td><strong>GPU health</strong>: util, mem, power, ECC errors, temp</td><td>util high, 0 ECC</td><td>a slow/sick rank (straggler), OOM risk, hardware fault</td></tr>
+        <tr><td><strong>Data provenance</strong>: shard IDs, token counts, % padding/masked</td><td>logged per step</td><td>reproducible spike at step N → pinpoint the exact shard (row "spike")</td></tr>
+        <tr><td><strong>Transformer-specific</strong>: attention entropy, logit/z-loss magnitude</td><td>entropy not →0; logits bounded</td><td>attention collapse, logit explosion (a common spike precursor)</td></tr>
+        <tr><td><strong>MoE-specific</strong>: per-expert load, dropped-token rate, router entropy</td><td>balanced; few drops</td><td>routing collapse → wasted capacity + instability (§ MoE)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout keyidea">
+      <span class="label">★ Two of those rows, unpacked — activation stats &amp; weight norms</span>
+
+      <p><strong>1 · Activation statistics (mean/std, % saturated, % dead).</strong> Every layer emits a tensor of activations (its outputs, post-nonlinearity). You periodically log summary stats over it, per layer:</p>
+      <ul>
+        <li><strong>mean / std</strong> — the <em>scale</em> of activations. Healthy = stable across depth and across training (std ~O(1)). std shrinking layer-by-layer → forward signal dying out (vanishing); std growing → activations exploding.</li>
+        <li><strong>% saturated</strong> — for squashing nonlinearities (sigmoid→0/1, tanh→±1). In the flat region the derivative $\approx 0$, so $\partial\mathcal L/\partial x\approx 0$ → no gradient flows → the unit stops learning. High % saturated = many units stuck/frozen.</li>
+        <li><strong>% dead</strong> — the ReLU version. $\text{ReLU}(x)=\max(0,x)$ has derivative $0$ for $x\lt 0$. If a neuron's input is negative for <em>every</em> example, it outputs 0 and its gradient is 0 <em>forever</em> — it can't recover (often caused by an LR spike pushing the bias very negative). A few dead units is fine; a large fraction is lost capacity.</li>
+      </ul>
+      <p>So this signal catches the §6.1 rows <strong>"a layer's activations → 0"</strong> and <strong>"dead ReLUs."</strong> Fixes: lower LR, better init, or ReLU → GELU/LeakyReLU (nonzero gradient for $x\lt 0$, so they don't die).</p>
+
+      <p><strong>2 · Weight / parameter norms per layer.</strong> For each layer's weight matrix $W$ you log one number — the Frobenius/L2 norm $\lVert W\rVert=\sqrt{\sum_i w_i^2}$ ("how big are this layer's weights overall") — and watch it over training. It should <strong>drift slowly and settle</strong>. Two failure shapes:</p>
+      <ul>
+        <li><strong>Runaway growth</strong> → regularization too <em>weak</em>. Weight decay pulls weights toward 0 by $\text{lr}\cdot\lambda\cdot w$ each step (§5.2); if $\lambda$ is too small (or decay got divided away by $\sqrt{\hat v}$ — the Adam-L2 bug), nothing balances the optimizer growing the weights → larger activations/logits → instability, NaN, worse generalization.</li>
+        <li><strong>Collapse toward 0</strong> → regularization too <em>strong</em>. If $\lambda$ is too large, the decay term dominates and crushes weights faster than learning builds them → the layer loses representational power → underfitting.</li>
+      </ul>
+      <p>The <em>shape</em> of the per-layer norm curve tells you if decay strength is right: flat-ish/slow rise = good, steep climb = $\lambda$ too small, decay to ~0 = $\lambda$ too large.</p>
+
+      <p>The throughline: both are <strong>cheap scalars logged continuously</strong> so a problem appears as a <em>trend</em> on a dashboard <em>before</em> it becomes a loss spike — activation stats catch forward-signal/dead-unit failures; weight norms catch regularization-balance failures.</p>
+
+      <div style="margin:14px 0 8px;font-weight:700;font-size:15px;">Weight norm $\lVert W\rVert$ over training — three regimes</div>
+      <div style="position:relative;width:100%;height:250px;"><canvas id="dbgWeightNorm"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0 14px;">Healthy (blue): rises then settles. Too-weak decay (orange): unbounded growth. Too-strong decay (grey): crushed toward 0.</p>
+
+      <div style="margin:6px 0 8px;font-weight:700;font-size:15px;">% dead ReLU units creeping up after an LR spike</div>
+      <div style="position:relative;width:100%;height:250px;"><canvas id="dbgDeadUnits"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">A burst of too-large updates around step 40 pushes many neurons permanently negative; the dead-unit fraction ratchets up and never recovers (ReLU's zero gradient region) — capacity quietly lost.</p>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var cfg = function(xT, yT) { return { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+        scales: { x: { title: { display: true, text: xT, font: { size: 12 } }, ticks: { maxTicksLimit: 10 } },
+                  y: { title: { display: true, text: yT, font: { size: 12 } }, beginAtZero: true } } }; };
+
+      // weight norm regimes
+      var st = [], healthy = [], weak = [], strong = [];
+      for (var t = 0; t <= 100; t++) { st.push(t);
+        healthy.push(2 + 6 * (1 - Math.exp(-t / 18)));      // rises, settles ~8
+        weak.push(2 + 0.09 * t + 0.0009 * t * t);           // unbounded growth
+        strong.push(0.3 + 7.7 * Math.exp(-t / 12));         // collapses toward ~0.3
+      }
+      new Chart(document.getElementById('dbgWeightNorm'), { type: 'line',
+        data: { labels: st, datasets: [
+          { label: 'healthy', data: healthy, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2 },
+          { label: 'decay too weak (runaway)', data: weak, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2 },
+          { label: 'decay too strong (collapse)', data: strong, borderColor: '#9ca3af', pointRadius: 0, borderWidth: 2 } ] },
+        options: cfg('training step', '‖W‖ (Frobenius norm)') });
+
+      // dead units ratcheting up
+      var st2 = [], dead = [], d = 2;
+      var seed = 11; function rnd(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+      for (var t2 = 0; t2 <= 100; t2++) { st2.push(t2);
+        if (t2 >= 40 && t2 <= 46) d += 5 + 3 * rnd();   // LR spike kills a burst of neurons
+        else d += (rnd() - 0.6) * 0.2;                   // otherwise roughly flat
+        d = Math.max(2, d);                              // never recovers below baseline
+        dead.push(d); }
+      new Chart(document.getElementById('dbgDeadUnits'), { type: 'line',
+        data: { labels: st2, datasets: [
+          { label: '% dead ReLU units', data: dead, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.12)', fill: true, pointRadius: 0, borderWidth: 2 } ] },
+        options: cfg('training step', '% units with always-zero output') });
+    });
+    </script>
+
+    <div class="callout keyidea">
+      <span class="label">★ Two more rows, unpacked — optimizer state &amp; loss scale</span>
+
+      <p><strong>3 · Optimizer state ($v$ magnitude, max $\hat v$).</strong> $v$ is Adam's <em>second moment</em> — the EMA of squared gradients $v=\beta_2 v+(1-\beta_2)g^2$ — and $\hat v$ is its bias-corrected form (§5.1). Adam divides every step by $\sqrt{\hat v}$, so $v$ <em>is</em> the per-parameter adaptive denominator. You log the overall $v$ magnitude and the <strong>max $\hat v$ across all parameters</strong> (the single hottest one).</p>
+      <ul>
+        <li><strong>Healthy = bounded.</strong> $\hat v$ settles into a stable range; the effective step $\eta/\sqrt{\hat v}$ stays sane.</li>
+        <li><strong>Blow-up.</strong> Sustained huge gradients on some params → their $\hat v$ grows enormous → their effective LR collapses to ~0 (they freeze), and the large values risk <strong>overflow</strong> when state is stored in reduced precision.</li>
+        <li><strong>Why "on resume."</strong> $m$ and $v$ are state that <em>must</em> be checkpointed and restored exactly. If a resume loads weights but <strong>drops/corrupts $v$</strong> (or restores it at the wrong precision), $\sqrt{\hat v}$ is suddenly wrong → the first post-resume steps are mis-scaled → a <strong>spike right after resume</strong> (§6.1). Logging max $\hat v$ before vs after a restart verifies the optimizer state actually came back intact.</li>
+      </ul>
+
+      <p><strong>4 · Loss scale (FP16) / NaN-inf counts.</strong> This tracks <strong>dynamic loss scaling</strong> (§5.5 / §6.1b-C). The framework keeps a scale $S$, multiplies the loss by $S$ before backward (lifting tiny gradients into FP16's window), and adapts $S$ automatically: on an <strong>overflow</strong> (inf/NaN gradient) it <strong>skips the step and halves $S$</strong>; after many clean steps it <strong>doubles $S$</strong> to creep back. This makes a characteristic <strong>sawtooth</strong>.</p>
+      <ul>
+        <li><strong>Healthy = scale steady, counts 0.</strong> $S$ hovers near a stable value; almost no skipped steps.</li>
+        <li><strong>Frequent halving = recurring overflow</strong> → still hitting the FP16 ceiling (§6.1b-C). Each halve is a <em>wasted (skipped) step</em>, so training also slows. Fix: switch to <strong>BF16</strong> (FP32's exponent range, no scaling needed) or keep sensitive ops in FP32.</li>
+        <li><strong>NaN/inf counts + first-NaN location</strong> tell you whether and <em>where</em> numerical failure happens — logging which layer/op produced the first NaN turns "loss went NaN" into "attention logits in layer 31 overflowed."</li>
+      </ul>
+
+      <div style="margin:14px 0 8px;font-weight:700;font-size:15px;">Dynamic loss scale $S$ over training — healthy vs recurring overflow</div>
+      <div style="position:relative;width:100%;height:250px;"><canvas id="dbgLossScaleDyn"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0 14px;">Healthy (blue): $S$ climbs and plateaus near the ceiling, rare dips. Recurring overflow (orange): $S$ keeps getting halved → never stabilizes → many skipped steps. Log scale on y.</p>
+
+      <div style="margin:6px 0 8px;font-weight:700;font-size:15px;">Max $\hat v$ across parameters — stable vs blow-up before a resume spike</div>
+      <div style="position:relative;width:100%;height:250px;"><canvas id="dbgVhat"></canvas></div>
+      <p style="font-size:12px;color:#6b7280;margin:4px 0;">Stable (blue): bounded. Blow-up (orange): one parameter's $\hat v$ runs away; if the checkpoint then mis-restores $v$, the wrong denominator produces the post-resume spike.</p>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var cfg2 = function(xT, yT, ylog) { return { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+        scales: { x: { title: { display: true, text: xT, font: { size: 12 } }, ticks: { maxTicksLimit: 10 } },
+                  y: Object.assign({ title: { display: true, text: yT, font: { size: 12 } } }, ylog ? { type: 'logarithmic' } : { beginAtZero: true }) } }; };
+
+      // dynamic loss scale sawtooth
+      var st = [], good = [], bad = [], sg = 1024, sb = 1024;
+      var seed = 5; function rnd(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+      for (var t = 0; t <= 120; t++) { st.push(t);
+        // healthy: doubles toward 32768, rare overflow
+        if (t > 0 && t % 20 === 0 && sg < 32768) sg *= 2;
+        if (rnd() < 0.02) sg = Math.max(128, sg / 2);
+        good.push(sg);
+        // recurring overflow: halves often, occasionally recovers a bit
+        if (rnd() < 0.30) sb = Math.max(1, sb / 2); else if (rnd() < 0.1) sb *= 2;
+        bad.push(sb);
+      }
+      new Chart(document.getElementById('dbgLossScaleDyn'), { type: 'line',
+        data: { labels: st, datasets: [
+          { label: 'healthy', data: good, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2, stepped: true },
+          { label: 'recurring overflow', data: bad, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2, stepped: true } ] },
+        options: cfg2('training step', 'loss scale S', true) });
+
+      // max v_hat
+      var st2 = [], stable = [], blow = [], vb = 1.0;
+      for (var t2 = 0; t2 <= 120; t2++) { st2.push(t2);
+        stable.push(0.8 + 0.4 * (1 - Math.exp(-t2 / 20)));   // settles ~1.2
+        vb = (t2 < 70) ? 0.8 + 0.4 * (1 - Math.exp(-t2 / 20)) : 1.2 * Math.pow(1.06, t2 - 70); // runs away after 70
+        blow.push(vb);
+      }
+      new Chart(document.getElementById('dbgVhat'), { type: 'line',
+        data: { labels: st2, datasets: [
+          { label: 'stable', data: stable, borderColor: '#3b82f6', pointRadius: 0, borderWidth: 2 },
+          { label: 'blow-up', data: blow, borderColor: '#f59e0b', pointRadius: 0, borderWidth: 2 } ] },
+        options: cfg2('training step', 'max v̂', true) });
+    });
+    </script>
+
+    <h4>The tools — and what each is for</h4>
+    <table>
+      <thead><tr><th>Tool / mechanism</th><th>What it does</th><th>Used to…</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Experiment trackers</strong> — W&B, TensorBoard, MLflow</td><td>stream scalars/histograms to live dashboards; compare runs; alerting</td><td>watch all the signals above in real time; diff a failing run vs a known-good one</td></tr>
+        <tr><td><strong>Profilers</strong> — PyTorch Profiler, Nsight Systems, Holistic Trace Analysis</td><td>per-kernel/op timing, communication vs compute breakdown, timeline traces</td><td>find <em>why</em> throughput/MFU dropped: stragglers, comm bottlenecks, dataloader waits</td></tr>
+        <tr><td><strong>Anomaly detection</strong> — <code>torch.autograd.detect_anomaly</code>, NaN hooks</td><td>flags the first op that produces NaN/inf in forward or backward</td><td>localize NaNs to an exact layer/op instead of guessing (row "NaN")</td></tr>
+        <tr><td><strong>Activation/grad hooks</strong> — forward/backward hooks, histograms</td><td>capture per-layer distributions cheaply, sampled every N steps</td><td>dead neurons, saturation, per-depth grad growth, attention collapse</td></tr>
+        <tr><td><strong>GPU/cluster telemetry</strong> — DCGM, nvidia-smi dmon, node exporters</td><td>per-GPU util, memory, power, ECC, NVLink/IB health</td><td>spot the one sick rank dragging the whole synchronous step</td></tr>
+        <tr><td><strong>Distributed debug</strong> — <code>NCCL_DEBUG</code>, flight recorder, timeout traces</td><td>logs collective ops; dumps state on a hang/timeout</td><td>diagnose hangs, desync, and which rank stalled a collective</td></tr>
+        <tr><td><strong>Determinism / resume harness</strong></td><td>checksums optimizer+scheduler+dataloader+RNG state; verifies bit-exact resume on a few steps</td><td>catch the "spike right after resume" class before launching the hero run</td></tr>
+        <tr><td><strong>Async checkpointing</strong> — DCP, distributed checkpoint</td><td>save sharded state to storage off the critical path</td><td>frequent checkpoints without throughput hit → cheap rollback after a spike</td></tr>
+        <tr><td><strong>Auto-babysitter</strong> — spike detector + auto-rollback</td><td>watches loss/grad-norm; on a spike, rolls back to last good checkpoint, optionally skips the offending data shard and lowers LR, then resumes</td><td>survive instabilities on a multi-week run without a human awake at 3am</td></tr>
+        <tr><td><strong>Data tooling</strong> — provenance index, shard validators, dedup/contamination scans</td><td>map step→shard; pre-scan for NaN/inf, encoding bugs, eval leakage</td><td>turn "spike at 30k" into "shard 4127 row 88k" and prevent eval-contamination mirages</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout keyidea"><span class="label">★ How to say it in an interview</span>For a hero run, the loop is: <strong>(1) instrument before you launch</strong> — loss, global + per-layer grad norm, update/weight ratio, activation histograms, loss-scale, throughput/MFU, GPU health, and <strong>data provenance per step</strong>; <strong>(2) dashboard + alerts</strong> on those so the spike's <em>precursor</em> (grad norm) pages you before the loss does; <strong>(3) cheap frequent async checkpoints + an auto-rollback babysitter</strong> so a single bad shard costs minutes, not the run; <strong>(4) bit-exact resume verification</strong> so restarts don't themselves cause spikes. The whole point: make every row of the symptom table answerable from telemetry you already have.</div>
 
     <h4>Self-test §6</h4>
     <div class="qa"><div class="q">"Loss spikes at 30k steps — what do you check?"<span class="chev">▶</span></div><div class="a">Localize (reproducible step? → data shard / resume bug; random? → LR/numerical). Check the grad-norm trace just before, inspect the data batch at that step, verify clipping + mixed-precision config, confirm it's not optimizer-state-on-resume. Give the categories, then prioritize by clues.</div></div>
@@ -483,6 +1424,164 @@
       <li><strong>BF16 &gt; FP16</strong> for range (FP16 needs loss scaling). <strong>Grad accumulation</strong> simulates big batches. <strong>Activation checkpointing</strong> trades compute for memory.</li>
       <li><strong>Debugging reflex:</strong> localize in time → grad norms → inspect data → check plumbing (double softmax, loss masking, resume state) → overfit one batch.</li>
     </ul>
+
+    <hr>
+    <h2 class="section" id="drill">Debug drill — "the deep model that won't train"</h2>
+    <div class="callout keyidea">
+      <span class="label">🎤 Mock interview (AI-coding round)</span>
+      You've inherited a decoder-only transformer training script. The <strong>12-layer</strong> config trains fine. Scaled to <strong>48 layers</strong> — same data, same optimizer, <code>lr=3e-4</code>, 2k warmup — the loss <strong>spikes to NaN within ~300 steps</strong>. A teammate's near-identical implementation, same hyperparameters, trains stably at 48 layers. The only material difference is in the block. <strong>Find the bug, explain why it only shows at depth, and give the one-line fix.</strong>
+    </div>
+    <pre><code>class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model, n_heads, dropout=0.0):
+        super().__init__()
+        assert d_model % n_heads == 0
+        self.h, self.d_k = n_heads, d_model // n_heads
+        self.qkv  = nn.Linear(d_model, 3 * d_model)
+        self.proj = nn.Linear(d_model, d_model)
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x, mask):
+        B, T, D = x.shape
+        qkv = self.qkv(x).reshape(B, T, 3, self.h, self.d_k).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        scores = (q @ k.transpose(-2, -1)) / (self.d_k ** 0.5)
+        scores = scores.masked_fill(mask == 0, float('-inf'))
+        attn = self.drop(F.softmax(scores, dim=-1))
+        out = (attn @ v).transpose(1, 2).reshape(B, T, D)
+        return self.proj(out)
+
+class TransformerBlock(nn.Module):
+    """Pre-norm decoder block (attention + MLP)."""
+    def __init__(self, d_model, n_heads, mlp_ratio=4, dropout=0.0):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.attn  = MultiHeadAttention(d_model, n_heads, dropout)
+        self.mlp   = nn.Sequential(
+            nn.Linear(d_model, mlp_ratio * d_model), nn.GELU(),
+            nn.Linear(mlp_ratio * d_model, d_model), nn.Dropout(dropout))
+
+    def forward(self, x, mask):
+        # pre-norm: normalize, then sublayer, then residual add
+        x = self.norm1(x)
+        x = x + self.attn(x, mask)
+        x = self.norm2(x)
+        x = x + self.mlp(x)
+        return x
+
+class GPT(nn.Module):
+    def __init__(self, vocab, d_model=768, n_heads=12, n_layers=48, max_len=1024):
+        super().__init__()
+        self.tok = nn.Embedding(vocab, d_model)
+        self.pos = nn.Embedding(max_len, d_model)
+        self.blocks = nn.ModuleList(
+            [TransformerBlock(d_model, n_heads) for _ in range(n_layers)])
+        self.norm_f = nn.LayerNorm(d_model)
+        self.head   = nn.Linear(d_model, vocab, bias=False)
+        self.head.weight = self.tok.weight                  # weight tying
+        self.register_buffer("mask",
+            torch.tril(torch.ones(max_len, max_len)).view(1, 1, max_len, max_len))
+        self.apply(self._init)
+
+    def _init(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight, std=0.02)
+            if m.bias is not None: nn.init.zeros_(m.bias)
+        elif isinstance(m, nn.Embedding):
+            nn.init.normal_(m.weight, std=0.02)
+
+    def forward(self, idx):
+        B, T = idx.shape
+        x = self.tok(idx) + self.pos(torch.arange(T, device=idx.device))
+        m = self.mask[:, :, :T, :T]
+        for blk in self.blocks:
+            x = blk(x, m)
+        x = self.norm_f(x)
+        return self.head(x)</code></pre>
+    <p class="hint">Try it before revealing. Questions to answer: (1) the comment says "pre-norm" — is it? If not, what is it effectively? (2) Why fine at 12 layers but NaN at 48? (3) One-line fix. (4) Why don't clipping (already 1.0) and warmup save it?</p>
+    <div class="qa"><div class="q">Reveal the answer<span class="chev">▶</span></div><div class="a">
+      <strong>The bug:</strong> in <code>TransformerBlock.forward</code>, <code>x = self.norm1(x)</code> <em>overwrites</em> <code>x</code>, so the residual add <code>x = x + self.attn(x)</code> adds onto the <em>normalized</em> x — the residual stream itself is normalized in place at every sublayer. That is <strong>not</strong> pre-norm.<br><br>
+      <strong>Correct pre-norm</strong> normalizes only the <em>branch input</em> and leaves the residual untouched:
+      <pre style="background:#0d1612;margin:8px 0;"><code>def forward(self, x, mask):
+    x = x + self.attn(self.norm1(x), mask)
+    x = x + self.mlp(self.norm2(x))
+    return x</code></pre>
+      <strong>Why it's effectively post-norm:</strong> by overwriting <code>x</code>, there is no un-normalized identity path — a LayerNorm now sits on the residual <em>trunk</em> at every layer (the §4.4 post-norm pattern). The clean ×1 gradient highway is destroyed.<br><br>
+      <strong>Why 12 layers OK, 48 NaN:</strong> post-norm-style instability scales with depth — the backward gradient must cross $L$ LayerNorm Jacobians (not identity), so its magnitude grows/shrinks with $L$; at 48 layers it diverges where 12 tolerated it. The teammate's true pre-norm model keeps the clean highway and trains fine.<br><br>
+      <strong>Why clipping + warmup don't save it:</strong> clipping caps a single step's global norm but doesn't fix the structural gradient pathology of LN-on-the-trunk; warmup helps post-norm but isn't enough at 48 layers. The fix is architectural (restore the clean residual), not a hyperparameter band-aid. <em>Bonus:</em> production pre-norm also scales the residual projection by ~$1/\sqrt{2N_{\text{layers}}}$ at init (GPT-2 style) — omitted here, a secondary contributor.
+    </div></div>
+
+    <h2 class="section" id="drill2">Debug drill — "great train accuracy, garbage eval"</h2>
+    <div class="callout keyidea">
+      <span class="label">🎤 Mock interview (AI-coding round)</span>
+      You're handed a ResNet-style image classifier. <strong>Training accuracy climbs to 98%</strong>, the training loss looks great. But on the validation set the model is <strong>barely better than chance</strong>, and worse, when the on-call service runs it on <strong>one image at a time</strong> it sometimes returns <strong>NaN scores</strong>. The val data is clean and was used successfully by a colleague. <strong>Find the bug, explain both symptoms (bad val + single-image NaN), and give the fix.</strong>
+    </div>
+    <pre><code>def evaluate(model, val_loader, device):
+    total, correct = 0, 0
+    for x, y in val_loader:                 # val_loader uses batch_size=64
+        x, y = x.to(device), y.to(device)
+        logits = model(x)                   # model is a CNN with nn.BatchNorm2d layers
+        preds = logits.argmax(dim=1)
+        correct += (preds == y).sum().item()
+        total += y.numel()
+    return correct / total
+
+# ... in the service ...
+def score_one(model, image, device):
+    x = preprocess(image).unsqueeze(0).to(device)   # shape [1, 3, H, W]
+    return model(x).softmax(dim=1)          # a single image, batch size = 1
+
+# training loop (works fine):
+for epoch in range(epochs):
+    for x, y in train_loader:
+        model.train()
+        loss = criterion(model(x), y)
+        loss.backward(); opt.step(); opt.zero_grad()
+# right after training, we call:
+acc = evaluate(model, val_loader, device)   # <-- bad number
+</code></pre>
+    <p class="hint">Try it before revealing. Questions: (1) What mode is BatchNorm in during <code>evaluate</code> and <code>score_one</code>? (2) Why is val accuracy bad <em>and</em> non-deterministic? (3) Why does the single-image path produce NaN? (4) Why did your colleague not hit it? (5) The fix.</p>
+    <div class="qa"><div class="q">Reveal the answer<span class="chev">▶</span></div><div class="a">
+      <strong>The bug:</strong> the model is never put into eval mode before inference. The training loop calls <code>model.train()</code> inside the loop, and <code>evaluate</code> / <code>score_one</code> <em>never call <code>model.eval()</code></em>, so every <code>nn.BatchNorm2d</code> is still in <strong>train mode</strong> at evaluation — it normalizes with <em>batch</em> statistics instead of the frozen running stats (§4.2).<br><br>
+      <strong>Why val is bad + non-deterministic:</strong> in train mode each image is normalized using its <em>batchmates'</em> mean/variance, so a given image's logits depend on what else is in its batch of 64. Shuffle or re-order the val set → different predictions and a different accuracy number. The network learned to expect <em>population</em> stats at inference; feeding it noisy per-batch stats shifts every activation → accuracy collapses even though the weights are fine. (It also keeps mutating the running stats during eval — corrupting them further.)<br><br>
+      <strong>Why single-image → NaN:</strong> <code>score_one</code> uses batch size 1. The per-batch variance over a single example is $\sigma_{\mathcal B}^2 = 0$, so BN computes $\dfrac{x-\mu}{\sqrt{0+\epsilon}}$ — a huge value, and with the running-stat update path it can blow up to inf/NaN. Batch stats are simply undefined for $B=1$.<br><br>
+      <strong>Why the colleague didn't hit it:</strong> they (correctly) called <code>model.eval()</code>, so their BN used the stable running stats — batch-independent and well-defined at $B=1$. Same weights, same data, different <em>mode</em>.<br><br>
+      <strong>The fix</strong> — set eval mode (and disable grad) for all inference paths:
+      <pre style="background:#0d1612;margin:8px 0;"><code>@torch.no_grad()
+def evaluate(model, val_loader, device):
+    model.eval()                            # BN/Dropout → inference behavior
+    total, correct = 0, 0
+    for x, y in val_loader:
+        x, y = x.to(device), y.to(device)
+        preds = model(x).argmax(dim=1)
+        correct += (preds == y).sum().item(); total += y.numel()
+    return correct / total
+
+@torch.no_grad()
+def score_one(model, image, device):
+    model.eval()
+    x = preprocess(image).unsqueeze(0).to(device)
+    return model(x).softmax(dim=1)</code></pre>
+<strong>Background — batch stats vs running stats (the two sets of numbers).</strong> BN normalizes each feature/channel as $\hat x=(x-\text{mean})/\sqrt{\text{var}+\epsilon}$. The question is <em>where</em> mean/var come from, and there are two sources:<br><br>
+      <strong>Batch stats</strong> — computed fresh from the <em>current mini-batch</em> every forward pass:
+      $$\mu_{\mathcal B,i}=\frac1B\sum_{b=1}^{B}x_{b,i},\qquad \sigma^2_{\mathcal B,i}=\frac1B\sum_{b=1}^{B}(x_{b,i}-\mu_{\mathcal B,i})^2$$
+      They're differentiable functions of the batch (so gradients flow through normalization → this is what makes BN help optimization), but they're a <em>noisy sample estimate</em> and depend on which examples share the batch.<br><br>
+      <strong>Running stats</strong> — a frozen EMA estimate of the <em>population</em> mean/var, accumulated across training as buffers (no gradient), updated each train step with momentum $m$ (e.g. 0.1):
+      $$\mu_{\text{run},i}\leftarrow(1-m)\,\mu_{\text{run},i}+m\,\mu_{\mathcal B,i},\qquad \sigma^2_{\text{run},i}\leftarrow(1-m)\,\sigma^2_{\text{run},i}+m\,\sigma^2_{\mathcal B,i}$$
+      <table style="margin:10px 0;">
+        <thead><tr><th></th><th>Train mode</th><th>Eval mode</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Normalizes with</strong></td><td>batch stats $\mu_{\mathcal B},\sigma^2_{\mathcal B}$ (this mini-batch)</td><td>running stats $\mu_{\text{run}},\sigma^2_{\text{run}}$ (frozen EMA)</td></tr>
+          <tr><td><strong>Recomputed each pass?</strong></td><td>Yes, from current batch</td><td>No — fixed buffers</td></tr>
+          <tr><td><strong>Updates running stats?</strong></td><td><strong>Yes</strong> (EMA accumulates)</td><td>No</td></tr>
+          <tr><td><strong>Depends on batchmates?</strong></td><td>Yes (noisy, batch-dependent)</td><td>No (deterministic)</td></tr>
+          <tr><td><strong>Behaves at B=1?</strong></td><td>Breaks ($\sigma^2_{\mathcal B}=0$ → NaN)</td><td>Fine</td></tr>
+        </tbody>
+      </table>
+      That's <em>why</em> eval must use running stats: a fixed, batch-independent function so one example's prediction doesn't depend on its batchmates (and doesn't divide by zero at $B=1$). The bug above is simply running eval while BN is still in the train-mode (batch-stats) branch.<br><br>
+
+      <strong>The one-liner to say:</strong> "BatchNorm is two different functions — batch stats in train, running stats in eval — so forgetting <code>model.eval()</code> makes inference batch-dependent (bad, non-deterministic val) and undefined at batch size 1 (NaN). Always <code>model.eval()</code> + <code>torch.no_grad()</code> for evaluation, <code>model.train()</code> for the loop." This is also why transformers prefer LN/RMSNorm, which behave identically in both modes (§4.2).
+    </div></div>
 
     <hr>
     <p class="hint">End of Day 1. When you're ready, ask for <strong>"build Day 2"</strong> — Transformers &amp; LLMs, same format.</p>

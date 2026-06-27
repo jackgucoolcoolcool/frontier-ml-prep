@@ -61,6 +61,20 @@
     <li><a href="#q6">Why does the stable sigmoid need np.where?</a></li>
     <li><a href="#q7">Bounded (tanh/sigmoid) vs unbounded (ReLU) activations</a></li>
     <li><a href="#q8">Derive ∂L/∂z₂ = ŷ − y (softmax + cross-entropy)</a></li>
+    <li><a href="#q9">MLE vs MAP</a></li>
+    <li><a href="#q10">What is the chain rule? (and why a sum)</a></li>
+    <li><a href="#q11">Concrete example: error = prediction − truth</a></li>
+    <li><a href="#q12">How to write the outer product (δ aᵀ)</a></li>
+    <li><a href="#q13">The product-of-Jacobians lens (vanish/explode)</a></li>
+    <li><a href="#q14">Which part is the Jacobian?</a></li>
+    <li><a href="#q15">Why constant variance, and the 2 in He init</a></li>
+    <li><a href="#q16">What is fan_in?</a></li>
+    <li><a href="#q17">Why scale residual branches by 1/√N_layers</a></li>
+    <li><a href="#q18">What are LN/RMSNorm, and why are BN stats noisy?</a></li>
+    <li><a href="#q19">Pre-norm vs post-norm (why pre-norm is stable)</a></li>
+    <li><a href="#q20">Why does RMSNorm match LayerNorm? (theory or empirical)</a></li>
+    <li><a href="#q21">Optimizers in detail + how AdamW runs in production</a></li>
+    <li><a href="#q22">How is fuzzy dedup done? What is Jaccard? (MinHash + LSH)</a></li>
   </ol>
 </div>
 
@@ -193,6 +207,203 @@
 <p>using $\sum_k y_k\delta_{ki}=y_i$ and $\sum_k y_k=1$ (where one-hot / normalization enters).</p>
 <div class="short"><strong>Why it matters:</strong> gradient = prediction − truth (same form as logistic regression); clean and numerically stable → frameworks fuse softmax + cross-entropy into one op (no division by $\hat{y}_k$ as in Method 2's intermediate).</div>
 <p class="ref">📄 Related: Day 1 §2.2; Q1 (softmax).</p>
+
+<hr>
+
+<h2 class="qhead" id="q9">Q9 — MLE vs MAP</h2>
+<div class="short"><strong>Short answer:</strong> Both pick a single best $\theta$. <strong>MLE</strong> maximizes the likelihood; <strong>MAP</strong> maximizes the posterior = likelihood × prior. So <strong>MAP = MLE + a prior term</strong>.</div>
+<p>$$\theta_{\text{MLE}} = \arg\max_\theta \sum_i \log p(x_i\mid\theta) \qquad \theta_{\text{MAP}} = \arg\max_\theta \Big[\sum_i \log p(x_i\mid\theta) + \log p(\theta)\Big]$$</p>
+<p><strong>Key insight — a prior is a regularizer:</strong></p>
+<ul>
+  <li>Gaussian prior $\theta\sim\mathcal{N}(0,\sigma^2)$ → $\log p(\theta)=-\frac{1}{2\sigma^2}\|\theta\|^2$ → <strong>L2 / weight decay</strong>. So L2 reg = MAP with a Gaussian prior.</li>
+  <li>Laplace prior → <strong>L1</strong> (sparsity).</li>
+  <li>In deep learning: cross-entropy loss alone = MLE; cross-entropy + weight decay = MAP.</li>
+</ul>
+<p><strong>Relationships:</strong></p>
+<ul>
+  <li>MLE = MAP with a <strong>flat/uniform prior</strong> (the prior term drops out).</li>
+  <li>As data grows, <strong>MAP → MLE</strong> — the likelihood (a sum over $N$ points) dominates the single fixed prior term, so the prior washes out. Prior matters most with little data.</li>
+  <li>MLE overfits small data; MAP regularizes.</li>
+  <li>Both are <strong>point estimates</strong> (the mode), not the full posterior — unlike full Bayesian inference, which integrates over $p(\theta\mid D)$.</li>
+  <li>Gotcha: MLE is reparameterization-invariant; MAP is <strong>not</strong> (the prior density transforms under a change of variables).</li>
+</ul>
+<div class="short"><strong>One-liner:</strong> "MAP = MLE + log-prior; the prior acts as a regularizer (Gaussian → L2/weight decay, Laplace → L1). MLE is MAP with a flat prior, and MAP → MLE as data grows."</div>
+<p class="ref">📄 Related: Day 1 §5.2 (weight decay); Q8 (CE = MLE).</p>
+
+<hr>
+
+<h2 class="qhead" id="q10">Q10 — What is the chain rule? (and why a sum)</h2>
+<div class="short"><strong>Short answer:</strong> The chain rule differentiates a <strong>composition</strong> by multiplying local derivatives along the path.</div>
+<ul>
+  <li><strong>Single-variable:</strong> if $L=f(u)$ and $u=g(z)$, then $\dfrac{dL}{dz}=\dfrac{dL}{du}\dfrac{du}{dz}$ (the sensitivities multiply).</li>
+  <li><strong>Multivariable:</strong> if $z_i$ reaches $L$ through several intermediates $\hat{y}_1,\dots,\hat{y}_K$, multiply along each path <strong>and sum over all paths</strong>: $\dfrac{\partial L}{\partial z_i}=\sum_k \dfrac{\partial L}{\partial \hat{y}_k}\dfrac{\partial \hat{y}_k}{\partial z_i}$.</li>
+  <li><strong>Why the sum:</strong> softmax is coupled — nudging one logit $z_i$ changes <em>every</em> $\hat{y}_k$ — so there are $K$ paths from $z_i$ to $L$, and independent contributions to the same quantity add.</li>
+  <li><strong>Picture:</strong> the graph $z_i\to\{\hat{y}_1,\dots,\hat{y}_K\}\to L$; trace every path, multiply local derivatives along it, sum the paths.</li>
+  <li><strong>Backprop = this rule applied across the whole computation graph</strong> (multiply along edges, sum over paths, reuse shared sub-results).</li>
+</ul>
+<p class="ref">📄 Related: Day 1 §2.2 (Method 2), §2.3 (backprop); Q8.</p>
+
+<hr>
+
+<h2 class="qhead" id="q11">Q11 — Concrete example: error = prediction − truth</h2>
+<div class="short"><strong>Multiclass (softmax + CE):</strong> cat/dog/bird classifier, logits $z=[2.0,1.0,0.1]$, true = cat → $y=[1,0,0]$. Softmax ($S=e^2+e^1+e^{0.1}=11.21$) → $\hat{y}=[0.659,0.242,0.099]$.</div>
+<p>$$\frac{\partial L}{\partial z} = \hat{y} - y = [-0.341,\ +0.242,\ +0.099]$$</p>
+<ul>
+  <li>True class → <strong>negative</strong> gradient → its logit goes <strong>up</strong> (step $z\leftarrow z-\eta\nabla$).</li>
+  <li>Wrong classes → <strong>positive</strong> gradients → their logits go <strong>down</strong>.</li>
+  <li>Magnitude = how much probability sat in the wrong place; entries <strong>sum to 0</strong> ($\sum\hat{y}=\sum y=1$).</li>
+</ul>
+<p><strong>Same form across models</strong> — each loss paired with its matching output activation:</p>
+<table>
+  <thead><tr><th>Model</th><th>Output</th><th>Loss</th><th>Output gradient</th></tr></thead>
+  <tbody>
+    <tr><td>Linear regression</td><td>$wx+b$</td><td>MSE</td><td>$\hat{y}-y$ (residual; e.g. 250−300 = −50)</td></tr>
+    <tr><td>Logistic regression</td><td>$\sigma(z)$</td><td>BCE</td><td>$\hat{y}-y$ (e.g. y=1, z=0.5⇒ŷ=0.62 → −0.38)</td></tr>
+    <tr><td>Softmax</td><td>$\operatorname{softmax}(z)$</td><td>CE</td><td>$\hat{y}-y$ (vector)</td></tr>
+  </tbody>
+</table>
+<p><strong>Why:</strong> these are generalized linear models with their canonical loss↔activation pairing (MSE↔identity, BCE↔sigmoid, CE↔softmax) — that pairing is what collapses the gradient to prediction − target. Mismatch it (MSE on a sigmoid output) and you lose it.</p>
+<p class="ref">📄 Related: Day 1 §2.2; Q8 (ŷ−y derivation).</p>
+
+<hr>
+
+<h2 class="qhead" id="q12">Q12 — How to write the outer product (δ aᵀ)</h2>
+<div class="short"><strong>Definition:</strong> the outer product of column vectors $u\in\mathbb{R}^m$, $v\in\mathbb{R}^n$ is the <strong>m×n</strong> matrix $u v^\top$ with $(u v^\top)_{ij}=u_i v_j$ (every element of $u$ × every element of $v$). Vs the <strong>inner/dot</strong> product $u^\top v$ = a scalar (needs equal lengths).</div>
+<p><strong>Example:</strong> $[1,2,3]^\top[4,5] = \begin{bmatrix}4&5\\8&10\\12&15\end{bmatrix}$ (3×1 times 1×2 → 3×2).</p>
+<p><strong>Why it's the weight gradient:</strong> $\delta_2\in\mathbb{R}^{d_{\text{out}}}$ (output error), $a_1\in\mathbb{R}^{d_{\text{in}}}$ (layer input) → $\delta_2 a_1^\top$ is $d_{\text{out}}\times d_{\text{in}}$ = shape of $W_2$; entry $(\partial L/\partial W_2)_{ij}=\delta_{2,i}\,a_{1,j}$ = (error at output $i$) × (input from $j$).</p>
+<pre style="background:#11161d;border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow-x:auto;"><code style="background:none;color:#c7d3e0;font-size:13px;">np.outer(d2, a1)              # or  d2[:, None] * a1[None, :]   (broadcasting)
+torch.outer(d2, a1)          # or  d2.unsqueeze(1) @ a1.unsqueeze(0)
+jnp.outer(d2, a1)            # einsum: np.einsum('i,j->ij', d2, a1)</code></pre>
+<p><strong>Mini-batch:</strong> sum outer products over examples = matmul $\Delta A^\top$ ($\Delta$: $d_{\text{out}}\times N$, $A$: $d_{\text{in}}\times N$). The batch dim contracts → backprop is matmuls, not loops.</p>
+<p class="ref">📄 Related: Day 1 §2.3.</p>
+
+<hr>
+
+<h2 class="qhead" id="q13">Q13 — The product-of-Jacobians lens (vanish/explode)</h2>
+<div class="short"><strong>Idea:</strong> going backward through $L$ layers, each multiplies the gradient by a factor $r \approx \lVert W\rVert\cdot|\phi'|$, so the gradient at layer 1 is $\approx r^L$. A <strong>power</strong> → small deviations from 1 compound.</div>
+<table>
+  <thead><tr><th>factor $r$</th><th>$r^{10}$</th><th>regime</th></tr></thead>
+  <tbody>
+    <tr><td>0.5</td><td>0.001</td><td>vanish fast</td></tr>
+    <tr><td>0.8</td><td>0.107</td><td>vanish slow</td></tr>
+    <tr><td>1.0</td><td>1.0</td><td><strong>stable</strong></td></tr>
+    <tr><td>1.1</td><td>2.6</td><td>explode</td></tr>
+    <tr><td>1.5</td><td>57.7</td><td>explode</td></tr>
+  </tbody>
+</table>
+<p><strong>Every stabilizing trick keeps $r\approx1$:</strong></p>
+<ul>
+  <li><strong>Init</strong> (Xavier/He): $\lVert W\rVert\approx1$ → starting factor ~1.</li>
+  <li><strong>Normalization:</strong> activations unit-scale → $\phi'$ stays responsive (non-saturated) → factor ~1 during training.</li>
+  <li><strong>Residuals</strong> $y=x+F(x)$: Jacobian $I+\partial F/\partial x$ → a literal ×1 path → product can't collapse to 0.</li>
+  <li><strong>Warmup/clipping:</strong> stop $r$ transiently spiking &gt;1 early.</li>
+</ul>
+<p><strong>Concretely:</strong> sigmoid $\phi'\le0.25$ → factor ≤0.25 → vanishes (why deep sigmoid nets won't train); ReLU active $\phi'=1$ + $\lVert W\rVert\approx1$ → factor ~1 → stable.</p>
+<p class="ref">📄 Related: Day 1 §2.4 (with bar diagram); §3 (init), §4 (norm/residuals), §5 (warmup/clipping).</p>
+
+<hr>
+
+<h2 class="qhead" id="q14">Q14 — Which part is the Jacobian?</h2>
+<div class="short"><strong>Definition:</strong> a Jacobian is the matrix of all first-order partials of a vector function $f:\mathbb{R}^n\to\mathbb{R}^m$ → the $m\times n$ matrix $J_{ij}=\partial f_i/\partial x_j$.</div>
+<table>
+  <thead><tr><th>Layer</th><th>Function</th><th>Jacobian</th></tr></thead>
+  <tbody>
+    <tr><td>Linear</td><td>$z=Wx+b$</td><td>$\partial z/\partial x = W$ → backward "× $W^\top$"</td></tr>
+    <tr><td>Activation</td><td>$a=\phi(z)$</td><td>$\partial a/\partial z = \operatorname{diag}(\phi'(z))$ → backward "⊙ $\phi'$"</td></tr>
+    <tr><td>Softmax</td><td>$\hat{y}=\operatorname{softmax}(z)$</td><td>$\operatorname{diag}(\hat{y}) - \hat{y}\hat{y}^\top$</td></tr>
+  </tbody>
+</table>
+<p>So the backprop rules <strong>are</strong> multiplications by (transposed) layer Jacobians:</p>
+<p>$$\delta_1 = \underbrace{\operatorname{diag}(\phi'(z_1))}_{\text{activation Jacobian}}\,\underbrace{W_2^\top}_{\text{linear Jacobian}}\,(\hat{y} - y)$$</p>
+<p>The chain rule <strong>stacks</strong> them → the net's input→output derivative is the <strong>product of per-layer Jacobians</strong>; $r \approx \lVert W\rVert\cdot|\phi'|$ is the magnitude of one. Backprop computes a <strong>vector–Jacobian product</strong> $v^\top J$ (e.g. $\delta^\top W$, or elementwise $\times\phi'$), never the full matrix.</p>
+<p class="ref">📄 Related: Day 1 §2.3–§2.4; Q13 (product-of-Jacobians), Q10 (chain rule).</p>
+
+<hr>
+
+<h2 class="qhead" id="q15">Q15 — Why constant variance, and the 2 in He init</h2>
+<div class="short"><strong>Why constant variance:</strong> $z=Wx$ sums over fan_in inputs; if each layer scales the signal variance by a factor $\neq1$, over $L$ layers it goes like $\text{factor}^L$ (same compounding as §2.4). $&lt;1$ → activations vanish over depth; $&gt;1$ → explode. Same recursion for backward gradients (layer Jacobian $=W$). So preserve variance → forward signal &amp; backward gradient stay $O(1)$ through depth.</div>
+<p><strong>Recursion (gives 1/fan_in = Xavier):</strong> $z_i=\sum_j W_{ij}x_j$, $W$ &amp; $x$ i.i.d. mean-0, independent → variances add:</p>
+<p>$$\text{Var}(z) = \text{fan\_in}\cdot\text{Var}(W)\cdot\text{Var}(x)$$</p>
+<p>Preserve → $\text{Var}(W)=1/\text{fan\_in}$ → $\text{std}=1/\sqrt{\text{fan\_in}}$ (assumes linear / tanh-near-0).</p>
+<p><strong>Where the 2 comes from (He, ReLU):</strong> ReLU $\max(0,z)$ zeros the negative half, so the second moment passed forward is <strong>halved</strong>:</p>
+<p>$$E[a^2]=E[\max(0,z)^2]=\tfrac12 E[z^2]=\tfrac12\text{Var}(z)$$</p>
+<p>Redo: $\text{Var}(z^l)=\text{fan\_in}\cdot\text{Var}(W)\cdot\tfrac12\text{Var}(z^{l-1})$; preserve → $\text{Var}(W)=2/\text{fan\_in}$ → $\text{std}=\sqrt{2/\text{fan\_in}}$.</p>
+<div class="short"><strong>The 2 exactly cancels ReLU's ½.</strong> Use Xavier's 1/fan_in on a ReLU net and the signal shrinks ~½ each layer → vanishes over depth. He doubles the weight scale to compensate for the half ReLU kills.</div>
+<p class="ref">📄 Related: Day 1 §3.1; Q13 (compounding over depth).</p>
+
+<hr>
+
+<h2 class="qhead" id="q16">Q16 — What is fan_in?</h2>
+<div class="short"><strong>Definition:</strong> <code>fan_in</code> = number of inputs feeding into a neuron (input dimension; how many weighted connections get summed for one output). <code>fan_out</code> = number of outgoing connections (output dimension).</div>
+<ul>
+  <li><strong>Linear</strong> 512→256 ($W$ is 256×512): $\text{fan\_in}=512$, $\text{fan\_out}=256$.</li>
+  <li><strong>Conv:</strong> $\text{fan\_in}=\text{in\_channels}\times k_h\times k_w$; $\text{fan\_out}=\text{out\_channels}\times k_h\times k_w$.</li>
+</ul>
+<p><strong>Why it appears in init:</strong> a neuron sums fan_in products, so $\text{Var}(z)=\text{fan\_in}\cdot\text{Var}(W)\cdot\text{Var}(x)$ — output variance grows linearly with fan_in. Summing 1000 inputs has ~100× the variance of summing 10. To keep scale constant, weight variance $\propto 1/\text{fan\_in}$ (Xavier) or $2/\text{fan\_in}$ (He). More inputs → bigger sum → smaller weights.</p>
+<p class="ref">📄 Related: Day 1 §3.1; Q15 (variance recursion).</p>
+
+<hr>
+
+<h2 class="qhead" id="q17">Q17 — Why scale residual branches by 1/√N_layers</h2>
+<div class="short"><strong>Setup:</strong> a residual block adds into a running stream $x_l = x_{l-1} + F_l(x_{l-1})$, so the stream is a <em>sum</em> over all $N$ blocks. Variances add → if each contributes $\approx\sigma^2$: $\text{Var}(x_N)\approx\text{Var}(x_0)+N\sigma^2$ — variance <strong>grows linearly with depth</strong> (std ~ $\sqrt N$).</div>
+<p>That means late-layer activations dwarf early ones → instability, and each new block's relative contribution shrinks like $1/l$.</p>
+<p><strong>Fix:</strong> scale each branch by $\alpha$: $x_l = x_{l-1} + \alpha F_l(x_{l-1})$ → $\text{Var}(x_N)\approx\text{Var}(x_0)+N\alpha^2\sigma^2$. Set $\alpha=1/\sqrt N$:</p>
+<p>$$N\cdot\tfrac1N\sigma^2 = \sigma^2 \quad\text{(constant, depth-independent)}$$</p>
+<p><strong>Why √N not 1/N:</strong> <em>variances</em> add, not std. A sum of $N$ independent terms has variance $\propto N$ → divide std by $\sqrt N$. Same $1/\sqrt{\text{count}}$ pattern as $1/\sqrt{\text{fan\_in}}$ (fan_in normalizes the sum <em>within</em> a layer; $1/\sqrt N$ normalizes the sum <em>across</em> depth). Used by GPT-2 init; DeepNorm / Fixup / T-Fixup do depth-dependent residual scaling.</p>
+<p class="ref">📄 Related: Day 1 §3.2; Q16 (fan_in), Q15 (variance preservation).</p>
+
+<hr>
+
+<h2 class="qhead" id="q18">Q18 — What are LN/RMSNorm, and why are BN stats noisy?</h2>
+<div class="short"><strong>LayerNorm</strong> (per example, across the $d$ features): $\mu=\tfrac1d\sum_i x_i$, $\sigma^2=\tfrac1d\sum_i(x_i-\mu)^2$, $\hat{x}_i=\tfrac{x_i-\mu}{\sqrt{\sigma^2+\epsilon}}$, $y_i=\gamma_i\hat{x}_i+\beta_i$.</div>
+<p><strong>RMSNorm</strong> (drop the mean): $y_i = \gamma_i\,\dfrac{x_i}{\text{RMS}(x)}$, $\text{RMS}(x)=\sqrt{\tfrac1d\sum_i x_i^2+\epsilon}$ — cheaper, ~equal quality. <strong>BatchNorm</strong> (per feature, over the batch): $\mu_i=\tfrac1B\sum_b x_{b,i}$, $\sigma_i^2$ over $B$ examples.</p>
+<p><strong>Why BN stats are noisy:</strong> $\mu_i,\sigma_i^2$ are <strong>sample estimates</strong> from only $B$ examples. SE of the mean $\propto 1/\sqrt B$ (variance estimate noisier) → with small $B$ they jump batch-to-batch → an example's normalization depends on its <em>random batch-mates</em> (coupling + noise). Worse for transformers: small effective batch (long sequences), ragged variable-length batches, $B=1$ decoding (stats undefined).</p>
+<p><strong>LN/RMSNorm</strong> use the $d$ features of ONE example ($d$ large, fixed) → batch-independent, deterministic, <strong>identical at train and inference</strong>. (BN uses batch stats at train but a running EMA at test → a different function in each mode → a classic bug source.)</p>
+<p class="ref">📄 Related: Day 1 §4.1–4.2; Q15 (variance), Q16 (fan_in).</p>
+
+<hr>
+
+<h2 class="qhead" id="q19">Q19 — Pre-norm vs post-norm (why pre-norm is stable)</h2>
+<div class="short"><strong>Residual in practice:</strong> ResNet $y = x + F(x)$ ($F$ = conv-bn-relu-conv-bn); transformer wraps attention &amp; FFN in residuals.</div>
+<p><strong>Equations</strong> (sublayer $S$): $$\text{Post-norm: } x_{l+1}=\text{LN}(x_l + S(x_l)) \qquad \text{Pre-norm: } x_{l+1}=x_l + S(\text{LN}(x_l))$$</p>
+<pre style="background:#11161d;border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow-x:auto;"><code style="background:none;color:#c7d3e0;font-size:13px;">def postnorm(x): x = ln1(x + attn(x)); x = ln2(x + ffn(x)); return x   # LN on trunk
+def prenorm(x):  x = x + attn(ln1(x)); x = x + ffn(ln2(x)); return x   # LN on branch
+# pre-norm: one final ln_final before the head</code></pre>
+<p><strong>Why pre-norm cleaner/stabler:</strong> unroll pre-norm $x_L = x_0 + \sum_l S_l(\text{LN}(x_l))$ — a pure additive identity path with <strong>nothing on it</strong> (LN on the branch) → clean $\times1$ gradient highway at every depth. Post-norm puts LN on the <strong>trunk</strong>, so the backward gradient crosses $L$ LayerNorm Jacobians ($\neq$ identity) → clean path broken → gradients grow/shrink with depth → needs warmup, unstable deep (Xiong et al. 2020).</p>
+<p><strong>Trade-off:</strong> pre-norm's clean trunk → residual stream variance grows with depth (§3.2, fixed by $1/\sqrt N$ + final LN). Post-norm keeps activations bounded but gradients fragile. LLMs pick pre-norm: trainability &gt; bounded activations.</p>
+<p class="ref">📄 Related: Day 1 §4.3–4.4; Q17 (residual variance), Q18 (LN).</p>
+
+<hr>
+
+<h2 class="qhead" id="q20">Q20 — Why does RMSNorm match LayerNorm? (theory or empirical)</h2>
+<div class="short"><strong>Both.</strong> LN = re-center (−μ) + re-scale (/σ); RMSNorm = re-scale only (/RMS).</div>
+<p><strong>Theory (Zhang &amp; Sennrich 2019 hypothesis):</strong> LN's benefit comes mainly from <strong>re-scaling invariance, not re-centering</strong>. Normalization helps optimization by controlling activation/gradient <strong>magnitude</strong> (bounds them, smooths the landscape, stabilizes per-layer effective LR) — that's the /RMS part. Mean subtraction is near-redundant because (a) the learned affine + next linear layer absorb a constant offset, (b) in high dimensions the mean is small relative to scale.</p>
+<p><strong>Scale-invariance argument:</strong> both LN &amp; RMSNorm satisfy $f(\alpha x)=f(x)$ → self-stabilizing gradient (roughly orthogonal to the weight direction, bounded). RMSNorm keeps this; it only drops the less-important <em>shift</em>-invariance.</p>
+<p><strong>Verdict:</strong> well-motivated hypothesis + strong empirical confirmation (RMSNorm matches LN, ~7–64% faster; LLaMA/T5/Gemma use it). Not a theorem, but more than "just empirical."</p>
+<p class="ref">📄 Related: Day 1 §4.2; Q18 (LN/RMSNorm definitions).</p>
+
+<hr>
+
+<h2 class="qhead" id="q21">Q21 — Optimizers in detail + how AdamW runs in production</h2>
+<div class="short"><strong>Ladder</strong> ($g=\nabla L$): <strong>Momentum</strong> $v=\beta v+g$, $\theta\mathrel{-}=\eta v$ (accumulate consistent dirs, damp oscillation). <strong>RMSProp</strong> $s=\rho s+(1-\rho)g^2$, $\theta\mathrel{-}=\eta g/(\sqrt s+\epsilon)$ (per-param adaptive LR). <strong>Adam</strong> = both + bias-correct. <strong>AdamW</strong> = Adam + decoupled decay.</div>
+<p>$$m=\beta_1 m+(1-\beta_1)g,\ \ v=\beta_2 v+(1-\beta_2)g^2,\ \ \hat m=\tfrac{m}{1-\beta_1^t},\ \hat v=\tfrac{v}{1-\beta_2^t},\ \ \theta\mathrel{-}=\eta\tfrac{\hat m}{\sqrt{\hat v}+\epsilon}+\eta\lambda\theta$$</p>
+<p>(bias correction because $m,v$ start at 0; AdamW subtracts $\eta\lambda\theta$ directly from the weights).</p>
+<p><strong>Production transformers:</strong> AdamW default; $\beta_1=0.9$, <strong>$\beta_2=0.95$</strong> (faster 2nd moment, robust to spikes), $\epsilon=10^{-8}$. LR linear <strong>warmup → cosine decay</strong> to ~10% peak (~1–6e-4). <strong>Weight decay ~0.1</strong> decoupled, <strong>only on matmul weights</strong> (exclude bias / LN-RMSNorm gains / embeddings). Clip global norm 1.0. <strong>Memory:</strong> $m+v$ per param = 2× params; mixed precision ≈ <strong>16 bytes/param</strong> → 7B ≈ 112 GB of states → <strong>why FSDP/ZeRO shard optimizer state</strong>. Alts: Adafactor (factorized 2nd moment), Lion (sign-based), Shampoo (preconditioned), Muon.</p>
+<p class="ref">📄 Related: Day 1 §5.1–5.2.</p>
+
+<hr>
+<h2 class="qhead" id="q22">Q22 — How is fuzzy dedup done? What is Jaccard? (MinHash + LSH)</h2>
+<div class="short"><strong>Jaccard</strong> = set-overlap similarity of two docs' n-gram shingle sets. <strong>MinHash</strong> compresses each set to a fixed signature whose match-rate is an unbiased Jaccard estimate; <strong>LSH banding</strong> turns the all-pairs search into a bucket lookup so you only verify a shortlist.</div>
+<p><strong>The goal — Jaccard similarity.</strong> Each doc → a <strong>set of n-gram shingles</strong> (slide an n-token window, keep distinct shingles). Similarity is the overlap fraction:</p>
+<p>$$J(A,B)=\frac{|A\cap B|}{|A\cup B|}\in[0,1]\qquad 1=\text{identical},\ 0=\text{disjoint}.$$</p>
+<p>Example: $A=\{$the cat sat, cat sat on, sat on mat$\}$, $B=\{$the cat sat, cat sat on, sat on rug$\}$ → $2/4=\mathbf{0.5}$.</p>
+<p><strong>Why not compute $J$ directly?</strong> Billions of docs → all-pairs is $O(N^2)$ and each set is huge. Two cheats:</p>
+<p><strong>1. MinHash — estimate $J$ from $k$ numbers.</strong> With random hash $h$, $\text{minhash}_h(A)=\min_{x\in A}h(x)$. The min over $A\cup B$ lands in the intersection iff it's in both sets, so $\Pr[\text{minhash}(A)=\text{minhash}(B)]=J(A,B)$. Use $k$ hashes → length-$k$ signature; the fraction of matching positions is an <strong>unbiased</strong> estimate $\hat J$ with $\operatorname{SE}=\sqrt{J(1-J)/k}$. $k\approx128$ → any doc is 128 ints, $J$ known to a few %.</p>
+<p><strong>2. LSH banding — only compare likely matches.</strong> Split the signature into $b$ <strong>bands</strong> of $r$ rows ($k=b\cdot r$). Two docs are <strong>candidate pairs</strong> if they collide in <em>any</em> band:</p>
+<p>$$\Pr[\text{candidate}]=1-\big(1-s^{\,r}\big)^{b}\qquad\text{S-curve, cliff near } t\approx(1/b)^{1/r}.$$</p>
+<p>Tune $(b,r)$ so the cliff sits at the dedup threshold (e.g. drop $J\gtrsim0.8$): pairs above are almost always caught, below almost never become candidates → run exact-Jaccard verification on a tiny shortlist, not all $N^2$ pairs.</p>
+<p><strong>Pipeline:</strong> shingle → MinHash signature → band → bucket → candidate pairs → verify exact $J$ → drop. Knobs: <em>n</em> (shingle size), <em>k</em> (estimate precision), $(b,r)$ (cliff location). Same three ideas power <code>datasketch</code>, Spark MinHashLSH, and the FineWeb/SlimPajama dedup stacks.</p>
+<p class="ref">📄 Related: Day 3 §1.2 (full code + S-curve + pipeline diagram).</p>
 
 <hr>
 <p class="ref"><em>Log started 2026-06-21. New Q&amp;A appended below as asked.</em></p>
