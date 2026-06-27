@@ -95,6 +95,26 @@ L  = cross_entropy(ŷ, y) = −Σ_k y_k log ŷ_k
 ```
 where `y` is a one-hot label. Goal: compute `∂L/∂W₁, ∂L/∂b₁, ∂L/∂W₂, ∂L/∂b₂`.
 
+**Aside — what softmax and cross-entropy are (and the KL connection).**
+
+**Softmax** turns logits into a probability distribution (all positive, sums to 1):
+```
+ŷ_i = softmax(z₂)_i = e^{z₂_i} / Σ_j e^{z₂_j}
+```
+**Cross-entropy (CE)** measures how well a predicted distribution `q` matches a true distribution `p`:
+```
+H(p, q) = −Σ_k p_k log q_k
+```
+In classification, `p = y` (one-hot label) and `q = ŷ`, so `H(y,ŷ) = −Σ_k y_k log ŷ_k = −log ŷ_c` (only the true class survives). Intuition: CE is the **expected surprise** (in nats) of the true labels under the model's predictions — large when the model assigns low probability to what actually happens; minimized when `q = p`.
+
+**Is CE directional? Yes — not symmetric:** `H(p,q) ≠ H(q,p)`. The first argument `p` is the target you average over; the second `q` is the model distribution inside the log. ML always uses `H(true, model)`.
+
+**Connection to KL divergence:**
+```
+H(p, q) = H(p) + D_KL(p ‖ q),    D_KL(p ‖ q) = Σ_k p_k log(p_k / q_k)
+```
+`H(p)` (entropy of the truth) is constant w.r.t. the model, so **minimizing CE = minimizing D_KL(p‖q)**. For one-hot labels `H(p)=0`, so **CE equals the KL divergence**. KL is directional too (`D_KL(p‖q) ≠ D_KL(q‖p)`); the forward KL minimized here is **mass-covering**. This is why next-token training = MLE = minimizing forward KL between data and model.
+
 ### 2.2 The one identity that makes it clean: softmax + cross-entropy
 
 A beautiful, must-know result: **the gradient of softmax-cross-entropy w.r.t. the logits is just `ŷ − y`.**
@@ -105,7 +125,19 @@ A beautiful, must-know result: **the gradient of softmax-cross-entropy w.r.t. th
 
 Why this matters: it's clean, numerically stable (which is why frameworks fuse `softmax` + `cross_entropy` into one op — see the In Practice box), and it gives the whole backward pass a simple starting point. Call this `δ₂ = ŷ − y` (the "error at the output").
 
-*Sketch of why:* `∂L/∂z_i = Σ_k (∂L/∂ŷ_k)(∂ŷ_k/∂z_i)`. The cross-entropy term gives `∂L/∂ŷ_k = −y_k/ŷ_k`, and the softmax Jacobian is `∂ŷ_k/∂z_i = ŷ_k(δ_{ki} − ŷ_i)`. Multiply and sum, use `Σ_k y_k = 1`, and everything telescopes to `ŷ_i − y_i`.
+**Derivation, two ways.**
+
+*Method 1 — substitute softmax first (elegant).* With a one-hot label, `L = −log ŷ_c`. Substitute softmax and split the log:
+```
+L = −log( e^{z₂_c} / Σ_j e^{z₂_j} ) = −z₂_c + log Σ_j e^{z₂_j}
+```
+Differentiate w.r.t. `z₂_i`: the `−z₂_c` term gives `−1` at `i=c` else `0` (= `−y_i`); the log-sum-exp term differentiates back into softmax itself (`= ŷ_i`). Add → `∂L/∂z₂_i = ŷ_i − y_i`. Clean because log-sum-exp is the function whose gradient *is* the softmax.
+
+*The chain rule (reminder).* It differentiates a composition by multiplying local derivatives along the path. Single-variable: if `L=f(u)`, `u=g(z)`, then `dL/dz = (dL/du)(du/dz)`. Multivariable: if `z_i` reaches `L` through several intermediates `ŷ_1..ŷ_K`, multiply along each path **and sum over all paths** — the sum appears because softmax is coupled (nudging one logit `z_i` changes every `ŷ_k`), so there are K paths from `z_i` to `L`. Backprop = this rule applied across the whole computation graph.
+
+*Method 2 — full chain rule.* `∂L/∂z_i = Σ_k (∂L/∂ŷ_k)(∂ŷ_k/∂z_i)` with `∂L/∂ŷ_k = −y_k/ŷ_k` and softmax Jacobian `∂ŷ_k/∂z_i = ŷ_k(δ_{ki} − ŷ_i)` (diagonal `ŷ_i(1−ŷ_i)`, off-diagonal `−ŷ_k ŷ_i`). The `ŷ_k` cancels → `−Σ_k y_k(δ_{ki} − ŷ_i) = −y_i + ŷ_i·Σ_k y_k = ŷ_i − y_i`, using `Σ_k y_k δ_{ki} = y_i` and `Σ_k y_k = 1`. Either way: the output error is **prediction minus truth**.
+
+**Concrete example.** A cat/dog/bird classifier outputs logits `z=[2.0, 1.0, 0.1]`, true class = cat, so `y=[1,0,0]`. Softmax (`S=11.21`) → `ŷ=[0.659, 0.242, 0.099]`, so `∂L/∂z = ŷ−y = [−0.341, +0.242, +0.099]`. The true class gets a *negative* gradient (its logit goes up under `z←z−η∇`); wrong classes get positive gradients (logits go down); magnitude = how much mass sat in the wrong place; entries sum to 0. Same form elsewhere: **linear reg** (MSE) → residual `ŷ−y` (predict 250k vs true 300k → −50); **logistic reg** (BCE, `ŷ=σ(z)`) → `ŷ−y` (spam `y=1`, `z=0.5⇒ŷ=0.62` → −0.38). These are GLMs with canonical loss↔activation pairing (MSE↔identity, BCE↔sigmoid, CE↔softmax), which is what makes the gradient collapse to prediction − target.
 
 ### 2.3 Propagate backward (the chain rule, layer by layer)
 
@@ -125,6 +157,8 @@ Let `δ₂ = ∂L/∂z₂ = ŷ − y`. Then:
 2. **To move the error to the previous layer, multiply by `Wᵀ`** (the transpose appears because you're sending signal the opposite direction through the same linear map).
 3. **To cross a nonlinearity, multiply elementwise by its local derivative `φ'`.** For ReLU, `φ'(z)` is 1 where z>0 and 0 elsewhere — so ReLU just *masks* the gradient (passes it through or kills it).
 
+**Outer product (writing `δ aᵀ`).** The outer product of column vectors `u` (m-dim) and `v` (n-dim) is the `m×n` matrix `u vᵀ` with `(u vᵀ)_{ij} = u_i v_j` — every element of u times every element of v (vs the inner product `uᵀv`, a scalar). Example: `[1,2,3]ᵀ·[4,5] = [[4,5],[8,10],[12,15]]` (3×1 times 1×2 → 3×2). Here `δ₂` is `d_out`-dim and `a₁` is `d_in`-dim, so `δ₂ a₁ᵀ` is `d_out × d_in` = shape of `W₂`, with entry `δ₂_i · a₁_j` = (error at output i)×(input from j). Code: `np.outer(d2,a1)` / `d2[:,None]*a1[None,:]` / `torch.outer(d2,a1)` / `jnp.outer(d2,a1)` / `einsum('i,j->ij',d2,a1)`. Mini-batch: summing outer products over examples is the matmul `Δ Aᵀ`.
+
 That's it. Forward = matmul then activation; backward = transpose-matmul then multiply-by-derivative. Every deep-learning framework is automating exactly this.
 
 ### 2.4 Why "vanishing/exploding gradients" fall right out of this
@@ -135,6 +169,20 @@ Look at `δ₁ = (W₂ᵀ δ₂) ⊙ φ'(z₁)`. For an L-layer net, the gradien
 - If they're consistently **> 1** (large weights), the product blows up → **exploding gradient**, you get NaNs/loss spikes.
 
 This single observation motivates **almost every architectural trick in §3–§4**: careful initialization (keep factors ~1), normalization (control the scale of activations), and residual connections (provide a "×1" gradient path). Keep this product-of-Jacobians picture in your head — it's the unifying lens.
+
+**Seeing it.** As the gradient flows backward through `L` layers, each layer multiplies it by one number — its Jacobian factor `r ≈ ‖W‖·|φ'|` — so the gradient at layer 1 is `≈ r^L`. Because it's a **power**, small deviations from 1 compound:
+
+| factor `r` | after 10 layers (`r¹⁰`) | regime |
+|---|---|---|
+| 0.5 | 0.001 | vanish (fast) |
+| 0.8 | 0.107 | vanish (slow) |
+| 1.0 | 1.0 | **stable** |
+| 1.1 | 2.6 | explode |
+| 1.5 | 57.7 | explode |
+
+Every §3–§5 trick just keeps `r ≈ 1`: **init** (Xavier/He) sets `‖W‖≈1` so the starting factor is ~1; **normalization** keeps activations unit-scale so `φ'` stays responsive (factor ~1 during training); **residuals** `y=x+F(x)` give Jacobian `I+∂F/∂x` → a literal ×1 path so the product can't collapse; **warmup/clipping** stop `r` transiently spiking. Concretely: sigmoid has `φ'≤0.25` → factor ≤0.25 → vanishing (why deep sigmoid nets won't train); ReLU active has `φ'=1`, with `‖W‖≈1` → factor ~1 → stable.
+
+**Which part is the "Jacobian"?** A Jacobian is the matrix of partials of a vector function (`f:ℝⁿ→ℝᵐ` → `m×n` matrix `J_{ij}=∂f_i/∂x_j`). Each layer's local derivative is a Jacobian: **linear** `z=Wx+b` → `∂z/∂x = W` (so backward = "× Wᵀ"); **activation** `a=φ(z)` → `∂a/∂z = diag(φ'(z))` (so backward = "⊙ φ'"); **softmax** → `diag(ŷ) − ŷŷᵀ`. In matrix form `δ₁ = diag(φ'(z₁))·W₂ᵀ·(ŷ−y)` — each factor is a (transposed) layer Jacobian. The chain rule stacks them → the net's derivative is the **product of per-layer Jacobians**; `r ≈ ‖W‖·|φ'|` is the magnitude of one. (Backprop computes a **vector–Jacobian product** `vᵀJ`, never the full matrix.)
 
 > **In Practice — frameworks fuse softmax+CE for stability.** Computing `softmax` then `log` separately can overflow (`e^{large}`) or underflow (`log(0) = −inf`). Libraries use a fused, log-sum-exp-stabilized `cross_entropy_with_logits`. **Symptom that you got this wrong:** loss is `inf`/`NaN` from step 0, or only when a logit gets large. **Look at:** whether you're double-applying softmax (e.g. softmax in the model *and* a loss that expects raw logits) — an extremely common real bug.
 
@@ -150,6 +198,8 @@ This single observation motivates **almost every architectural trick in §3–§
 
 ### 3.1 The goal of initialization
 
+**What is fan_in?** `fan_in` = the number of inputs feeding into a neuron (the input dimension; how many weighted connections get summed for one output). `fan_out` = number of outgoing connections (output dimension). Linear layer 512→256 (`W` is 256×512): `fan_in=512`, `fan_out=256`. Conv: `fan_in = in_channels × k_h × k_w`. It appears in init because a neuron sums `fan_in` products, so output variance grows linearly with it — more inputs → bigger sum → smaller weights (`∝ 1/fan_in`) to keep scale constant.
+
 You want the **variance of activations (forward) and gradients (backward) to stay roughly constant across layers** at the start of training. If each layer multiplies the signal's variance by some factor ≠ 1, then over many layers the signal explodes or vanishes before you've taken a single useful step.
 
 - **Xavier/Glorot init:** scale weights by `1/sqrt(fan_in)` (roughly) — derived assuming a linear/tanh regime, balances forward and backward variance.
@@ -157,9 +207,13 @@ You want the **variance of activations (forward) and gradients (backward) to sta
 
 The point isn't memorizing constants; it's the **principle**: init is chosen so the *variance is preserved layer-to-layer*. Get it wrong and you start in a vanishing/exploding regime before normalization or residuals can save you.
 
+**Derivation — why constant variance & where the 2 comes from.** A layer `z=Wx` sums over `fan_in` inputs; if each layer scales variance by a factor ≠1, over L layers it scales like `factor^L` (same compounding as §2.4) → factor<1 vanishes the signal, >1 explodes it; same for backward gradients. So preserve variance. With `z_i = Σ_j W_ij x_j` (W, x i.i.d. mean-0, independent): `Var(z) = fan_in · Var(W) · Var(x)`. Preserve → `Var(W) = 1/fan_in` → `std = 1/√fan_in` (**Xavier**, assumes linear/tanh-near-0). **ReLU** zeros half its inputs, so the second moment passed forward is halved: `E[a²] = E[max(0,z)²] = ½E[z²] = ½Var(z)`. Redo: `Var(z^l) = fan_in·Var(W)·½·Var(z^{l-1})`; preserve → `Var(W) = 2/fan_in` → `std = √(2/fan_in)` (**He**). The 2 exactly cancels ReLU's ½ — without it the signal shrinks ~½ per layer and vanishes over depth.
+
 ### 3.2 Why this still matters in the age of normalization
 
 LayerNorm/BatchNorm reduce sensitivity to init, but at very large scale and at the *start* of training, init still governs whether early steps are stable. Modern LLMs often use small init scaled by depth (e.g. scaling residual-branch weights by `1/sqrt(N_layers)`) so that the residual stream variance doesn't grow with depth. **Tie this back to §2.4:** it's all about keeping that product-of-Jacobians near 1.
+
+**Why 1/√N?** A residual block adds into a running stream: `x_l = x_{l-1} + F_l(x_{l-1})`, so the stream is a *sum* over blocks. Variances add → if each block contributes `≈σ²`, then `Var(x_N) ≈ Var(x_0) + N·σ²` — variance **grows linearly with depth** (std ~ √N), so late activations dwarf early ones (instability). Scale each branch by α: `x_l = x_{l-1} + α·F_l(...)` → `Var(x_N) ≈ Var(x_0) + N·α²σ²`. Pick `α = 1/√N` → `N·(1/N)·σ² = σ²`, constant regardless of depth. Why √N not 1/N: *variances* add, so a sum of N terms has variance ∝ N → divide std by √N. Same `1/√(count)` pattern as `1/√fan_in` (which normalizes the sum *within* a layer; `1/√N` normalizes the sum *across* depth). Used by GPT-2; DeepNorm/Fixup do depth-dependent residual scaling.
 
 > **In Practice — symptom/cause for init.** *See* loss that is huge or NaN on step 0–10 and gradient norms that grow with layer depth → *suspect* bad init scale (too large) → *look at* the init std and any place you forgot to scale residual branches. Conversely, *see* loss totally flat and tiny gradient norms in early layers → *suspect* too-small init (vanishing) → *look at* per-layer gradient-norm logging.
 
@@ -186,6 +240,12 @@ Normalization layers **re-center and re-scale activations** so each layer sees a
 
 ### 4.2 Why transformers use LayerNorm/RMSNorm, not BatchNorm (very common question)
 
+**What exactly are LN / RMSNorm?** **LayerNorm**, for one token's features `x ∈ ℝ^d`, normalizes *across the d features of that single example*: `μ = mean_i(x_i)`, `σ² = var_i(x_i)`, `x̂_i = (x_i − μ)/√(σ²+ε)`, `y_i = γ_i x̂_i + β_i` (learned per-feature γ, β). **RMSNorm** drops mean-centering — just `y_i = γ_i · x_i / RMS(x)` where `RMS(x) = √(mean_i(x_i²)+ε)` (cheaper, ~equal quality). **BatchNorm** instead normalizes *each feature across the batch*: `μ_i = mean_b(x_{b,i})` over the B batch examples.
+
+**Why BN stats are noisy:** they're *sample estimates* of feature mean/variance from only B examples; standard error of the mean ∝ 1/√B (variance noisier), so with small B they jump batch-to-batch — each example's normalization depends on which random examples shared its batch (coupling + noise). Worse for transformers: small effective batch (long sequences), ragged variable-length batches, and B=1 decoding (batch stats undefined). LN/RMSNorm use the d features of one example (d large, fixed) → batch-independent, deterministic, identical train/inference (BN uses batch stats at train but running EMA at test → different function in each mode → bugs).
+
+**Why does RMSNorm match LN — theory or empirical?** Both. LN does re-center (−μ) + re-scale (/σ); RMSNorm keeps only re-scaling. Hypothesis (Zhang & Sennrich 2019): LN's benefit comes mainly from **re-scaling invariance, not re-centering** — normalization helps by controlling activation/gradient *magnitude* (smoother landscape, stable per-layer LR), which is the /RMS part. Mean subtraction is near-redundant: the learned affine + next linear layer absorb a constant offset, and in high-dim the mean is small vs scale. Both LN & RMSNorm are scale-invariant (`f(αx)=f(x)`) → self-stabilizing gradient; RMSNorm keeps this, only drops shift-invariance. Verdict: well-motivated hypothesis + strong empirical parity (faster, used by LLaMA/T5/Gemma). Not a theorem, more than "just empirical."
+
 Several reasons, all worth saying:
 1. **Batch dependence is a liability for sequences.** BN's statistics are computed across the batch, so they're noisy with small batches and ill-defined for variable-length sequences / autoregressive decoding where you process one token at a time. LN normalizes *within a single example*, so it's independent of batch size and sequence position.
 2. **Train/inference mismatch.** BN uses batch stats at train time but running averages at inference — a source of subtle bugs. LN behaves identically in both.
@@ -204,6 +264,20 @@ A residual (skip) block computes `y = x + F(x)` instead of `y = F(x)`. Why this 
 Where you put the LayerNorm relative to the residual matters:
 - **Post-norm** (original transformer): `x → Sublayer → Add → LayerNorm`. Tends to need careful warmup; can be unstable at depth.
 - **Pre-norm** (modern default): `x → LayerNorm → Sublayer → Add`. The residual stream stays "clean" (un-normalized) end-to-end, giving a cleaner gradient highway and much more stable training at depth — which is why almost all large LLMs use pre-norm.
+
+**Equations** (sublayer `S` = attention or FFN): post-norm `x_{l+1} = LN(x_l + S(x_l))`; pre-norm `x_{l+1} = x_l + S(LN(x_l))`.
+
+```python
+def block_postnorm(x):
+    x = ln1(x + attention(x))   # LN AFTER add — on the trunk
+    x = ln2(x + ffn(x)); return x
+def block_prenorm(x):
+    x = x + attention(ln1(x))   # LN inside the branch; skip untouched
+    x = x + ffn(ln2(x)); return x
+# pre-norm: one final ln_final(x) before the output head
+```
+
+**Why pre-norm is cleaner/stabler.** Residual in practice: ResNet `y = x + F(x)` (F = conv-bn-relu-conv-bn); transformer wraps attention & FFN in residuals. Unroll pre-norm: `x_L = x_0 + Σ_l S_l(LN(x_l))` — a pure additive identity path with **nothing on it**; LN sits on the *branch*, so the gradient keeps a clean ×1 highway at every depth. Post-norm `x_{l+1}=LN(x_l + S(x_l))` puts LN on the **trunk**, so the backward gradient crosses L LayerNorm Jacobians (not identity → rescale/project) → clean path broken → gradients grow/shrink with depth → needs warmup, unstable deep (Xiong et al. 2020). Trade-off: pre-norm's clean trunk → residual stream variance grows with depth (§3.2, fixed by 1/√N + final LN). LLMs pick pre-norm because trainability > bounded activations.
 
 > **In Practice — normalization symptoms.** *See* training that is stable with batch size 256 but diverges or behaves erratically at batch size 8 → *suspect* BatchNorm's noisy small-batch statistics → *look at* whether you should switch to LN/GroupNorm. *See* a deep post-norm transformer that won't train without a long warmup and is touchy → *suspect* post-norm instability → *consider* pre-norm. *See* eval much worse than train *only* for BN models → *suspect* the train/running-stat mismatch (e.g. you left the model in train mode at eval) → *look at* `model.eval()` / batchnorm momentum.
 
@@ -227,6 +301,10 @@ Where you put the LayerNorm relative to the residual matters:
 - **RMSProp:** divide each parameter's step by a running RMS of its recent gradients → **per-parameter adaptive learning rate**. Helps when gradients have very different scales across parameters.
 - **Adam:** momentum (1st moment) **+** RMSProp (2nd moment), with bias correction. Robust default; works well with little tuning.
 - **AdamW:** Adam with **decoupled weight decay** — the single most-used optimizer for transformers. See §5.2.
+
+**The math.** `g_t = ∇L`. **Momentum:** `v_t = β·v_{t-1} + g_t`, `θ_t = θ_{t-1} − η·v_t` (β≈0.9; accumulate consistent directions, damp oscillation). **RMSProp:** `s_t = ρ·s_{t-1} + (1−ρ)g_t²`, `θ_t = θ_{t-1} − η·g_t/(√s_t+ε)` (per-param adaptive LR). **Adam:** `m_t = β₁m_{t-1}+(1−β₁)g_t`, `v_t = β₂v_{t-1}+(1−β₂)g_t²`, bias-correct `m̂=m/(1−β₁ᵗ)`, `v̂=v/(1−β₂ᵗ)` (because m,v start at 0), step `θ_t = θ_{t-1} − η·m̂/(√v̂+ε)`. **AdamW:** `θ_t = θ_{t-1} − η·m̂/(√v̂+ε) − η·λ·θ_{t-1}` (decay on weights directly).
+
+**In production transformers.** AdamW is the universal default: β₁=0.9, **β₂=0.95** (lowered from 0.999 — faster-adapting 2nd moment, robust to gradient spikes), ε=1e-8. LR: linear **warmup** → **cosine decay** to ~10% peak (peak ~1–6e-4). **Weight decay ~0.1**, decoupled, applied **only to matmul weights** (exclude biases, LN/RMSNorm gains, embeddings). Grad clip global norm 1.0. **Memory:** Adam stores m AND v per param → optimizer state = 2× params; with mixed precision ~**16 bytes/param** (2 bf16 weight + 2 grad + 4 fp32 m + 4 fp32 v + 4 fp32 master) → 7B model ≈ 112 GB of states → **why FSDP/ZeRO shard optimizer state**. bf16 compute + fp32 master/moments. Lower-memory alts: Adafactor (factorized 2nd moment; T5/PaLM), Lion (sign-based, momentum-only), Shampoo (preconditioned), Muon. AdamW still dominates.
 
 ### 5.2 Why AdamW decouples weight decay (a favorite question)
 
@@ -349,3 +427,31 @@ Do these **out loud, timed (~2 min each)**, then check against the section noted
 - **AdamW** = Adam + decoupled weight decay (decay applied to weights, not through `√v`).
 - **BF16 > FP16** for range (FP16 needs loss scaling). **Grad accumulation** simulates big batches. **Activation checkpointing** trades compute for memory.
 - **Debugging reflex:** localize in time → look at grad norms → inspect the data → check plumbing (double softmax, loss masking, resume state) → overfit one batch.
+
+---
+
+## Debug drill — "the deep model that won't train"
+
+**Mock (AI-coding round):** A decoder-only transformer trains fine at **12 layers** but the loss **spikes to NaN within ~300 steps at 48 layers** (same data/optimizer, lr=3e-4, 2k warmup). A teammate's near-identical model trains fine at 48. The difference is in the block:
+
+```python
+class TransformerBlock(nn.Module):
+    """Pre-norm decoder block."""
+    def forward(self, x, mask):
+        # pre-norm: normalize, then sublayer, then residual add
+        x = self.norm1(x)
+        x = x + self.attn(x, mask)
+        x = self.norm2(x)
+        x = x + self.mlp(x)
+        return x
+```
+Questions: (1) Is this actually pre-norm? (2) Why NaN only at 48 layers? (3) One-line fix? (4) Why don't clip=1.0 + warmup save it?
+
+**Answer:** The bug is `x = self.norm1(x)` **overwriting** x, so the residual add uses the *normalized* x as the residual — the residual stream is normalized in place every sublayer. That's **not** pre-norm; with an LN on the trunk every layer it's effectively **post-norm**, destroying the clean ×1 highway. Fix (normalize only the branch input):
+```python
+def forward(self, x, mask):
+    x = x + self.attn(self.norm1(x), mask)
+    x = x + self.mlp(self.norm2(x))
+    return x
+```
+Why depth-dependent: post-norm instability scales with depth (gradient crosses L LayerNorm Jacobians ≠ identity) → diverges at 48, tolerated at 12. Clipping/warmup don't fix a structural gradient pathology — it's architectural. (Bonus: production also scales residual proj by ~1/√(2·n_layers), omitted here.)
