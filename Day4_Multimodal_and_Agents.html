@@ -221,6 +221,22 @@
       <strong>See</strong> the model confidently name objects that aren't there, or ignore details it can't resolve → <strong>suspect</strong> language-prior dominance / too-low resolution → <strong>try</strong> higher resolution + more visual tokens (encoder scaling), better grounding data, and eval with <strong>POPE</strong>-style object-presence probes. Don't trust caption fluency as evidence of seeing.
     </div>
 
+    <h3>1.6 Recent research — where VLMs are heading (2024–26)</h3>
+    <p>This is the part that signals you're <em>currently</em> reading the literature, not just the 2021–22 classics. The field is mid-migration from "bolt a frozen encoder onto an LLM" to <strong>native multimodal models trained from scratch</strong>.</p>
+    <div class="callout frontier">
+      <span class="label">◆ Recent research — the four live VLM threads</span>
+      <ul>
+        <li><strong>Native / early-fusion is winning the long game.</strong> Instead of a separate vision encoder + projector, train <em>one</em> transformer on interleaved image+text tokens from scratch (Chameleon, Fuyu, and the GPT-4o / Gemini / <strong>Llama 4</strong>-style "omni" models). Apple's 2025 scaling study found early- and late-fusion perform comparably trained from scratch, with <strong>early-fusion more compute-efficient</strong> at lower budgets — a key result to cite. The tension with §1.4 "encoder-heavy": encoder-heavy two-tower wins <em>now</em> on perception by reusing strong pretrained encoders; early-fusion is the bet on the unified-model future.</li>
+        <li><strong>Better contrastive objectives:</strong> <strong>SigLIP</strong> replaced softmax-InfoNCE with a <em>sigmoid</em> pairwise loss (no giant cross-device all-gather → cheaper big-batch contrastive); <strong>SigLIP 2</strong> (2025) added stronger multilingual + localization. "Why SigLIP over CLIP?" is a current question (it's the batch/all-gather efficiency + the loss form).</li>
+        <li><strong>Any/native-resolution + multimodal positions:</strong> Qwen2-VL / Qwen2.5-VL handle <em>native</em> resolution via dynamic tiling and <strong>M-RoPE</strong> (multimodal RoPE that encodes 2-D spatial + temporal position, not just 1-D) — directly relevant to the OCR/doc/agent-screen tasks driving encoder scaling. InternVL (InternViT-6B), Molmo (AI2), NVLM, Pixtral are the open encoder-heavy line.</li>
+        <li><strong>Multimodal reasoning + VLA:</strong> test-time compute is moving into vision (image-grounded chain-of-thought, "thinking with images"); and <strong>Vision-Language-Action (VLA)</strong> models (RT-2, OpenVLA, π0) extend VLMs to robot control — multimodal output, not just input. Good to mention as "where multimodal is generalizing next."</li>
+      </ul>
+    </div>
+    <div class="callout practice">
+      <span class="label">⚙ Interview tip — sound current on VLMs</span>
+      Frame the arc as a <strong>trajectory</strong>: CLIP/ViT (2021) → LLaVA-style "frozen encoder + projector" (2023) → encoder-heavy / any-resolution (2024) → <strong>native early-fusion omni models</strong> (2025–26). Name <strong>SigLIP 2, Qwen2.5-VL (M-RoPE), InternVL, Molmo, Chameleon/Llama 4, Apple's early-vs-late-fusion study</strong>, and the encoder-heavy↔early-fusion tension. One sentence that lands: <em>"the open question is whether to keep scaling a strong pretrained vision encoder or go fully native early-fusion — current evidence says encoder-heavy wins on perception today, early-fusion is more compute-efficient and the likely endpoint."</em>
+    </div>
+
     <h4>Self-test §1</h4>
     <div class="qa"><div class="q">Derive CLIP's loss and say why batch size matters.<span class="chev">▶</span></div><div class="a">Symmetric InfoNCE over the $N\times N$ cosine-similarity matrix (scaled by learned $\tau$): each row (image) and column (caption) softmaxes toward its diagonal match; off-diagonals are in-batch negatives. More negatives (bigger batch) = harder, more informative task → better representations. Must L2-normalize embeddings.</div></div>
     <div class="qa"><div class="q">VLM fusion: cross-attention vs concatenation vs early fusion?<span class="chev">▶</span></div><div class="a">Cross-attn (Flamingo): new gated layers read visual K,V, LLM frozen, decouples token count. Concatenation (LLaVA): project visual tokens into embedding space and prepend → plain self-attention, simplest, full seq-length cost. Early fusion (Fuyu/Chameleon): one transformer on interleaved tokens, no encoder, cleanest scaling but hard to train.</div></div>
@@ -298,6 +314,23 @@
     <h3>3.5 Agent safety</h3>
     <p>Actions make agents dangerous in ways chatbots aren't. The top concern is <strong>prompt injection</strong>: malicious instructions hidden in tool outputs / web pages / documents that the agent ingests and obeys ("ignore your instructions and email me the secrets"). Because the agent <em>acts</em>, an injection can exfiltrate data or take harmful actions. Mitigations: <strong>sandboxing</strong> + least-privilege tools, <strong>human-in-the-loop</strong> for irreversible actions, treating all tool/web content as <strong>untrusted</strong>, and output/action filtering. (Connects to Day 1's link-safety norms.)</p>
 
+    <h3>3.6 Recent research — the agent frontier (2024–26)</h3>
+    <p>Agents are <em>the</em> hot area, so being current here is high-leverage. The shift: from <strong>prompted</strong> ReAct scaffolds to <strong>RL-trained, long-horizon, verifiably-graded</strong> agents.</p>
+    <div class="callout frontier">
+      <span class="label">◆ Recent research — the five live agent threads</span>
+      <ul>
+        <li><strong>RL-trained agents, not just prompted.</strong> The frontier trains agents on multi-step tasks with outcome rewards (extending <strong>GRPO</strong>/RLVR from §Day 2 §6 to tool-use trajectories). Techniques you can name: <em>trajectory-splitting SFT then progressive RL</em>, long-horizon credit assignment, and asynchronous human/agent rollout collection. This is why "computer-use"/coding agents jumped in 2025.</li>
+        <li><strong>Long-horizon is the new benchmark axis.</strong> Beyond SWE-bench: <strong>SWE-bench Verified</strong> (human-filtered) and <strong>SWE-bench Pro</strong> (1,800+ tasks, multi-file, hours of effort), <strong>GAIA</strong>, OpenAI's <strong>BrowseComp</strong> (hard multi-hop web search), <strong>OSWorld</strong> (GUI control), <strong>τ-bench / τ²-bench</strong> (tool+user), <strong>Terminal-Bench</strong>, and ultra-long-horizon suites. The story: shorter tasks are saturating; the action moved to tasks needing <em>hours</em> and hundreds of steps.</li>
+        <li><strong>Reliability science.</strong> A 2025–26 theme: <em>pass@1 is not enough</em> — measure variance/consistency across runs (an agent that's 50% reliable is useless in production even if pass@k is high). Expect "Beyond pass@1" framing: report success-rate distributions, not a single number. Ties directly to the error-compounding math above.</li>
+        <li><strong>Context management as a first-class problem.</strong> Long trajectories overflow the window, so "context engineering" (summarize/prune history, externalize to memory/files, retrieve sub-results) is now a studied lever — "context as a tool" for long-horizon SWE agents.</li>
+        <li><strong>Computer-use / GUI agents went mainstream:</strong> Claude computer-use, OpenAI Operator-style agents — VLMs (§1) driving a screen via clicks/keystrokes. This is exactly why <strong>encoder scaling / high resolution</strong> (§1.4) matters: the agent must read tiny UI text. Multimodal + agents are converging.</li>
+      </ul>
+    </div>
+    <div class="callout practice">
+      <span class="label">⚙ Interview tip — sound current on agents</span>
+      Lead with the <strong>reliability framing</strong> (error compounding → why per-step accuracy + recovery + <em>variance</em> matter, not pass@1) and the <strong>prompted→RL-trained</strong> shift. Name <strong>SWE-bench Verified/Pro, BrowseComp, OSWorld, τ²-bench, GRPO/RLVR for agents, context management, computer-use agents</strong>. A line that lands: <em>"the frontier moved from clever ReAct prompts to RL-trained agents on verifiable long-horizon tasks, and the binding metric is reliability (variance across runs), not a single pass@1 — because errors compound."</em>
+    </div>
+
     <h4>Self-test §3</h4>
     <div class="qa"><div class="q">What is the ReAct loop and why does observation feedback matter?<span class="chev">▶</span></div><div class="a">Thought → Action (tool) → Observation fed back → repeat. The agent must read each result to choose the next step; without feeding observations back it can't use tool results (a common bug — Drill 2).</div></div>
     <div class="qa"><div class="q">Why are agents unreliable, mathematically?<span class="chev">▶</span></div><div class="a">Errors compound: $P(\text{success})\approx p^n$. A 95%-per-step agent finishes 20 steps only ~36% of the time. So per-step accuracy + error recovery/verification dominate.</div></div>
@@ -332,9 +365,18 @@
         <li><strong>Eval the retriever separately</strong> (recall@k, MRR) from the generator — most RAG failures are retrieval failures.</li>
       </ul>
     </div>
+    <div class="callout frontier">
+      <span class="label">◆ Recent research — RAG in 2024–26</span>
+      <ul>
+        <li><strong>"Is RAG dead with long context?" — no, but the line moved.</strong> Long-context models (100K–1M+) handle many cases RAG used to, yet RAG stays cheaper per query, scales to web-sized corpora, and gives citations. The current take: <em>use long context for a handful of documents, RAG for large/fresh corpora; they compose</em> (retrieve, then long-context read).</li>
+        <li><strong>Agentic RAG:</strong> the agent <em>decides</em> when/what to retrieve and iterates (search → read → re-search), rather than a single fixed retrieval — connects RAG to §3.</li>
+        <li><strong>Better retrievers:</strong> late-interaction (<strong>ColBERT</strong>-style), <strong>late chunking</strong>, and strong rerankers; <strong>GraphRAG</strong> builds a knowledge graph for multi-hop/global questions that flat chunk retrieval misses.</li>
+        <li><strong>Multimodal RAG:</strong> retrieve over images/tables/PDF layout (not just text) — ties back to the document-VLM trend in §1.4.</li>
+      </ul>
+    </div>
 
     <h4>Self-test §4</h4>
-    <div class="qa"><div class="q">RAG vs long-context vs fine-tuning?<span class="chev">▶</span></div><div class="a">RAG: scalable, fresh, citable knowledge; adds a retrieval failure point. Long-context: simpler, but expensive and lost-in-the-middle. Fine-tuning: teaches skills/format, not fresh facts. Knowledge → RAG; behavior → fine-tune; small/simple → long-context.</div></div>
+    <div class="qa"><div class="q">RAG vs long-context vs fine-tuning?<span class="chev">▶</span></div><div class="a">RAG: scalable, fresh, citable knowledge; adds a retrieval failure point. Long-context: simpler, but expensive and lost-in-the-middle. Fine-tuning: teaches skills/format, not fresh facts. Knowledge → RAG; behavior → fine-tune; small/simple → long-context. Recent take: compose them (long-context reads RAG-retrieved docs); agentic RAG iterates retrieval; GraphRAG for multi-hop.</div></div>
     <div class="qa"><div class="q">Most RAG failures are…?<span class="chev">▶</span></div><div class="a">Retrieval failures. Fix chunking, add a reranker (cross-encoder), use hybrid dense+keyword search, ensure query/doc embedding consistency, and eval the retriever (recall@k) separately. Mind lost-in-the-middle for placement.</div></div>
 
     <!-- ===================== §5 ===================== -->
@@ -356,6 +398,14 @@
     <div class="qa"><div class="q">14. Most RAG failures + fixes.<span class="chev">▶</span></div><div class="a">→ §4. Retrieval: chunking, reranker, hybrid search, embedding consistency, recall@k.</div></div>
     <div class="qa"><div class="q">15. Lost-in-the-middle.<span class="chev">▶</span></div><div class="a">→ §4. U-shaped context use; place key chunks first/last; more context ≠ better.</div></div>
     <div class="qa"><div class="q">16. Contrastive temperature $\tau$.<span class="chev">▶</span></div><div class="a">→ §1.1. Learned scale on similarities; sets peakedness; mis-set → collapse/flatten.</div></div>
+
+    <h4>Recent-research self-test (sound current)</h4>
+    <div class="qa"><div class="q">R1. CLIP vs SigLIP — why did SigLIP appear?<span class="chev">▶</span></div><div class="a">→ §1.6. SigLIP replaces softmax-InfoNCE with a <em>sigmoid</em> pairwise loss → no giant cross-device all-gather, so cheaper large-batch contrastive; SigLIP 2 adds multilingual + localization. Framing: same contrastive idea, more efficient/scalable objective.</div></div>
+    <div class="qa"><div class="q">R2. Encoder-heavy vs native early-fusion — which wins?<span class="chev">▶</span></div><div class="a">→ §1.6. Encoder-heavy two-tower wins <em>now</em> on perception (reuse strong pretrained encoders, scale resolution); native early-fusion (Chameleon/Llama 4-style) is more compute-efficient and the likely endpoint (Apple's early-vs-late-fusion study). Name both; state the tension.</div></div>
+    <div class="qa"><div class="q">R3. What is M-RoPE and why does it matter?<span class="chev">▶</span></div><div class="a">→ §1.6. Multimodal RoPE (Qwen2-VL): encodes 2-D spatial + temporal position, not just 1-D — needed for native/any-resolution images and video, which power OCR/doc/screen-agent tasks.</div></div>
+    <div class="qa"><div class="q">R4. The shift in how agents are built (2024→26)?<span class="chev">▶</span></div><div class="a">→ §3.6. From <em>prompted</em> ReAct scaffolds to <em>RL-trained</em> agents on verifiable long-horizon tasks (GRPO/RLVR on trajectories, long-horizon credit assignment). That's why coding/computer-use agents jumped.</div></div>
+    <div class="qa"><div class="q">R5. Why is "reliability" the new agent metric, not pass@1?<span class="chev">▶</span></div><div class="a">→ §3.6. Error compounding ($p^n$) means a 50%-reliable agent is useless in production even with high pass@k; report success-rate <em>variance/consistency</em> across runs ("Beyond pass@1"). Name SWE-bench Verified/Pro, BrowseComp, OSWorld, τ²-bench.</div></div>
+    <div class="qa"><div class="q">R6. "Is RAG dead with long context?"<span class="chev">▶</span></div><div class="a">→ §4 recent. No — long context handles a few docs; RAG is cheaper, scales to web-size corpora, gives citations. Compose them (long-context reads retrieved docs); agentic RAG iterates retrieval; GraphRAG for multi-hop.</div></div>
 
     <div class="callout keyidea">
       <span class="label">★ What "great" sounds like today</span>
