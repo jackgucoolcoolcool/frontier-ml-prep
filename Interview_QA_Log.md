@@ -436,4 +436,63 @@ Tune `(b,r)` so the cliff sits at the dedup threshold (e.g. drop J≥0.8). Above
 
 ---
 
+## Q23 — How can you "feed image patches straight into one transformer" (early fusion)?
+
+**Key realization: a Transformer doesn't "know" about text.** Its input is a matrix `[seq_len × d_model]` — a list of `d`-dim vectors — and self-attention mixes them regardless of origin. The *only* text-specific step in an LLM is the front-end: a token id → **embedding-table lookup** → a `d`-dim vector. Early fusion keeps the whole transformer identical and swaps in a different front-end for images, so image and text positions are the same kind of vector in one shared sequence.
+
+**Two ways to build the image front-end:**
+
+**1. Continuous patches — Fuyu (truly encoder-free).** Split the image into patches (e.g. 30×30 px), flatten each to `x ∈ ℝ^(p²·3)`, and apply **one linear layer** `e = Wx + b`, `W ∈ ℝ^(d×p²·3)` → a token-sized vector. That single matmul *is* the entire vision system — no ViT, no CLIP; the transformer's own layers learn to see (gradients flow into `W`). An **image-newline token** after each patch row encodes the 2-D layout.
+
+**2. Discrete tokens — Chameleon (VQ).** A **VQ tokenizer** (VQ-GAN/VQ-VAE) maps the image to a grid of *integer* codebook indices (e.g. 1024 tokens from an 8192 codebook). Add those ids to the **same vocabulary** as text BPE tokens → an image is *literally* a token sequence in the same embedding table. Training = ordinary next-token prediction over the mixed stream; because images are tokens, the model can also **generate** images.
+
+**Then interleave** `[text][image][text]…` into one sequence and train a standard decoder-only transformer with the usual autoregressive loss.
+
+**Why "hardest to train, data-hungry":** no pretrained-encoder head start (learns perception from scratch → more data/compute); VQ **quantizes away** fine detail (hurts OCR); mixing modalities can destabilize training (Chameleon needed **QK-norm** + reordered norms). Payoff: one clean architecture that scales and can both read *and* generate — the bet for the omni/unified future.
+
+**One-liner:** a transformer just consumes `d`-dim vectors, so replace the text embedding-lookup front-end with a patch→linear projection (Fuyu) or a VQ image-tokenizer into a shared vocab (Chameleon); interleave the tokens and train next-token as usual — no separate vision encoder needed.
+
+📄 Related: Day 4 §1.4 (diagram + Fuyu/Chameleon recipes).
+
+---
+
+## Q24 — What did SigLIP 2 add over SigLIP?
+
+**Core unchanged:** the **sigmoid pairwise loss** is still the backbone. SigLIP 2 (Google DeepMind, 2025) wraps it in a *unified recipe* with extra objectives:
+
+1. **Caption/decoder loss (LocCa-style)** — a text decoder trained with captioning + *grounded* objectives (referring-expression / region captioning) → generative supervision + **localization** (where, not just what).
+2. **Self-distillation + masked prediction (SILC/TIPS)** — EMA-teacher local-to-global loss + masked image modeling → strong **dense per-patch features** (segmentation/depth), the weak spot of pure contrastive encoders.
+3. **Multilingual** — multilingual data mixture (Gemma tokenizer) + fairness **de-biasing**, keeping English perf.
+4. **NaFlex variant** — one checkpoint with **native aspect ratio + variable resolution** (no squashing) → big for OCR/docs/charts. Ships FixRes *and* NaFlex.
+5. **Drop-in** — B/L/So400m/g sizes, same API.
+
+**Net:** better zero-shot + retrieval *and* markedly better localization, dense-feature, OCR, and multilingual results.
+
+**One-liner:** SigLIP = the sigmoid loss; SigLIP 2 = sigmoid loss + caption/localization (LocCa) + self-distillation dense features (SILC/TIPS) + multilingual + native-resolution (NaFlex), unified.
+
+📄 Related: Day 4 §1.1 (SigLIP → SigLIP 2).
+
+---
+
+## Q25 — Explain Flamingo and BLIP / BLIP-2 in detail
+
+**Flamingo (DeepMind, 2022)** — the canonical *cross-attention* VLM; origin of "freeze the big models, train only a bridge." Keeps a **frozen vision encoder** + **frozen LLM** (Chinchilla) and adds two trainable pieces:
+- **Perceiver Resampler** — learnable latent queries cross-attend the encoder's *variable* features → a **fixed 64 visual tokens** (attentional pooling), decoupling encoder output from LLM cost.
+- **Gated cross-attention (GATED XATTN-DENSE)** layers interleaved *between* frozen LLM layers; text reads visual tokens. Output scaled by a **tanh gate init 0**, so at init it's exactly the frozen LLM, then opens during training (stability).
+Trained with LM loss on **interleaved** image-text web pages. Payoff: **few-shot, in-context** VL (GPT-3-style, multimodal). Only resampler + gated layers train.
+
+**BLIP (Salesforce, 2022)** — unify understanding + generation and clean own data. **MED** (Multimodal mixture of Encoder-Decoder): one weight-sharing model, three modes/losses — **ITC** (contrastive), **ITM** (image-text matching, binary, hard negatives), **LM** (image-grounded captioning). Signature trick **CapFilt**: a *captioner* writes synthetic captions, a *filter* (ITM) drops mismatches → retrain on cleaned data (precursor to self-improvement).
+
+**BLIP-2 (Salesforce, 2023)** — efficient successor; **freezes both** image encoder and LLM, bridges with a tiny **Q-Former**:
+- ~32 **learnable query tokens** cross-attend frozen image features → 32 embeddings → projected → LLM **prefix**.
+- **Two-stage:** Stage 1 (Q-Former + frozen encoder) ITC+ITM+ITG → queries learn text-relevant features; Stage 2 (+ frozen LLM) generation. Only the ~188M Q-Former trains; plugs into any LLM.
+
+**Common thread:** Flamingo, BLIP-2, and CoCa's poolers all use **attentional pooling / learned queries** to turn variable visual features into a small fixed set. Flamingo & BLIP-2 freeze the big models, differing in entry: Flamingo = **gated cross-attn inside the LLM**; BLIP-2 = **prefix** to an unmodified LLM; LLaVA = even simpler (linear projector + prepend).
+
+**One-liner:** Flamingo = frozen encoder + frozen LLM + Perceiver Resampler + gated cross-attention (few-shot, interleaved); BLIP = MED with ITC/ITM/LM + CapFilt data bootstrapping; BLIP-2 = freeze both, bridge with a 2-stage-trained Q-Former.
+
+📄 Related: Day 4 §1.4 (Flamingo + BLIP-2 diagrams).
+
+---
+
 *Log started 2026-06-21. New Q&A appended below as asked.*

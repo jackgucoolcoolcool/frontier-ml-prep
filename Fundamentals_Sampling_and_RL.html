@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fundamentals — Sampling & RL (with code)</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --border: #2a3340;
+    --code-bg: #11161d; --table-head: #1f2937; --reveal-bg: #16241f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 16.5px; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); z-index: 100; transition: width 0.1s ease-out; }
+  .layout { display: flex; max-width: 1240px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+    width: 280px; min-width: 280px; padding: 24px 16px 60px 20px; border-right: 1px solid var(--border); font-size: 14px; }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 6px; margin: 1px 0; border-left: 2px solid transparent; }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+  nav.toc .grp { margin-top: 10px; color: #c7a4ff; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; padding-left: 10px; }
+  main { flex: 1; min-width: 0; padding: 40px 48px 120px; }
+  header.hero { border: 1px solid var(--border); background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 14px; padding: 28px 30px; margin-bottom: 30px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 30px; }
+  header.hero .sub { color: var(--muted); margin: 4px 0; font-size: 15px; }
+  .bar-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent-2); padding: 4px 11px; border-radius: 20px; font-size: 13px; }
+  h2.section { font-size: 23px; margin: 48px 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h3 { font-size: 18px; margin: 28px 0 8px; color: #eaf0f7; }
+  h4 { font-size: 15.5px; margin: 18px 0 6px; color: var(--accent-2); }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1.5px 6px; border-radius: 5px; font-size: 14px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #e8c98a; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+  pre code { background: none; padding: 0; color: #c7d3e0; font-size: 13px; line-height: 1.5; }
+  ul, ol { padding-left: 22px; } li { margin: 5px 0; }
+  strong { color: #f0f4f9; }
+  table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 8px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--table-head); color: #eaf0f7; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .callout { border-radius: 10px; padding: 13px 17px; margin: 16px 0; border: 1px solid var(--border); }
+  .callout .label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .practice { background: rgba(255,180,84,0.07); border-color: rgba(255,180,84,0.35); } .practice .label { color: var(--warn); }
+  .keyidea { background: rgba(126,224,192,0.07); border-color: rgba(126,224,192,0.3); } .keyidea .label { color: var(--accent-2); }
+  .frontier { background: rgba(180,130,255,0.08); border-color: rgba(180,130,255,0.4); } .frontier .label { color: #c7a4ff; }
+  .qa { border: 1px solid var(--border); border-radius: 10px; margin: 9px 0; overflow: hidden; }
+  .qa .q { padding: 11px 15px; cursor: pointer; background: var(--panel); font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .qa .q:hover { background: var(--panel-2); }
+  .qa .q .chev { color: var(--muted); transition: transform .2s; font-size: 13px; }
+  .qa.open .q .chev { transform: rotate(90deg); }
+  .qa .a { display: none; padding: 13px 16px; background: var(--reveal-bg); border-top: 1px solid var(--border); }
+  .qa.open .a { display: block; }
+  .qa .a code { background: #0d1612; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 14px; }
+  .chartbox { position: relative; width: 100%; height: 260px; margin: 8px 0; }
+  .cap { font-size: 12px; color: var(--muted); margin: 4px 0 14px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+  .back-top { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; z-index: 50; }
+  @media (max-width: 880px) { nav.toc { display: none; } main { padding: 24px 18px 100px; } }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="layout">
+  <nav class="toc" id="toc">
+    <h2>Fundamentals</h2>
+    <a href="#top">Overview</a>
+    <div class="grp">Part 1 · Decoding</div>
+    <a href="#s1">1.1 Greedy & the tradeoff</a>
+    <a href="#s2">1.2 Temperature</a>
+    <a href="#s3">1.3 Top-k</a>
+    <a href="#s4">1.4 Top-p (nucleus)</a>
+    <a href="#s5">1.5 Min-p & penalties</a>
+    <a href="#s6">1.6 Beam search</a>
+    <a href="#s7">1.7 Sampling drills</a>
+    <div class="grp">Part 2 · RL</div>
+    <a href="#r1">2.1 The MDP</a>
+    <a href="#r2">2.2 Value & Bellman</a>
+    <a href="#r3">2.3 On- vs off-policy</a>
+    <a href="#r4">2.4 DP: value/policy iteration</a>
+    <a href="#r5">2.5 MC & TD</a>
+    <a href="#r6">2.6 SARSA vs Q-learning</a>
+    <a href="#r7">2.7 The algorithm map</a>
+    <a href="#r8">2.8 RL drills</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="top">
+      <h1>Fundamentals — Sampling & RL (with code)</h1>
+      <div class="sub"><strong>Why:</strong> the classical foundations under Day 6 — decoding algorithms and tabular RL — that interviews assume and "AI coding" rounds test.</div>
+      <div class="sub"><strong>Mode:</strong> each idea with the math, an intuition, a visualization, and <em>real, runnable code</em> you could reproduce on a whiteboard.</div>
+      <div class="bar-meta"><span class="pill">Companion to Day 6</span><span class="pill">Real code</span><span class="pill">Drills incl. code-debug</span></div>
+    </header>
+    <div class="callout keyidea"><span class="label">How to use</span> Part 1 is everything that turns logits into a token; Part 2 is classical RL up to the on/off-policy split (SARSA vs Q-learning) — the stuff Day 6's LLM-RL is built on. Code is PyTorch/NumPy and kept minimal so you can <em>write it from memory</em>. Drills at the end of each part, including code-debug.</div>
+
+    <!-- ============================================================ -->
+    <!-- PART 1 — DECODING -->
+    <!-- ============================================================ -->
+    <h2 class="section" id="s1">1.1 Greedy decoding & the quality–diversity tradeoff</h2>
+    <p>At each step a language model outputs <strong>logits</strong> $z\in\mathbb{R}^{|V|}$; softmax turns them into a distribution $p_i=e^{z_i}/\sum_j e^{z_j}$, and a <strong>decoding rule</strong> picks the next token. The simplest is <strong>greedy</strong> — always take the argmax:</p>
+    <pre><code>import torch, torch.nn.functional as F
+
+def greedy(logits):                 # logits: [vocab]
+    return int(logits.argmax(-1))   # most-likely token, deterministic
+</code></pre>
+    <p>Greedy is coherent but <strong>repetitive and bland</strong>, and it gets stuck in loops (degeneration). The fundamental tension in all decoding: <strong>quality/coherence ↔ diversity</strong>. Every method below is a way to inject controlled randomness — reshape or truncate the distribution — to get diversity without sampling incoherent tail tokens.</p>
+
+    <h2 class="section" id="s2">1.2 Temperature</h2>
+    <p><strong>Temperature</strong> $T$ rescales logits <em>before</em> softmax: $p_i(T)=\dfrac{e^{z_i/T}}{\sum_j e^{z_j/T}}$. $T\to0$ → greedy (peaky); $T=1$ → the model's native distribution; $T\to\infty$ → uniform. $T\lt1$ sharpens, $T\gt1$ flattens.</p>
+    <pre><code>def sample_with_temperature(logits, T=1.0):
+    probs = F.softmax(logits / T, dim=-1)     # divide the LOGITS, not the probs
+    return int(torch.multinomial(probs, 1))
+</code></pre>
+    <div class="chartbox"><canvas id="tempChart"></canvas></div>
+    <p class="cap">The same five logits at three temperatures: $T=0.5$ concentrates mass on the top token (safe), $T=1.5$ spreads it toward the tail (diverse, riskier). Temperature reshapes the <em>whole</em> distribution but never removes the tail — that's what top-k/top-p add.</p>
+
+    <h2 class="section" id="s3">1.3 Top-k sampling</h2>
+    <p>Keep only the $k$ highest-probability tokens, set the rest to $-\infty$, renormalize, sample. Simple, but $k$ is a <em>fixed count</em> — too generous when the model is confident, too strict when it's uncertain.</p>
+    <pre><code>def top_k_filter(logits, k):
+    kth = torch.topk(logits, k).values[..., -1, None]   # the k-th largest logit
+    return logits.masked_fill(logits &lt; kth, -float('inf'))
+</code></pre>
+
+    <h2 class="section" id="s4">1.4 Top-p (nucleus) sampling</h2>
+    <p>Keep the <em>smallest</em> set of tokens whose cumulative probability $\ge p$ (the "nucleus"), then renormalize. The cutoff is <strong>adaptive</strong> — few tokens when confident, many when uncertain — which is why top-p ($p\approx0.9$–$0.95$) is the open-ended default. The two classic bugs are the off-by-one boundary and forgetting to renormalize:</p>
+    <pre><code>def top_p_filter(logits, p):
+    sorted_logits, sorted_idx = torch.sort(logits, descending=True)
+    cum = F.softmax(sorted_logits, dim=-1).cumsum(dim=-1)
+    remove = cum &gt; p                       # tokens past the nucleus
+    remove[..., 1:] = remove[..., :-1].clone()  # SHIFT: keep the token that crosses p
+    remove[..., 0] = False                  # never drop the top token
+    remove = remove.scatter(-1, sorted_idx, remove)   # back to original order
+    return logits.masked_fill(remove, -float('inf'))
+# (softmax over the filtered logits renormalizes automatically)
+</code></pre>
+
+    <h2 class="section" id="s5">1.5 Min-p, repetition penalty, and composing them</h2>
+    <p><strong>Min-p</strong> keeps tokens with $p_i\ge p_\text{min}\cdot\max_j p_j$ — a threshold <em>relative to the top token</em>, robust at high temperature. <strong>Repetition penalty</strong> divides the logits of already-used tokens to break loops (CTRL-style).</p>
+    <pre><code>def min_p_filter(logits, pmin=0.1):
+    probs = F.softmax(logits, dim=-1)
+    thresh = pmin * probs.max(dim=-1, keepdim=True).values
+    return logits.masked_fill(probs &lt; thresh, -float('inf'))
+
+def repetition_penalty(logits, generated_ids, penalty=1.2):
+    for t in set(generated_ids):
+        logits[t] = logits[t] / penalty if logits[t] &gt; 0 else logits[t] * penalty
+    return logits
+
+def sample(logits, T=0.8, k=None, p=0.95):     # the usual composition
+    logits = logits / T
+    if k: logits = top_k_filter(logits, k)
+    if p: logits = top_p_filter(logits, p)
+    probs = F.softmax(logits, dim=-1)
+    return int(torch.multinomial(probs, 1))
+</code></pre>
+    <div class="callout practice"><span class="label">⚙ Defaults</span> Open-ended chat: $T\approx0.7$–$1.0$ + top-p $0.9$–$0.95$. Code/math with one right answer: greedy / very low $T$. RL rollouts & best-of-n: higher $T$ for exploration. Order matters: temperature reshapes, <em>then</em> truncate, <em>then</em> renormalize via softmax.</p></div>
+
+    <h2 class="section" id="s6">1.6 Beam search</h2>
+    <p>Sampling picks one token at a time; <strong>beam search</strong> instead keeps the $B$ highest-probability <em>sequences</em> ("beams") at every step, approximately maximizing total log-probability $\sum_t\log p(y_t\mid y_{\lt t})$. It's the right tool for <strong>low-entropy</strong> tasks (translation, ASR) where one high-probability sequence is correct — and the wrong tool for open-ended chat (it produces bland, repetitive "safe" text and collapses diversity).</p>
+    <pre><code>import math
+def beam_search(step_logprobs, start, eos, B=4, max_len=40):
+    # step_logprobs(seq) returns the next-token log-prob vector [vocab]
+    beams = [(start, 0.0)]                      # (sequence, cumulative log-prob)
+    for _ in range(max_len):
+        cands = []
+        for seq, score in beams:
+            if seq[-1] == eos:                  # finished beam: carry forward
+                cands.append((seq, score)); continue
+            lp = step_logprobs(seq)             # log-probs of next token
+            topv, topi = torch.topk(lp, B)
+            for v, t in zip(topv.tolist(), topi.tolist()):
+                cands.append((seq + [t], score + v))   # extend, accumulate log-prob
+        beams = sorted(cands, key=lambda sc: sc[1], reverse=True)[:B]   # keep best B
+        if all(s[-1] == eos for s, _ in beams): break
+    # length-normalize so long sequences aren't unfairly penalized
+    return max(beams, key=lambda sc: sc[1] / len(sc[0]))[0]
+</code></pre>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>Beam search tree with beam width 2</title>
+      <desc>From a start node, expand all next tokens, keep the two highest cumulative-log-prob beams at each step, prune the rest.</desc>
+      <style>.t{fill:#eaf0f7;font:600 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:9.5px -apple-system,sans-serif;text-anchor:middle;} .k{stroke:#7ee0c0;stroke-width:2;} .x{stroke:#3a3a3a;stroke-width:1;stroke-dasharray:3 3;}</style>
+      <text x="60" y="30" class="s">start</text>
+      <circle cx="60" cy="120" r="14" fill="#1c2530" stroke="#6ea8fe"/>
+      <!-- level 1 -->
+      <line class="k" x1="74" y1="116" x2="196" y2="60"/><line class="k" x1="74" y1="124" x2="196" y2="120"/><line class="x" x1="74" y1="128" x2="196" y2="190"/>
+      <circle cx="210" cy="58" r="13" fill="#16241f" stroke="#7ee0c0"/><text x="210" y="62" class="t">the</text><text x="210" y="34" class="s">−0.2 ✓</text>
+      <circle cx="210" cy="120" r="13" fill="#16241f" stroke="#7ee0c0"/><text x="210" y="124" class="t">a</text><text x="248" y="124" class="s">−0.5 ✓</text>
+      <circle cx="210" cy="190" r="13" fill="#11161d" stroke="#3a3a3a"/><text x="210" y="194" class="s">an</text><text x="210" y="216" class="s">−1.9 ✗ pruned</text>
+      <!-- level 2 from the two survivors -->
+      <line class="k" x1="223" y1="54" x2="356" y2="40"/><line class="x" x1="223" y1="62" x2="356" y2="92"/>
+      <line class="k" x1="223" y1="116" x2="356" y2="150"/><line class="x" x1="223" y1="124" x2="356" y2="190"/>
+      <circle cx="370" cy="40" r="13" fill="#16241f" stroke="#7ee0c0"/><text x="370" y="44" class="t">cat</text><text x="370" y="20" class="s">−0.6 ✓</text>
+      <circle cx="370" cy="92" r="13" fill="#11161d" stroke="#3a3a3a"/><text x="370" y="96" class="s">dog</text>
+      <circle cx="370" cy="150" r="13" fill="#16241f" stroke="#7ee0c0"/><text x="408" y="154" class="s">car −0.9 ✓</text>
+      <circle cx="370" cy="190" r="13" fill="#11161d" stroke="#3a3a3a"/><text x="370" y="194" class="s">box</text>
+      <text x="560" y="120" class="s">at each depth: expand all,</text><text x="560" y="136" class="s">keep best B=2 by cumulative</text><text x="560" y="152" class="s">log-prob, prune the rest (✗)</text>
+    </svg>
+    </div>
+    <p class="cap">Beam width $B=2$: every beam is expanded by all next tokens, the $2$ best partial sequences (by cumulative log-prob) survive, the rest are pruned. Larger $B$ = better search but more compute and <em>less</em> diversity (beams share prefixes). Length normalization (divide by length) stops it from preferring short sequences.</p>
+    <div class="callout frontier"><span class="label">◆ Why beam search is wrong for chat</span> Open-ended text is high-entropy: the single most-likely sequence is generic, repetitive, and "safe" (the likelihood-degeneration paradox). Beam also collapses diversity and is slow. So chatbots <em>sample</em> (top-p); beam stays for tasks with a sharply peaked correct answer (translation/ASR).</div>
+
+    <!-- ============================ Sampling drills ============================ -->
+    <h2 class="section" id="s7">1.7 Sampling drills</h2>
+    <p class="hint">Mix of conceptual and code-debug. Answer out loud, then reveal.</p>
+    <div class="qa"><div class="q">D1 — Temperature vs top-p: what does each control, and why combine?<span class="chev">▶</span></div><div class="a">Temperature reshapes the <em>whole</em> distribution (sharpen/flatten) but never removes the tail; top-p <em>truncates</em> to an adaptive nucleus (smallest set with cumulative $\ge p$) then renormalizes. Combine: temperature sets overall randomness, top-p cuts the unreliable tail so high-$T$ diversity doesn't produce garbage.</div></div>
+    <div class="qa"><div class="q">D2 — Implement top-p. What are the two classic bugs?<span class="chev">▶</span></div><div class="a">Sort descending, cumsum the softmax, mark <code>cum &gt; p</code> for removal — then (bug 1) <strong>shift the mask right by one</strong> so you keep the token that crosses $p$ (else if the top token already exceeds $p$ you remove everything → crash). Bug 2: <strong>renormalize</strong> after truncation before sampling (softmax over the filtered logits does this). See §1.4 code.</div></div>
+    <div class="qa"><div class="q">D3 — Why is beam search bad for open-ended generation?<span class="chev">▶</span></div><div class="a">High-entropy text: the single most-likely sequence is bland/repetitive (likelihood degeneration); beam collapses diversity (shared prefixes) and is slow. Sampling with top-p restores human-like variety. Keep beam for low-entropy tasks with a peaked correct sequence.</div></div>
+    <div class="qa"><div class="q">D4 — Code-debug: this "temperature" is wrong. Why?<br><code>probs = softmax(logits); probs = probs ** (1/T); probs /= probs.sum()</code><span class="chev">▶</span></div><div class="a">Temperature scales the <strong>logits before softmax</strong>: $\text{softmax}(z/T)$. Exponentiating the probabilities is a different ad-hoc sharpening that doesn't equal the temperature softmax (and drops numerical stability). Fix: <code>probs = softmax(logits / T)</code>.</div></div>
+    <div class="qa"><div class="q">D5 — Greedy keeps repeating "the the the". Two fixes?<span class="chev">▶</span></div><div class="a">Degeneration. (1) Switch to sampling (top-p) — greedy/argmax of a high-likelihood model loops. (2) Add a <strong>repetition/frequency penalty</strong> that lowers logits of already-used tokens. Beam alone won't fix it (it also maximizes likelihood).</div></div>
+
+    <!-- ============================================================ -->
+    <!-- PART 2 — RL -->
+    <!-- ============================================================ -->
+    <h2 class="section" id="r1">2.1 The MDP — the language of RL</h2>
+    <p>RL studies an <strong>agent</strong> acting in an <strong>environment</strong> to maximize cumulative reward. The environment is a <strong>Markov Decision Process</strong> $(S,A,P,R,\gamma)$:</p>
+    <ul>
+      <li><strong>States</strong> $S$, <strong>actions</strong> $A$.</li>
+      <li><strong>Transitions</strong> $P(s'\mid s,a)$ — probability of next state (the "model"/dynamics).</li>
+      <li><strong>Reward</strong> $R(s,a)$, <strong>discount</strong> $\gamma\in[0,1)$.</li>
+      <li><strong>Policy</strong> $\pi(a\mid s)$ — the agent's behavior; <strong>return</strong> $G_t=\sum_{k\ge0}\gamma^k r_{t+k}$.</li>
+    </ul>
+    <p><strong>Markov property:</strong> the next state depends only on the current state and action, not the full history — which is what makes the value recursions below valid. The goal: find a policy maximizing expected return.</p>
+
+    <h2 class="section" id="r2">2.2 Value functions & the Bellman equations</h2>
+    <p>Two value functions measure "how good":</p>
+    <p>$$V^\pi(s)=\mathbb{E}_\pi[G_t\mid s_t=s],\qquad Q^\pi(s,a)=\mathbb{E}_\pi[G_t\mid s_t=s,a_t=a].$$</p>
+    <p>Each satisfies a <strong>Bellman equation</strong> (value = immediate reward + discounted future value), and the <em>optimal</em> values satisfy the Bellman <em>optimality</em> equations (with a max over actions):</p>
+    <p>$$Q^\pi(s,a)=\mathbb{E}\big[r+\gamma\,V^\pi(s')\big],\qquad Q^\star(s,a)=\mathbb{E}\big[r+\gamma\max_{a'}Q^\star(s',a')\big].$$</p>
+    <div class="callout keyidea"><span class="label">Two ideas that name every algorithm</span>
+      <strong>Bootstrapping</strong> = update an estimate using <em>other</em> estimates (the $\gamma V(s')$ term) instead of waiting for the true return — this is what TD/DP do and Monte-Carlo does <em>not</em>. <strong>Sampling</strong> = learn from experienced transitions instead of a known model — this is what MC/TD do and DP does <em>not</em>. The whole classical taxonomy is just these two axes (§2.7).</div>
+
+    <h2 class="section" id="r3">2.3 On-policy vs off-policy — the concept to nail</h2>
+    <p>Two policies are in play whenever an agent learns:</p>
+    <ul>
+      <li><strong>Behavior policy</strong> — the one that <em>generates the data</em> (chooses actions while interacting). It usually explores (e.g. $\varepsilon$-greedy).</li>
+      <li><strong>Target policy</strong> — the one you're <em>learning about / improving</em> (often the greedy optimal policy).</li>
+    </ul>
+    <p><strong>On-policy</strong>: behavior = target. You learn about the same policy you act with (so it must keep exploring, and you can't reuse old data after the policy changes). <strong>Off-policy</strong>: behavior ≠ target. You learn about a <em>different</em> policy than the one generating data — letting you learn the <em>optimal</em> policy from exploratory or even old/replayed data.</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>On-policy vs off-policy</title>
+      <desc>On-policy: one policy both acts and is learned. Off-policy: a behavior policy acts and explores while a separate target policy is learned.</desc>
+      <style>.t{fill:#eaf0f7;font:700 12px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.4;fill:none;marker-end:url(#o);}</style>
+      <defs><marker id="o" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <text x="180" y="24" class="t">On-policy (SARSA, REINFORCE, PPO)</text>
+      <rect x="90" y="44" width="180" height="40" rx="8" fill="#16241f" stroke="#7ee0c0"/><text x="180" y="68" class="t">one policy π</text>
+      <text x="180" y="104" class="s">acts (explores) AND is learned</text>
+      <path class="ar" d="M 270 64 C 320 64 320 120 272 120"/><path class="ar" d="M 90 120 C 42 120 42 64 88 64"/>
+      <text x="180" y="140" class="s">data and target are the same π → must keep exploring,</text><text x="180" y="155" class="s">can't reuse data after π changes</text>
+
+      <text x="540" y="24" class="t">Off-policy (Q-learning, DQN)</text>
+      <rect x="430" y="44" width="130" height="40" rx="8" fill="#1c2530" stroke="#6ea8fe"/><text x="495" y="68" class="t">behavior μ</text>
+      <rect x="600" y="44" width="110" height="40" rx="8" fill="#231c30" stroke="#c7a4ff"/><text x="655" y="68" class="t">target π</text>
+      <line class="ar" x1="560" y1="64" x2="598" y2="64"/>
+      <text x="495" y="104" class="s">acts &amp; explores</text><text x="655" y="104" class="s">greedy / optimal</text>
+      <text x="570" y="140" class="s">learn the optimal target from exploratory data;</text><text x="570" y="155" class="s">enables replay buffers &amp; data reuse</text>
+    </svg>
+    </div>
+    <table>
+      <thead><tr><th></th><th>On-policy</th><th>Off-policy</th></tr></thead>
+      <tbody>
+        <tr><td>Behavior vs target</td><td>same policy</td><td>different policies</td></tr>
+        <tr><td>Data reuse / replay</td><td>no (data goes stale)</td><td>yes (replay buffers)</td></tr>
+        <tr><td>Learns</td><td>the policy it follows (incl. exploration)</td><td>the optimal/greedy policy</td></tr>
+        <tr><td>Stability vs efficiency</td><td>more stable, sample-inefficient</td><td>sample-efficient, can be unstable</td></tr>
+        <tr><td>Examples</td><td>SARSA, MC control, REINFORCE, <strong>PPO</strong></td><td>Q-learning, DQN, <strong>DPO (offline)</strong></td></tr>
+      </tbody>
+    </table>
+    <div class="callout keyidea"><span class="label">Tie to Day 6 (LLMs)</span> <strong>PPO/REINFORCE are on-policy</strong> — they must sample from the <em>current</em> model, which is why old samples go stale (the importance ratio / clip exists to allow a <em>little</em> reuse). <strong>DPO is off-policy / offline</strong> — it learns from a <em>fixed</em> preference dataset not generated by the current policy, which is exactly why it can't explore. "Online vs offline" and "on- vs off-policy" are the same axis showing up in LLM post-training.</div>
+
+    <h2 class="section" id="r4">2.4 Dynamic programming — when you know the model</h2>
+    <p>If you <em>know</em> $P$ and $R$, you can compute the optimal policy exactly by iterating the Bellman optimality equation. <strong>Value iteration</strong>:</p>
+    <pre><code>import numpy as np
+def value_iteration(P, R, gamma=0.99, tol=1e-6):
+    # P[s,a,s2] transition prob, R[s,a] reward; S states, A actions
+    S, A, _ = P.shape
+    V = np.zeros(S)
+    while True:
+        Q = R + gamma * np.einsum('sap,p-&gt;sa', P, V)   # one Bellman backup, all (s,a)
+        V_new = Q.max(axis=1)                          # greedy over actions
+        if np.abs(V_new - V).max() &lt; tol: break        # converged
+        V = V_new
+    policy = Q.argmax(axis=1)                           # greedy policy
+    return V, policy
+</code></pre>
+    <p><strong>Policy iteration</strong> alternates <em>policy evaluation</em> (solve $V^\pi$ for the current $\pi$) and <em>policy improvement</em> (act greedily w.r.t. $V^\pi$) until the policy stops changing — often fewer iterations than value iteration. Both are <strong>bootstrapping, no sampling</strong> (they use the known model).</p>
+
+    <h2 class="section" id="r5">2.5 Model-free prediction — Monte Carlo & TD</h2>
+    <p>Usually you <em>don't</em> know the model — you learn from experience. To estimate $V^\pi$:</p>
+    <ul>
+      <li><strong>Monte Carlo (MC):</strong> run a full episode, then set each visited state's value toward the <em>actual</em> return $G$. Unbiased, but high variance and needs episodes to finish.</li>
+      <li><strong>Temporal Difference TD(0):</strong> update after <em>each step</em> using a bootstrapped target $r+\gamma V(s')$. Lower variance, biased (depends on current $V$), works online and on continuing tasks.</li>
+    </ul>
+    <pre><code># Monte Carlo prediction (every-visit)
+def mc_predict(episodes, gamma=0.99):
+    V, counts = defaultdict(float), defaultdict(int)
+    for episode in episodes:                 # episode = [(s, r), ...]
+        G = 0.0
+        for s, r in reversed(episode):       # accumulate return backwards
+            G = r + gamma * G
+            counts[s] += 1
+            V[s] += (G - V[s]) / counts[s]   # running mean of returns
+    return V
+
+# TD(0): update every step toward r + gamma*V(s')
+def td0_update(V, s, r, s2, alpha=0.1, gamma=0.99):
+    V[s] += alpha * (r + gamma * V[s2] - V[s])    # the TD error in brackets
+    return V
+</code></pre>
+    <div class="callout practice"><span class="label">⚙ The bias–variance line to say</span> MC = unbiased, high variance (the full return is noisy). TD = biased (bootstraps off an imperfect $V$), low variance, and can learn online before an episode ends. $n$-step returns and TD($\lambda$) interpolate between them — the same bias–variance knob as GAE in Day 6.</div>
+
+    <h2 class="section" id="r6">2.6 Model-free control — SARSA vs Q-learning</h2>
+    <p>For <em>control</em> (finding the best policy) we learn $Q(s,a)$ and act $\varepsilon$-greedily. The two canonical algorithms differ in <strong>one line</strong> — and that line <em>is</em> the on/off-policy distinction:</p>
+    <pre><code>def eps_greedy(Q, s, eps, A):
+    return np.random.randint(A) if np.random.rand() &lt; eps else int(Q[s].argmax())
+
+# SARSA — ON-policy: target uses the action actually taken next (a2 from the SAME policy)
+def sarsa(env, episodes, alpha=0.1, gamma=0.99, eps=0.1):
+    Q = np.zeros((env.S, env.A))
+    for _ in range(episodes):
+        s = env.reset(); a = eps_greedy(Q, s, eps, env.A)
+        done = False
+        while not done:
+            s2, r, done = env.step(a)
+            a2 = eps_greedy(Q, s2, eps, env.A)            # next action from behavior policy
+            Q[s, a] += alpha * (r + gamma * Q[s2, a2] - Q[s, a])   # uses Q[s2, a2]
+            s, a = s2, a2
+    return Q
+
+# Q-LEARNING — OFF-policy: target uses the greedy max (the optimal target policy)
+def q_learning(env, episodes, alpha=0.1, gamma=0.99, eps=0.1):
+    Q = np.zeros((env.S, env.A))
+    for _ in range(episodes):
+        s = env.reset(); done = False
+        while not done:
+            a = eps_greedy(Q, s, eps, env.A)              # behavior explores
+            s2, r, done = env.step(a)
+            Q[s, a] += alpha * (r + gamma * Q[s2].max() - Q[s, a])  # uses max_a' Q[s2,a']
+            s = s2
+    return Q
+</code></pre>
+    <div class="callout keyidea"><span class="label">The one-line difference (a classic interview question)</span>
+      SARSA's target is $r+\gamma\,Q(s',a')$ where $a'$ is the action the <strong>behavior policy actually takes</strong> next → it learns the value of the policy it <em>follows</em> (exploration included) → <strong>on-policy</strong>. Q-learning's target is $r+\gamma\max_{a'}Q(s',a')$ → it learns the value of the <strong>greedy/optimal</strong> policy regardless of how it explores → <strong>off-policy</strong>. Consequence: near a cliff, SARSA learns a <em>safer</em> path (it accounts for its own $\varepsilon$-exploration occasionally stepping off), Q-learning learns the <em>optimal</em> (riskier) path. Same update, one symbol — <code>Q[s2,a2]</code> vs <code>Q[s2].max()</code>.</div>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>SARSA vs Q-learning backup target</title>
+      <desc>Both update Q(s,a) from r plus a next-state term; SARSA uses Q at the next action actually taken, Q-learning uses the max over next actions.</desc>
+      <style>.t{fill:#eaf0f7;font:600 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;} .g{fill:#7ee0c0;font:700 12px -apple-system,sans-serif;text-anchor:middle;} .p{fill:#c7a4ff;font:700 12px -apple-system,sans-serif;text-anchor:middle;}</style>
+      <text x="180" y="24" class="g">SARSA (on-policy)</text>
+      <text x="180" y="64" class="t">Q(s,a) ← Q(s,a) + α[ r + γ·Q(s′, a′) − Q(s,a) ]</text>
+      <text x="180" y="92" class="s">a′ = the action the ε-greedy policy actually takes next</text>
+      <text x="180" y="112" class="s">→ learns the policy it follows (safer)</text>
+      <line x1="360" y1="20" x2="360" y2="130" stroke="#2a3340"/>
+      <text x="545" y="24" class="p">Q-learning (off-policy)</text>
+      <text x="545" y="64" class="t">Q(s,a) ← Q(s,a) + α[ r + γ·maxₐ′ Q(s′, a′) − Q(s,a) ]</text>
+      <text x="545" y="92" class="s">max over next actions = greedy target policy</text>
+      <text x="545" y="112" class="s">→ learns the optimal policy (riskier)</text>
+    </svg>
+    </div>
+
+    <h2 class="section" id="r7">2.7 The whole classical map (two axes)</h2>
+    <p>Every method is a point on two axes: <strong>do you bootstrap?</strong> (use estimates of future value) and <strong>do you sample?</strong> (learn from experience vs a known model).</p>
+    <table>
+      <thead><tr><th></th><th>No bootstrap (full return)</th><th>Bootstrap (use $V/Q$ estimate)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Known model (no sampling)</strong></td><td>exhaustive tree search</td><td><strong>DP</strong>: value / policy iteration</td></tr>
+        <tr><td><strong>Learn from experience (sampling)</strong></td><td><strong>Monte Carlo</strong></td><td><strong>TD</strong>: TD(0), SARSA, Q-learning</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><strong>Prediction</strong> (evaluate a fixed $\pi$) vs <strong>control</strong> (find the best $\pi$): MC/TD do prediction; SARSA/Q-learning add $\varepsilon$-greedy improvement for control.</li>
+      <li><strong>On- vs off-policy</strong>: SARSA on, Q-learning off (the §2.6 line).</li>
+      <li><strong>Tabular → function approximation</strong>: replace the $Q$ table with a neural net and Q-learning becomes <strong>DQN</strong> (+ replay buffer, target network); policy-gradient on the actor side gives REINFORCE → A2C → PPO (Day 6).</li>
+    </ul>
+
+    <!-- ============================ RL drills ============================ -->
+    <h2 class="section" id="r8">2.8 RL drills</h2>
+    <p class="hint">Conceptual + code-debug. Out loud, then reveal.</p>
+    <div class="qa"><div class="q">D6 — Define on-policy vs off-policy in one sentence each, with an example.<span class="chev">▶</span></div><div class="a"><strong>On-policy:</strong> learn about the same policy you use to act (behavior = target) — e.g. SARSA, PPO; must keep exploring, can't reuse stale data. <strong>Off-policy:</strong> learn about a different (target) policy than the behavior policy generating data — e.g. Q-learning/DQN; enables replay and learning the optimal policy from exploratory data.</div></div>
+    <div class="qa"><div class="q">D7 — SARSA vs Q-learning: the exact difference and a consequence.<span class="chev">▶</span></div><div class="a">SARSA target $r+\gamma Q(s',a')$ uses the action actually taken (on-policy); Q-learning target $r+\gamma\max_{a'}Q(s',a')$ uses the greedy max (off-policy). Consequence (cliff-walking): SARSA learns a safer path because it accounts for its own exploration stepping off the cliff; Q-learning learns the optimal but riskier path. One symbol: <code>Q[s2,a2]</code> vs <code>Q[s2].max()</code>.</div></div>
+    <div class="qa"><div class="q">D8 — Value iteration vs policy iteration?<span class="chev">▶</span></div><div class="a">Both need the model and use the Bellman equation. <strong>Value iteration</strong>: repeatedly apply the Bellman <em>optimality</em> backup (max over actions) until $V$ converges, then read off the greedy policy. <strong>Policy iteration</strong>: alternate full <em>policy evaluation</em> (solve $V^\pi$) and <em>policy improvement</em> (greedy) — usually fewer outer iterations but each is costlier. Both converge to the optimal policy.</div></div>
+    <div class="qa"><div class="q">D9 — MC vs TD: bias/variance and when each shines?<span class="chev">▶</span></div><div class="a">MC uses the full return → unbiased but high variance, needs complete episodes. TD bootstraps ($r+\gamma V(s')$) → biased (depends on current $V$) but low variance, learns online and on continuing tasks. $n$-step / TD($\lambda$) interpolate. TD usually learns faster in practice; MC is robust when the value function is hard to bootstrap.</div></div>
+    <div class="qa"><div class="q">D10 — Why do you need exploration (ε-greedy)? What if ε=0?<span class="chev">▶</span></div><div class="a">Without exploration the agent only ever tries actions it currently thinks are best → it can lock onto a suboptimal action and never discover better ones (no data on alternatives). $\varepsilon$-greedy takes a random action with prob $\varepsilon$ to keep gathering information. $\varepsilon=0$ → pure exploitation → can converge to a suboptimal policy; usually anneal $\varepsilon$ from high to low.</div></div>
+    <div class="qa"><div class="q">D11 — Code-debug: this Q-learning update is off-policy in name only. Fix it.<br><code>a2 = eps_greedy(Q, s2, eps); Q[s,a] += alpha*(r + gamma*Q[s2,a2] - Q[s,a])</code><span class="chev">▶</span></div><div class="a">That's actually <strong>SARSA</strong> (it bootstraps off the sampled next action $a2$). For <strong>Q-learning</strong> (off-policy) the target must use the greedy max, independent of the behavior policy: <code>Q[s,a] += alpha*(r + gamma*Q[s2].max() - Q[s,a])</code>. Using <code>Q[s2,a2]</code> makes it on-policy SARSA.</div></div>
+    <div class="qa"><div class="q">D12 — Code-debug: TD update with a sign error.<br><code>V[s] += alpha * (r + gamma*V[s2] + V[s])</code><span class="chev">▶</span></div><div class="a">The TD <em>error</em> is $\delta=r+\gamma V(s')-V(s)$ — you <strong>subtract</strong> the current estimate, not add it: <code>V[s] += alpha * (r + gamma*V[s2] - V[s])</code>. With <code>+ V[s]</code> the update diverges (it's no longer moving $V(s)$ toward its target). The bracket must be the prediction error.</div></div>
+    <div class="qa"><div class="q">D13 — How does Q-learning become DQN?<span class="chev">▶</span></div><div class="a">Replace the tabular $Q$ with a neural net $Q_\theta(s,a)$ and regress toward the bootstrapped target. Two tricks make it stable: a <strong>replay buffer</strong> (store transitions, sample minibatches → off-policy reuse + decorrelation) and a <strong>target network</strong> (a slow copy for the $\max$ target → avoids chasing a moving target). Off-policy is what makes replay valid.</div></div>
+    <div class="qa"><div class="q">D14 — Connect classical RL to LLM post-training (Day 6).<span class="chev">▶</span></div><div class="a">REINFORCE = policy gradient (on-policy), the actor side; add a learned value/critic → actor-critic/A2C → add a trust-region clip → PPO (on-policy, must sample from the current model). DPO is off-policy/offline (fixed preference data). GRPO is REINFORCE-with-a-group-baseline (critic-free). The on/off-policy, bootstrap, and baseline ideas here are exactly the ones scaled up for LLMs.</div></div>
+
+    <hr>
+    <p class="hint">These are the foundations under Day 6. Next: re-read Day 6 Part B with on/off-policy and the policy-gradient chain in mind.</p>
+  </main>
+</div>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+  const prog = document.getElementById('progress');
+  const backTop = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop)/(h.scrollHeight - h.clientHeight)*100 + '%';
+    backTop.style.display = h.scrollTop > 600 ? 'block' : 'none';
+  });
+  document.querySelectorAll('.qa').forEach((qa, i) => {
+    const key = 'fn_qa_' + i;
+    if (localStorage.getItem(key) === '1') qa.classList.add('open');
+    qa.querySelector('.q').addEventListener('click', () => {
+      qa.classList.toggle('open');
+      localStorage.setItem(key, qa.classList.contains('open') ? '1' : '0');
+    });
+  });
+  const tocLinks = [...document.querySelectorAll('nav.toc a')];
+  const sections = tocLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll', () => {
+    let current = sections[0];
+    for (const s of sections) { if (s.getBoundingClientRect().top <= 120) current = s; }
+    if (current) tocLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + (current ? current.id : '')));
+  });
+  document.addEventListener('DOMContentLoaded', function() {
+    const TEXT = '#d7dee8', GRID = '#2a3340', MUTED = '#8b97a7';
+    Chart.defaults.color = MUTED; Chart.defaults.borderColor = GRID; Chart.defaults.font.size = 11;
+    (function(){
+      if(!document.getElementById('tempChart')) return;
+      var logits=[3.0,2.0,1.2,0.5,-0.3];
+      function sm(T){ var e=logits.map(z=>Math.exp(z/T)); var s=e.reduce((a,b)=>a+b,0); return e.map(x=>x/s); }
+      new Chart(document.getElementById('tempChart'), { type:'bar',
+        data:{ labels:['A','B','C','D','E'], datasets:[
+          { label:'T=0.5 (sharp)', data:sm(0.5), backgroundColor:'#7ee0c0' },
+          { label:'T=1.0 (native)', data:sm(1.0), backgroundColor:'#6ea8fe' },
+          { label:'T=1.5 (flat)', data:sm(1.5), backgroundColor:'#ffb454' } ]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ position:'bottom', labels:{ color:TEXT } } },
+          scales:{ x:{ title:{display:true,text:'next-token candidates (fixed logits)',color:MUTED} },
+                   y:{ title:{display:true,text:'probability',color:MUTED}, beginAtZero:true } } } });
+    })();
+  });
+</script>
+</body>
+</html>

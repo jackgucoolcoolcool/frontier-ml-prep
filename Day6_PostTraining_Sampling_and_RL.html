@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 6 — Post-Training: Sampling & RL</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --border: #2a3340;
+    --code-bg: #11161d; --table-head: #1f2937; --reveal-bg: #16241f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 16.5px; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); z-index: 100; transition: width 0.1s ease-out; }
+  .layout { display: flex; max-width: 1240px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+    width: 280px; min-width: 280px; padding: 24px 16px 60px 20px; border-right: 1px solid var(--border); font-size: 14px; }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 6px; margin: 1px 0; border-left: 2px solid transparent; }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+  nav.toc .grp { margin-top: 10px; color: #c7a4ff; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; padding-left: 10px; }
+  main { flex: 1; min-width: 0; padding: 40px 48px 120px; }
+  header.hero { border: 1px solid var(--border); background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 14px; padding: 28px 30px; margin-bottom: 36px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 30px; }
+  header.hero .sub { color: var(--muted); margin: 4px 0; font-size: 15px; }
+  .bar-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent-2); padding: 4px 11px; border-radius: 20px; font-size: 13px; }
+  h2.section { font-size: 24px; margin: 52px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h3 { font-size: 19px; margin: 30px 0 10px; color: #eaf0f7; }
+  h4 { font-size: 16px; margin: 20px 0 8px; color: var(--accent-2); }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1.5px 6px; border-radius: 5px; font-size: 14px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #e8c98a; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; }
+  pre code { background: none; padding: 0; color: #c7d3e0; font-size: 13.5px; line-height: 1.55; }
+  ul, ol { padding-left: 24px; } li { margin: 6px 0; }
+  strong { color: #f0f4f9; }
+  table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--table-head); color: #eaf0f7; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; border: 1px solid var(--border); }
+  .callout .label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .practice { background: rgba(255,180,84,0.07); border-color: rgba(255,180,84,0.35); } .practice .label { color: var(--warn); }
+  .keyidea { background: rgba(126,224,192,0.07); border-color: rgba(126,224,192,0.3); } .keyidea .label { color: var(--accent-2); }
+  .frontier { background: rgba(180,130,255,0.08); border-color: rgba(180,130,255,0.4); } .frontier .label { color: #c7a4ff; }
+  .qa { border: 1px solid var(--border); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+  .qa .q { padding: 12px 16px; cursor: pointer; background: var(--panel); font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .qa .q:hover { background: var(--panel-2); }
+  .qa .q .chev { color: var(--muted); transition: transform .2s; font-size: 13px; }
+  .qa.open .q .chev { transform: rotate(90deg); }
+  .qa .a { display: none; padding: 14px 16px; background: var(--reveal-bg); border-top: 1px solid var(--border); }
+  .qa.open .a { display: block; }
+  .qa .a code { background: #0d1612; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 18px; }
+  .sched label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .sched input { width: 17px; height: 17px; accent-color: var(--accent-2); }
+  .controls { margin: 10px 0 24px; }
+  .btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .back-top { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; z-index: 50; }
+  .back-top:hover { border-color: var(--accent); color: var(--accent); }
+  .chartbox { position: relative; width: 100%; height: 280px; margin: 8px 0; }
+  .cap { font-size: 12px; color: var(--muted); margin: 4px 0 14px; }
+  @media (max-width: 880px) { nav.toc { display: none; } main { padding: 24px 18px 100px; } }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="layout">
+  <nav class="toc" id="toc">
+    <h2>Day 6 Contents</h2>
+    <a href="#top">Overview & schedule</a>
+    <div class="grp">Part A · Sampling</div>
+    <a href="#a1">§A1 · Why decoding matters</a>
+    <a href="#a2">§A2 · Temperature, top-k, top-p</a>
+    <a href="#a3">§A3 · Beam, contrastive, penalties</a>
+    <a href="#a4">§A4 · Speculative & structured</a>
+    <a href="#a5">§A5 · Test-time compute</a>
+    <div class="grp">Part B · RL</div>
+    <a href="#b1">§B1 · Why RL for LLMs</a>
+    <a href="#b15">§B1½ · RL in plain words</a>
+    <a href="#b2">§B2 · Policy gradient → PPO</a>
+    <a href="#b3">§B3 · RLHF & reward modeling</a>
+    <a href="#b4">§B4 · DPO & offline variants</a>
+    <a href="#b5">§B5 · GRPO & RLVR (reasoning)</a>
+    <a href="#b6">§B6 · Reward hacking & agents</a>
+    <div class="grp">Drills</div>
+    <a href="#cheat">Cheat sheet</a>
+    <a href="#drills">14 mock drills</a>
+    <a href="#codedrills">7 code-debug drills</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="top">
+      <h1>Day 6 — Post-Training: Sampling & RL</h1>
+      <div class="sub"><strong>Target:</strong> the post-training/RL depth a frontier lab expects — decoding mechanics <em>and</em> the full policy-gradient → PPO → DPO → GRPO/RLVR lineage.</div>
+      <div class="sub"><strong>Mode:</strong> every method with its equation, defined notation, an intuition, a tradeoff, and a visualization; mock questions throughout.</div>
+      <div class="sub"><strong>The bar:</strong> derive the policy gradient and the clipped PPO objective, explain why DPO drops the reward model and GRPO drops the critic, and reason about reward hacking and verifiable rewards.</div>
+      <div class="bar-meta">
+        <span class="pill">~8 hours</span>
+        <span class="pill">Builds on Day 2 §6 + Day 5</span>
+        <span class="pill">14 drills</span>
+      </div>
+    </header>
+
+    <div class="callout keyidea">
+      <span class="label">How to use this page</span>
+      <strong>Part A (sampling)</strong> is how a trained model produces text — small choices with big behavioral effects. <strong>Part B (RL)</strong> is how we shape the model's behavior after pretraining. They connect: RL methods <em>sample</em> from the policy, so decoding choices show up inside the training loop. Equations have a "Notation" box; mock questions are inline; 14 quick drills + 7 code-debug drills at the end.
+    </div>
+    <div class="callout frontier">
+      <span class="label">◆ New to the fundamentals?</span>
+      If on/off-policy, the classical RL algorithms (value/policy iteration, SARSA vs Q-learning), or implementing the decoders from scratch feel shaky, read the companion <a href="Fundamentals_Sampling_and_RL.html"><strong>Sampling &amp; RL Fundamentals (with code)</strong></a> first — it's the tabular/decoding groundwork this day builds on.
+    </div>
+
+    <h3>Suggested 8-hour schedule</h3>
+    <div class="controls"><button class="btn" onclick="resetProgress()">Reset checkboxes</button></div>
+    <div class="sched">
+    <table>
+      <thead><tr><th>✓</th><th>Time</th><th>Topic</th><th>§</th></tr></thead>
+      <tbody>
+        <tr><td><label><input type="checkbox" data-sched="1"></label></td><td>0:00–1:30</td><td>Decoding: temperature, top-k, top-p, min-p, penalties</td><td>§A1–A3</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="2"></label></td><td>1:30–2:30</td><td>Speculative, structured, test-time compute (best-of-n, self-consistency)</td><td>§A4–A5</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="3"></label></td><td>2:30–4:30</td><td>Policy gradient → PPO; RLHF pipeline + reward modeling</td><td>§B1–B3</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="4"></label></td><td>4:30–6:00</td><td>DPO & offline variants; GRPO & RLVR</td><td>§B4–B5</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="5"></label></td><td>6:00–6:45</td><td>Reward hacking, PRM vs ORM, agents + RL</td><td>§B6</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="6"></label></td><td>6:45–8:00</td><td>The 14 drills, timed and out loud</td><td>drills</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PART A — SAMPLING -->
+    <!-- ============================================================ -->
+    <h2 class="section" id="a1">§A1 — Why decoding matters</h2>
+    <p>At each step an LLM outputs <strong>logits</strong> $z\in\mathbb{R}^{|V|}$ over the vocabulary, turned into a distribution by softmax: $p_i=\dfrac{e^{z_i}}{\sum_j e^{z_j}}$. <strong>Decoding</strong> is the rule that turns this distribution into the next token. The same model can be boring, creative, or broken depending only on the decoder. The fundamental tension:</p>
+    <div class="callout keyidea"><span class="label">The core tradeoff</span>
+      <strong>Quality/coherence ↔ diversity.</strong> Always taking the most-likely token (greedy) is coherent but repetitive and bland; sampling from the full distribution is diverse but risks incoherent "tail" tokens. Every decoding method is a way to <em>truncate or reshape the tail</em> to get diversity without garbage.</div>
+    <p>Two regimes need different decoders: <strong>low-entropy / closed tasks</strong> (translation, classification, code with one right answer) want near-greedy or beam; <strong>open-ended generation</strong> (chat, story, brainstorming) wants truncated sampling. Getting this backwards is a classic bug.</p>
+
+    <h2 class="section" id="a2">§A2 — Temperature, top-k, and top-p (nucleus)</h2>
+
+    <h3>A2.1 Temperature</h3>
+    <p><strong>Temperature</strong> $T$ rescales the logits before softmax, controlling how peaked vs flat the distribution is:</p>
+    <p>$$p_i(T)=\frac{e^{z_i/T}}{\sum_j e^{z_j/T}}$$</p>
+    <div class="callout keyidea"><span class="label">Notation & limits</span>
+      $z_i$ = logit of token $i$; $T\gt0$ = temperature. $T\to 0^+$ → the distribution collapses onto the argmax (<strong>greedy</strong>); $T=1$ → the model's native distribution; $T\to\infty$ → uniform (maximum randomness). Dividing logits by $T\lt 1$ <em>sharpens</em> (amplifies gaps → more deterministic); $T\gt 1$ <em>flattens</em> (more diverse, more risk). Temperature alone never zeros out the tail — it just reshapes it, which is why it's usually combined with top-k/top-p.</div>
+    <div class="chartbox"><canvas id="tempChart"></canvas></div>
+    <p class="cap">The same five logits under three temperatures. At $T=0.5$ probability piles onto the top token (sharp, safe); at $T=1.5$ it spreads toward the tail (diverse, riskier). Temperature is a <em>global</em> reshaping — it can't say "keep the top few, drop the rest," which is what top-k/top-p add.</p>
+
+    <h3>A2.2 Top-k and top-p (nucleus) sampling</h3>
+    <p>Both <strong>truncate the tail</strong>, then renormalize and sample — differing in how they choose the cutoff:</p>
+    <ul>
+      <li><strong>Top-k:</strong> keep the $k$ highest-probability tokens, zero the rest, renormalize. Simple, but $k$ is a <em>fixed</em> count — too generous when the model is confident (one token should dominate) and too strict when it's uncertain (many plausible tokens).</li>
+      <li><strong>Top-p / nucleus:</strong> keep the smallest set of tokens whose cumulative probability $\ge p$ (the "nucleus"), then renormalize. The cutoff is <em>adaptive</em> — few tokens when confident, many when uncertain — which is why top-p (e.g. $p=0.9$–$0.95$) is the open-ended default.</li>
+      <li><strong>Min-p:</strong> keep tokens with $p_i \ge p_\text{min}\cdot \max_j p_j$ — a threshold relative to the top token. Robust at high temperature (scales the cutoff with the model's confidence).</li>
+    </ul>
+    <p>Formally, top-p keeps the nucleus $V_p$ = smallest set with $\sum_{i\in V_p}p_i\ge p$, then samples from $p_i/\sum_{j\in V_p}p_j$ for $i\in V_p$.</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 700 220" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:700px">
+      <title>Top-k vs top-p truncation of the next-token distribution</title>
+      <desc>A sorted probability bar chart; top-k keeps a fixed count, top-p keeps a cumulative-probability nucleus.</desc>
+      <style>.t{fill:#eaf0f7;font:600 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;}</style>
+      <!-- bars -->
+      <g>
+        <rect x="60"  y="40"  width="40" height="120" fill="#7ee0c0"/>
+        <rect x="110" y="80"  width="40" height="80"  fill="#7ee0c0"/>
+        <rect x="160" y="105" width="40" height="55"  fill="#7ee0c0"/>
+        <rect x="210" y="125" width="40" height="35"  fill="#6ea8fe"/>
+        <rect x="260" y="138" width="40" height="22"  fill="#6ea8fe"/>
+        <rect x="310" y="146" width="40" height="14"  fill="#2a3340"/>
+        <rect x="360" y="151" width="40" height="9"   fill="#2a3340"/>
+        <rect x="410" y="154" width="40" height="6"   fill="#2a3340"/>
+        <rect x="460" y="156" width="40" height="4"   fill="#2a3340"/>
+      </g>
+      <line x1="50" y1="160" x2="520" y2="160" stroke="#8b97a7"/>
+      <text x="285" y="178" class="s">tokens sorted by probability →</text>
+      <!-- top-k bracket -->
+      <line x1="60" y1="28" x2="300" y2="28" stroke="#7ee0c0" stroke-width="1.5"/><text x="180" y="22" class="t" fill="#7ee0c0">top-k = 5 (fixed count)</text>
+      <!-- top-p bracket -->
+      <rect x="56" y="34" width="248" height="130" fill="none" stroke="#c7a4ff" stroke-dasharray="4 3"/><text x="600" y="70" class="t" fill="#c7a4ff">top-p nucleus</text><text x="600" y="86" class="s">smallest set with Σp ≥ 0.9</text>
+      <text x="600" y="120" class="s">grey tail = dropped,</text><text x="600" y="134" class="s">then renormalize</text>
+    </svg>
+    </div>
+    <p class="cap">Truncate the unreliable tail (grey), renormalize the survivors, sample. Top-k fixes the <em>count</em>; top-p fixes the <em>probability mass</em> (adaptive). Temperature reshapes <em>before</em> truncation — they compose.</p>
+    <div class="callout practice"><span class="label">⚙ In practice</span> Open-ended chat: $T\approx0.7$–$1.0$ with top-p $0.9$–$0.95$. Code/math with a target answer: $T\to0$ (greedy) or very low $T$. Sampling for RL training / best-of-n: higher $T$ (need diversity to explore). A repetition/frequency penalty subtracts from logits of already-used tokens to fight loops.</p></div>
+
+    <h2 class="section" id="a3">§A3 — Beam search, contrastive decoding, penalties</h2>
+    <p><strong>Beam search</strong> keeps the $B$ highest-<em>sequence</em>-probability candidates at each step (not just the top token), expanding and pruning to approximately maximize $\sum_t \log p(y_t\mid y_{\lt t})$. Great for <strong>low-entropy</strong> tasks (translation, ASR) where one high-probability sequence is right. <strong>Bad for open-ended generation:</strong> maximizing likelihood yields bland, repetitive, "safe" text (the likelihood-degeneration paradox) and collapses diversity. So chat models <em>sample</em>; they don't beam.</p>
+    <ul>
+      <li><strong>Repetition / frequency / presence penalties:</strong> subtract a penalty from the logits of tokens already produced, breaking loops (degenerate repetition is the classic greedy failure).</li>
+      <li><strong>Contrastive decoding / contrastive search:</strong> favor tokens a strong model likes but a weak model (or the recent context) doesn't — improves coherence and reduces repetition without pure likelihood maximization.</li>
+      <li><strong>Logit bias / constrained vocab:</strong> add/subtract fixed biases to force or forbid tokens.</li>
+    </ul>
+    <div class="callout frontier"><span class="label">◆ Mock question — "Why not beam search for a chatbot?"</span>
+      Because chat is high-entropy: many continuations are acceptable, and the <em>single most likely</em> sequence is bland, repetitive, and over-represents generic phrasings (empirically, high-likelihood text is low-quality for open-ended generation). Beam also kills diversity (candidates share prefixes) and is slow. Sampling with top-p restores diversity and human-like variety; beam stays for closed tasks with a sharply peaked correct sequence.</div>
+
+    <h2 class="section" id="a4">§A4 — Speculative decoding & structured decoding</h2>
+    <h3>A4.1 Speculative decoding (faster, same distribution)</h3>
+    <p><strong>The bottleneck it attacks.</strong> Autoregressive decode emits <em>one token per forward pass</em>, and each pass must stream the model's entire weight set from HBM for a single token — so decode is <strong>memory-bandwidth-bound</strong> with terrible arithmetic intensity (Day 2). The crucial asymmetry: a forward pass that <em>scores</em> $k$ given tokens in parallel costs almost the <em>same</em> wall-clock as generating one, because you load the weights once and the extra per-position math is nearly free on an under-utilized GPU. <strong>Speculative decoding exploits exactly this:</strong> guess several tokens cheaply, then <em>verify them all in one expensive pass</em>.</p>
+    <div class="callout keyidea"><span class="label">"But the verification pass gives us $p$ — why not just sample from $p$ directly?"</span>
+      The trap is the <strong>chicken-and-egg of autoregressive generation</strong>. To compute $p(\cdot\mid\text{prefix},x_1,\dots,x_{t-1})$ you must <em>already have</em> the earlier tokens $x_1\dots x_{t-1}$ — and getting each of <em>them</em> from $p$ requires its own full big-model forward pass. So "just sample $k$ tokens from $p$" <em>is</em> exactly $k$ <strong>sequential</strong> big-model passes — the slow status quo we're trying to beat.<br><br>
+      The verification pass scores many positions in <em>one</em> pass only because you fed it <strong>candidate tokens</strong> at those positions. Those candidates have to come from somewhere, and you can't use $p$ to produce them without paying the sequential cost. <strong>That is the draft's entire job:</strong> cheaply <em>guess</em> a plausible continuation $x_1\dots x_k$ so the big model can evaluate all $k{+}1$ positions of $p$ in a <em>single</em> parallel pass — then you keep the guesses that match what $p$ wanted and fix the first that doesn't.<br><br>
+      So you never "know $p$" for free — <strong>computing $p$ is the expensive operation</strong>, and the whole game is minimizing how many big-model passes you do (normal decoding = 1 pass/token; speculative = 1 pass per <em>block</em>). The draft $q$ isn't approximating some unknown $p$; it's there to <strong>break the sequential dependency</strong> so the expensive checks can be <strong>batched</strong>. And because the accept/reject step corrects any mismatch exactly, $q$ can be <em>anything</em> — a worse $q$ just gets fewer guesses accepted (slower), never wrong.<br><br>
+      <strong>Analogy:</strong> every check with the big model costs one full "open the book" — loading all its weights from HBM. Word-by-word, you open the book <em>once per word</em>. Instead, a cheap intern (the draft) quickly scribbles the next 5 words; you then open the book <em>once</em> to check all 5 at the same time — because checking 5 words costs the same single book-opening as checking 1 (the cost is opening the book, not reading one extra line). Keep the correct prefix, fix the first wrong word, send the intern off again. The intern's guesses aren't "the answer" — they're scaffolding that lets you <strong>batch</strong> your expensive checks.</div>
+
+    <h4>The algorithm, step by step</h4>
+    <ol>
+      <li><strong>Draft.</strong> A cheap <em>draft</em> model $q$ (a small same-family model, or extra heads — see variants) autoregressively proposes $k$ tokens (e.g. $k=4$), recording its probabilities $q(\cdot)$ at each.</li>
+      <li><strong>Verify in parallel.</strong> The big <em>target</em> model $p$ runs <strong>one</strong> forward pass over the prompt + all $k$ draft tokens, returning the target distribution $p(\cdot)$ at every one of the $k{+}1$ positions <em>simultaneously</em> (causal masking means scoring position $j$ only needs tokens before it — which you have).</li>
+      <li><strong>Accept / reject, left to right.</strong> For each draft token $y_j$ (in order), accept it with probability $\min\!\big(1,\,\tfrac{p(y_j)}{q(y_j)}\big)$. Stop at the first rejection.</li>
+      <li><strong>Fix the rejection.</strong> At the first rejected position, resample one token from the <strong>residual</strong> distribution $\propto\max\!\big(0,\,p(\cdot)-q(\cdot)\big)$ (renormalized).</li>
+      <li><strong>Bonus token.</strong> If <em>all</em> $k$ draft tokens are accepted, you also get a <strong>free</strong> token sampled from the target's own $p$ at position $k{+}1$ — that pass already computed it. So one target pass advances you <strong>1 to $k{+}1$</strong> tokens.</li>
+    </ol>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>Speculative decoding: draft proposes k tokens, target verifies in one parallel pass</title>
+      <desc>A small draft model proposes four tokens; the target verifies all in one pass, accepts a prefix, corrects the first mismatch, and adds a bonus token.</desc>
+      <style>.t{fill:#eaf0f7;font:600 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;} .ok{fill:#16241f;stroke:#7ee0c0;} .no{fill:#3a1d1d;stroke:#ef4444;} .bo{fill:#231c30;stroke:#c7a4ff;}</style>
+      <text x="60" y="40" class="s" text-anchor="start">draft q →</text>
+      <g>
+        <rect x="150" y="24" width="64" height="30" rx="5" class="ok"/><text x="182" y="44" class="t">the</text>
+        <rect x="222" y="24" width="64" height="30" rx="5" class="ok"/><text x="254" y="44" class="t">cat</text>
+        <rect x="294" y="24" width="64" height="30" rx="5" class="ok"/><text x="326" y="44" class="t">sat</text>
+        <rect x="366" y="24" width="64" height="30" rx="5" class="ok"/><text x="398" y="44" class="t">down</text>
+      </g>
+      <text x="360" y="78" class="s">↓ target p verifies all 4 in ONE parallel pass</text>
+      <g>
+        <rect x="150" y="92" width="64" height="30" rx="5" class="ok"/><text x="182" y="112" class="t">the ✓</text>
+        <rect x="222" y="92" width="64" height="30" rx="5" class="ok"/><text x="254" y="112" class="t">cat ✓</text>
+        <rect x="294" y="92" width="64" height="30" rx="5" class="ok"/><text x="326" y="112" class="t">sat ✓</text>
+        <rect x="366" y="92" width="64" height="30" rx="5" class="no"/><text x="398" y="112" class="t">down ✗</text>
+        <rect x="438" y="92" width="80" height="30" rx="5" class="bo"/><text x="478" y="112" class="t">on (resample)</text>
+      </g>
+      <text x="150" y="150" class="s" text-anchor="start">accepted prefix: "the cat sat"  +  corrected token "on"  →  4 tokens from 1 target pass</text>
+      <text x="150" y="178" class="s" text-anchor="start">if all 4 had been accepted → a 5th "bonus" token comes free from the same pass</text>
+      <text x="150" y="196" class="s" text-anchor="start" fill="#7ee0c0">output distribution is provably identical to plain sampling from the target</text>
+    </svg>
+    </div>
+    <div class="callout keyidea"><span class="label">Why it's <em>exact</em> — the acceptance rule, with a worked example</span>
+      This is <strong>modified rejection sampling</strong>. Accept $y$ with prob $\min(1,p(y)/q(y))$; on rejection, resample from $\propto\max(0,p-q)$. The algebra works out so the emitted token is distributed <em>exactly</em> as $p$ — speculative decoding changes <strong>speed, not the distribution</strong>.<br>
+      <strong>Example:</strong> say the draft proposes "down" with $q(\text{down})=0.6$ but the target only gives $p(\text{down})=0.3$. Accept with prob $\min(1,0.3/0.6)=0.5$ — so half the time the over-confident draft token is rejected, and you resample from the residual where $p\gt q$ (tokens the target likes <em>more</em> than the draft did, e.g. "on"). Conversely if $p(y)\ge q(y)$ the token is always accepted. Net: the draft's biases are corrected on the fly.</div>
+    <h4>The rejection step, fully worked — why it reconstructs $p$ exactly</h4>
+    <p>The recipe is just <strong>two coin-flips</strong>: (1) the draft samples a token $y$ from its distribution $q$; (2) flip a biased coin that lands "accept" with probability $\min(1,\,p(y)/q(y))$. Heads → output $y$. Tails → <em>throw $y$ away</em> and sample a replacement from the <strong>residual</strong> distribution $r(x)\propto\max(0,\,p(x)-q(x))$. Claim: the token you emit is distributed <em>exactly</em> as the target $p$. Let's prove it with real numbers.</p>
+    <p>Take a 4-token vocabulary {A, B, C, D}. Suppose at this position:</p>
+    <ul>
+      <li><strong>Draft</strong> $q=[\,$A$:0.5,\ $B$:0.3,\ $C$:0.1,\ $D$:0.1\,]$ — a fast, slightly-wrong guesser.</li>
+      <li><strong>Target</strong> $p=[\,$A$:0.4,\ $B$:0.1,\ $C$:0.4,\ $D$:0.1\,]$ — the distribution we must reproduce.</li>
+    </ul>
+    <p>Per-token acceptance probability $\min(1,p/q)$: A $=0.4/0.5=0.8$; B $=0.1/0.3\approx0.33$; C $=\min(1,0.4/0.1)=1$; D $=0.1/0.1=1$. The draft <em>over</em>-proposes A and B (so we reject some), <em>matches</em> D, and <em>under</em>-proposes C (so we always keep it and patch the shortfall later).</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>Draft q vs target p over four tokens, with accept/reject/residual annotations</title>
+      <desc>Grouped bars of draft and target probabilities for tokens A, B, C, D, annotated to show where the draft over-proposes (reject some), matches (keep), or under-proposes (residual fills).</desc>
+      <style>.t{fill:#eaf0f7;font:600 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:9.5px -apple-system,sans-serif;text-anchor:middle;} .v{fill:#cdd6e2;font:9.5px -apple-system,sans-serif;text-anchor:middle;}</style>
+      <line x1="50" y1="180" x2="690" y2="180" stroke="#8b97a7"/>
+      <text x="34" y="110" class="s" transform="rotate(-90 34 110)">probability</text>
+      <!-- legend -->
+      <rect x="250" y="14" width="12" height="12" fill="#6ea8fe"/><text x="268" y="24" class="s" text-anchor="start">draft q</text>
+      <rect x="330" y="14" width="12" height="12" fill="#7ee0c0"/><text x="348" y="24" class="s" text-anchor="start">target p</text>
+      <!-- A: q0.5 p0.4 -->
+      <rect x="82" y="30" width="26" height="150" fill="#6ea8fe"/><text x="95" y="24" class="v">.5</text>
+      <rect x="112" y="60" width="26" height="120" fill="#7ee0c0"/><text x="125" y="54" class="v">.4</text>
+      <text x="110" y="196" class="t">A</text><text x="110" y="212" class="s">q&gt;p: reject some</text>
+      <!-- B: q0.3 p0.1 -->
+      <rect x="242" y="90" width="26" height="90" fill="#6ea8fe"/><text x="255" y="84" class="v">.3</text>
+      <rect x="272" y="150" width="26" height="30" fill="#7ee0c0"/><text x="285" y="144" class="v">.1</text>
+      <text x="270" y="196" class="t">B</text><text x="270" y="212" class="s">q≫p: reject most</text>
+      <!-- C: q0.1 p0.4 -->
+      <rect x="402" y="150" width="26" height="30" fill="#6ea8fe"/><text x="415" y="144" class="v">.1</text>
+      <rect x="432" y="60" width="26" height="120" fill="#7ee0c0"/><text x="445" y="54" class="v">.4</text>
+      <text x="430" y="196" class="t">C</text><text x="430" y="212" class="s" fill="#c7a4ff">q&lt;p: residual fills</text>
+      <!-- D: q0.1 p0.1 -->
+      <rect x="562" y="150" width="26" height="30" fill="#6ea8fe"/><text x="575" y="144" class="v">.1</text>
+      <rect x="592" y="150" width="26" height="30" fill="#7ee0c0"/><text x="605" y="144" class="v">.1</text>
+      <text x="590" y="196" class="t">D</text><text x="590" y="212" class="s">q=p: keep all</text>
+      <text x="360" y="236" class="s">accepted mass per token = min(p,q) (the overlap); the gap where p&gt;q (token C) is filled by resampling</text>
+    </svg>
+    </div>
+    <div class="callout keyidea"><span class="label">Count it out over 100 draft proposals</span>
+      Draft proposals come distributed as $q$, so out of 100: ~<strong>50 A</strong>, ~<strong>30 B</strong>, ~<strong>10 C</strong>, ~<strong>10 D</strong>. Apply the accept rates:
+      <ul style="margin:6px 0;">
+        <li><strong>A:</strong> 50 proposed × 0.8 accept = <strong>40 output</strong> (10 rejected)</li>
+        <li><strong>B:</strong> 30 × 0.33 = <strong>10 output</strong> (20 rejected)</li>
+        <li><strong>C:</strong> 10 × 1.0 = <strong>10 output</strong> (0 rejected)</li>
+        <li><strong>D:</strong> 10 × 1.0 = <strong>10 output</strong> (0 rejected)</li>
+      </ul>
+      That's <strong>70 accepted</strong> and <strong>30 rejected</strong>. The residual here is $\max(0,p-q)=[0,0,0.3,0]$ → normalized, it's "always C." So all <strong>30 rejections resample to C</strong>. Final tally: <strong>A=40, B=10, C=10+30=40, D=10</strong> → exactly $p=[0.4,0.1,0.4,0.1]$. The over-proposed tokens got trimmed by rejection; the under-proposed token (C) got refilled by the residual. ✓</div>
+    <div class="callout keyidea"><span class="label">The one-line proof (why it always works)</span>
+      Probability you output token $x$ = (proposed <em>and</em> accepted) + (rejected anything) × (residual picks $x$). The accepted mass is $q(x)\cdot\min(1,p(x)/q(x))=\min(p(x),q(x))$. The total rejection probability equals $\sum_x\max(0,p(x)-q(x))$, which exactly cancels the residual's normalizer, so the residual contributes $\max(0,p(x)-q(x))$. Adding them:
+      $$P(\text{output }x)=\min(p(x),q(x))+\max\!\big(0,\,p(x)-q(x)\big)=p(x).$$
+      Because if $p\ge q$ this is $q+(p-q)=p$, and if $p\lt q$ it's $p+0=p$. <strong>Always $p$ — for any draft $q$.</strong> That's why a <em>bad</em> draft only makes it <em>slower</em> (more rejections), never <em>wrong</em>.</div>
+
+    <h4>How do you actually <em>sample</em> the residual?</h4>
+    <p>"Resample from $r(x)\propto\max(0,p(x)-q(x))$" sounds exotic, but it's just a small <strong>categorical draw</strong> — and you already have everything you need, because the verification pass produced the full target vector $p$ and the draft already gave you $q$ at that position. Four mechanical steps:</p>
+    <ol>
+      <li><strong>Subtract</strong> elementwise: $d(x)=p(x)-q(x)$ for every token in the vocabulary.</li>
+      <li><strong>Clamp negatives to zero:</strong> $d^{+}(x)=\max(0,d(x))$ — a ReLU on the difference. This keeps <em>only</em> the tokens the target wants <em>more</em> of than the draft proposed (the others are already covered by acceptances).</li>
+      <li><strong>Normalize:</strong> $r(x)=d^{+}(x)/\sum_x d^{+}(x)$. The denominator equals the rejection probability, which is strictly positive whenever a rejection actually happened — so you never divide by zero.</li>
+      <li><strong>Draw one token</strong> from the categorical $r$ — exactly like ordinary sampling: pick $u\sim\text{Uniform}(0,1)$ and find which cumulative bucket it lands in (inverse-CDF), or call multinomial / Gumbel-max.</li>
+    </ol>
+    <pre><code>resid = torch.clamp(p - q, min=0)     # ReLU(p - q): only where target wants more
+resid = resid / resid.sum()           # normalize (the sum = rejection prob, &gt; 0)
+next_token = torch.multinomial(resid, 1)   # one categorical draw
+</code></pre>
+    <p><strong>A non-degenerate worked example</strong> (so you see a real draw, not "always C"). Suppose at the rejected position $p=[.4,.3,.2,.1]$ and $q=[.5,.1,.1,.3]$. Then $d=p-q=[-.1,+.2,+.1,-.2]$ → ReLU $=[0,.2,.1,0]$ → sum $=.3$ → $r=[0,\tfrac23,\tfrac13,0]$. So on this rejection you output <strong>B</strong> two-thirds of the time and <strong>C</strong> one-third — realized with a single uniform "dart" on the unit interval:</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>Sampling the residual: one uniform draw on the unit interval (inverse-CDF)</title>
+      <desc>The residual r = [B: two-thirds, C: one-third] laid out as segments on a 0-to-1 bar; a uniform draw u = 0.8 lands in the C segment, so C is output.</desc>
+      <style>.t{fill:#eaf0f7;font:600 12px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;}</style>
+      <text x="360" y="26" class="s">residual r = [ B: 2/3, C: 1/3 ] → split [0,1] by probability, throw one uniform dart</text>
+      <rect x="80" y="58" width="360" height="38" fill="#16241f" stroke="#7ee0c0"/><text x="260" y="82" class="t">B   (2/3)</text>
+      <rect x="440" y="58" width="180" height="38" fill="#231c30" stroke="#c7a4ff"/><text x="530" y="82" class="t">C   (1/3)</text>
+      <text x="80" y="116" class="s">0</text><text x="440" y="116" class="s">0.667</text><text x="620" y="116" class="s">1</text>
+      <line x1="512" y1="36" x2="512" y2="58" stroke="#ffb454" stroke-width="2" marker-end="url(#dart)"/>
+      <defs><marker id="dart" markerWidth="9" markerHeight="9" refX="3" refY="6" orient="auto"><path d="M0,0 L6,0 L3,6 Z" fill="#ffb454"/></marker></defs>
+      <text x="512" y="32" class="s" fill="#ffb454">u = 0.80</text>
+      <text x="512" y="134" class="t" fill="#c7a4ff">lands in C → output "C"</text>
+    </svg>
+    </div>
+    <div class="callout practice"><span class="label">⚙ Two consistency rules that make the math hold</span>
+      <strong>(1) Same distributions.</strong> The $p$ and $q$ you subtract must be the distributions <em>after</em> the same temperature / top-k / top-p are applied — the draft and target must use <em>identical</em> sampling parameters, or the residual no longer targets the distribution you actually want. <strong>(2) First rejection only.</strong> You compute the residual at the <em>single</em> position where acceptance first failed; every drafted token after it is thrown away (they were conditioned on a token you just replaced). Then the draft restarts from the new token.</div>
+
+    <h4>Putting it together: the chain of $k$ draft tokens</h4>
+    <p>Everything above was <em>one</em> position. In practice the draft proposes $k$ tokens in a row, and they form a <strong>chain</strong> — each drafted conditioned on the previous: $x_1\sim q(\cdot\mid\text{prefix})$, $x_2\sim q(\cdot\mid\text{prefix},x_1)$, …, $x_k\sim q(\cdot\mid\text{prefix},x_1\dots x_{k-1})$. The draft does these $k$ samples <strong>sequentially</strong> (it's a small model, so cheap). Then the <strong>target runs one forward pass</strong> over $[\text{prefix},x_1,\dots,x_k]$ and — thanks to causal masking — returns <em>all</em> $k{+}1$ conditional target distributions <strong>in parallel</strong>: $p(\cdot\mid\text{prefix})$, $p(\cdot\mid\text{prefix},x_1)$, …, $p(\cdot\mid\text{prefix},x_1\dots x_k)$ (the last is for the bonus token). That asymmetry — draft sequentially, verify in parallel — <em>is</em> the speedup.</p>
+    <p>Now apply the single-token accept/reject <strong>left to right</strong>, each position using its own $p$ and $q$: accept $x_1$ with $\min(1,p(x_1)/q(x_1))$; if accepted, accept $x_2$ (now conditioned on the kept $x_1$); continue until the <strong>first rejection</strong> (resample there, stop) or all $k$ accepted (append a free bonus token from $p(\cdot\mid\text{prefix},x_1\dots x_k)$).</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>Verifying a chain of 4 draft tokens: accept left-to-right, stop and discard at first rejection</title>
+      <desc>Draft proposes sat, on, the, mat sequentially; target verifies all in one pass; sat and on are accepted, the is rejected and resampled to a, mat is discarded.</desc>
+      <style>.t{fill:#eaf0f7;font:600 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:9.5px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.3;fill:none;marker-end:url(#ac);}</style>
+      <defs><marker id="ac" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <text x="55" y="40" class="s" text-anchor="start">draft chain</text>
+      <rect x="150" y="24" width="72" height="30" rx="5" fill="#1c2530" stroke="#6ea8fe"/><text x="186" y="44" class="t">sat</text>
+      <rect x="252" y="24" width="72" height="30" rx="5" fill="#1c2530" stroke="#6ea8fe"/><text x="288" y="44" class="t">on</text>
+      <rect x="354" y="24" width="72" height="30" rx="5" fill="#1c2530" stroke="#6ea8fe"/><text x="390" y="44" class="t">the</text>
+      <rect x="456" y="24" width="72" height="30" rx="5" fill="#1c2530" stroke="#6ea8fe"/><text x="492" y="44" class="t">mat</text>
+      <line class="ar" x1="222" y1="39" x2="250" y2="39"/><line class="ar" x1="324" y1="39" x2="352" y2="39"/><line class="ar" x1="426" y1="39" x2="454" y2="39"/>
+      <text x="340" y="14" class="s">each conditioned on the previous (sequential)</text>
+      <rect x="150" y="78" width="378" height="30" rx="6" fill="#11161d" stroke="#2a3340"/><text x="339" y="98" class="t">target: ONE parallel pass → all 5 conditionals p(·|…)</text>
+      <line class="ar" x1="186" y1="108" x2="186" y2="146"/><line class="ar" x1="288" y1="108" x2="288" y2="146"/><line class="ar" x1="390" y1="108" x2="390" y2="146"/><line class="ar" x1="492" y1="108" x2="492" y2="146"/>
+      <text x="55" y="166" class="s" text-anchor="start">verify →</text>
+      <rect x="150" y="150" width="72" height="32" rx="5" fill="#16241f" stroke="#7ee0c0"/><text x="186" y="170" class="t">sat ✓</text>
+      <rect x="252" y="150" width="72" height="32" rx="5" fill="#16241f" stroke="#7ee0c0"/><text x="288" y="170" class="t">on ✓</text>
+      <rect x="354" y="150" width="72" height="32" rx="5" fill="#3a1d1d" stroke="#ef4444"/><text x="390" y="170" class="t">the ✗</text>
+      <rect x="456" y="150" width="72" height="32" rx="5" fill="#11161d" stroke="#2a3340" stroke-dasharray="4 3"/><text x="492" y="170" class="s">mat (discard)</text>
+      <rect x="556" y="150" width="110" height="32" rx="5" fill="#231c30" stroke="#c7a4ff"/><text x="611" y="170" class="t">resample → "a"</text>
+      <text x="186" y="196" class="s">.8/.7 → accept</text><text x="288" y="196" class="s">min(1,.5/.6)=.83</text><text x="390" y="196" class="s">.2/.5=.4 → reject</text>
+      <text x="360" y="226" class="t" fill="#7ee0c0">advance 3 tokens: "The cat sat on a" — then the draft restarts from "a"</text>
+    </svg>
+    </div>
+    <p><strong>Worked example (the figure).</strong> prefix = "The cat"; the draft proposes "sat → on → the → mat." One target pass gives the five conditionals; verify left to right: <strong>sat</strong> ($p/q=.8/.7\ge1$ → always accept), <strong>on</strong> ($\min(1,.5/.6)=.83$ → coin says accept), <strong>the</strong> ($\min(1,.2/.5)=.4$ → coin says <em>reject</em> → resample "a" from the residual → <strong>stop</strong>, discard "mat"). You advanced <strong>3 tokens</strong> ("The cat sat on a") from a single target pass; the draft restarts from "a." Had all four been accepted, a 5th bonus token would be appended.</p>
+    <div class="callout keyidea"><span class="label">Two questions this always raises</span>
+      <strong>Why stop at the first rejection?</strong> The chain is conditional: "mat" was drafted assuming the original "the." The instant you change a token (resample "a"), every later drafted token is conditioned on the <em>wrong</em> prefix → invalid, so you discard it and let the draft re-propose from the corrected token.<br>
+      <strong>Why is the whole sequence still exact?</strong> Each accepted position emits a token distributed exactly as the target's conditional $p(\cdot\mid\text{accepted prefix})$ (the single-token guarantee). Chaining them — $x_1\sim p(\cdot\mid\text{prefix})$, then $x_2\sim p(\cdot\mid\text{prefix},x_1)$, … — is, by the <strong>chain rule of probability</strong>, exactly sampling the target's <em>joint</em> $p(x_1,x_2,\dots\mid\text{prefix})$. So verifying a block of $k$ tokens gives the identical sequence distribution as plain token-by-token target sampling — just faster. You advance between <strong>1 and $k{+}1$</strong> tokens per target pass.</div>
+
+    <h4>How much faster, and the knobs</h4>
+    <p>Let $\alpha$ be the per-token acceptance rate (how often draft and target agree). The expected number of tokens produced per target pass is $\frac{1-\alpha^{k+1}}{1-\alpha}$ — e.g. $\alpha=0.8,\,k=4$ gives ~3.4 tokens per pass, so roughly a <strong>3×</strong> speedup. The tension: a <em>bigger</em> draft model raises $\alpha$ (fewer rejections) but costs more per draft token; a <em>smaller</em> draft is cheap but rejected more. You tune $k$ and the draft size to the workload.</p>
+    <div class="callout frontier"><span class="label">◆ Variants you should name</span>
+      <ul>
+        <li><strong>Self-speculation / Medusa:</strong> instead of a separate draft model, add lightweight <em>extra decoding heads</em> to the target that predict the next few tokens, then verify with the base — no second model to host.</li>
+        <li><strong>EAGLE:</strong> draft at the <em>feature</em> (hidden-state) level rather than token level → higher acceptance, near-lossless.</li>
+        <li><strong>Tree / token-tree verification (SpecInfer, Medusa):</strong> propose <em>several</em> candidate continuations as a tree and verify them together in one pass with a custom attention mask — accept the best path, raising effective $\alpha$.</li>
+        <li><strong>Prompt lookup / n-gram drafting:</strong> for tasks with repetition (summarization, code edits, RAG), "draft" by copying likely continuations from the prompt — zero model cost.</li>
+        <li><strong>Lookahead decoding:</strong> generate and verify n-grams in parallel using Jacobi-style iterations, no draft model.</li>
+      </ul></div>
+    <div class="callout practice"><span class="label">⚙ When it helps — and when it doesn't</span>
+      Best at <strong>low batch size / latency-bound</strong> serving (batch 1 chat), where decode is firmly memory-bound so the spare compute for parallel verification is free, and on <strong>predictable</strong> text (high $\alpha$ — code, boilerplate, RAG). It helps <em>less</em> at <strong>high batch</strong> (you've already amortized weight loads → the GPU is compute-bound, so verification isn't free), and on hard/creative text where the draft and target disagree often (low $\alpha$). It's also exactness-preserving only if the draft and target share a tokenizer.</div>
+
+    <h3>A4.2 Structured / constrained decoding</h3>
+    <p>When the output must be valid JSON, match a grammar, or fit a schema, <strong>constrained decoding</strong> masks the logits at each step to only tokens allowed by the grammar/automaton — guaranteeing well-formed output. Used for tool-calling, function arguments, and any machine-consumed output. Tradeoff: over-constraining can hurt quality (the model is forced off its natural distribution) and grammar compilation adds latency.</p>
+
+    <h2 class="section" id="a5">§A5 — Test-time compute: best-of-n & self-consistency</h2>
+    <p>Decoding also includes <em>how many</em> samples you draw and how you aggregate — the seed of <strong>test-time compute</strong>:</p>
+    <ul>
+      <li><strong>Self-consistency:</strong> sample $n$ chains-of-thought (with temperature), take the <strong>majority-vote</strong> answer. Works because correct reasoning paths concentrate on one answer while errors scatter — accuracy rises with $n$ on reasoning tasks. Needs diversity (so you sample, not greedy).</li>
+      <li><strong>Best-of-n / rejection sampling:</strong> draw $n$ candidates, score with a <strong>reward/verifier model</strong>, keep the best. Strong but $n\times$ inference cost; the ceiling is the scorer's quality (a weak verifier caps gains).</li>
+      <li><strong>Beam/lookahead with a value model, MCTS-style search:</strong> guide generation with a learned value — the bridge to reasoning models and the link to RL (Part B).</li>
+    </ul>
+    <div class="callout frontier"><span class="label">◆ Mock question — "How does sampling connect to RL?"</span>
+      RL post-training <em>samples</em> from the policy to get trajectories to learn from (GRPO samples a <em>group</em> per prompt; PPO rolls out). So decoding temperature is an exploration knob <em>inside</em> training: too low → no diversity to learn from (collapse); too high → noisy, off-distribution samples. And test-time best-of-n/self-consistency are the inference-time analog of the RL objective "raise the probability of high-reward samples."</div>
+
+    <h4>Self-test — Part A</h4>
+    <div class="qa"><div class="q">Temperature vs top-p — what does each control, and why combine them?<span class="chev">▶</span></div><div class="a">Temperature reshapes the <em>whole</em> distribution (sharpen/flatten) but never removes the tail; top-p <em>truncates</em> to an adaptive nucleus (smallest set with cumulative $\ge p$) then renormalizes. Combine: temperature sets overall randomness, top-p cuts the unreliable tail so high-$T$ diversity doesn't produce garbage.</div></div>
+    <div class="qa"><div class="q">Why is speculative decoding exact?<span class="chev">▶</span></div><div class="a">Accept each drafted token with prob $\min(1,p/q)$ and on rejection resample from the normalized positive residual $\max(0,p-q)$ — a rejection-sampling scheme whose output is distributed exactly as the target $p$. It only changes <em>speed</em> (parallel verify), not the distribution.</div></div>
+
+    <!-- ============================================================ -->
+    <!-- PART B — RL -->
+    <!-- ============================================================ -->
+    <h2 class="section" id="b1">§B1 — Why RL for LLMs at all</h2>
+    <p>SFT (supervised fine-tuning) <strong>imitates demonstrations</strong>: maximize $\log\pi_\theta(y\mid x)$ on human-written answers. But many goals are <em>easier to compare than to demonstrate</em> (which of two answers is more helpful?) and have <em>no single correct target</em>. RL lets you optimize a <strong>reward signal over the model's own samples</strong>, improving beyond any fixed demonstration set and letting the model <em>explore</em>. The three pillars of post-training:</p>
+    <ol>
+      <li><strong>SFT</strong> — imitate curated demonstrations (teach format/skills).</li>
+      <li><strong>Preference RL (RLHF / DPO)</strong> — optimize "which is better" (teach helpfulness/harmlessness/style).</li>
+      <li><strong>Verifiable RL (RLVR / GRPO)</strong> — optimize "is it correct" against a checker (teach reasoning/code).</li>
+    </ol>
+
+    <h2 class="section" id="b15">§B1½ — The whole chain in plain words (a running example)</h2>
+    <p>Before any equations, here is the <em>entire</em> RL→RLHF→DPO→GRPO story as one intuition, built on a single example. Keep this prompt in mind throughout: the model sees <code>"2+2="</code> and must answer.</p>
+
+    <h3>Step 0 — what "RL" even means here</h3>
+    <ul>
+      <li>The <strong>model is the policy</strong> $\pi_\theta$: given the prompt, it outputs a probability distribution over responses and <em>samples</em> one.</li>
+      <li>We have a <strong>reward</strong> $R$: a number scoring the response (here, $R=1$ if it says "4", else $0$).</li>
+      <li><strong>The entire goal:</strong> nudge the weights so that <em>high-reward responses become more probable</em>. Everything below is just variance reduction and stability on top of this one idea.</li>
+    </ul>
+
+    <h3>Step 1 — REINFORCE: "imitate good samples, weighted by reward"</h3>
+    <p>Sample a response. If it was good, take a gradient step that makes it <em>more</em> likely (exactly like supervised learning on that response); if bad, make it <em>less</em> likely. Mechanically: take $\nabla\log\pi_\theta(\text{response}\mid\text{prompt})$ — the direction that raises that response's probability — and multiply by the reward $R$. Sample "4" ($R=1$) → push "4" up. Sample "5" ($R=0$) → no push. <strong>Problem:</strong> very noisy, and if rewards are all positive it pushes <em>everything</em> up (just by different amounts) → slow and unstable.</p>
+
+    <div class="callout keyidea"><span class="label">How the gradient is actually computed — "reward-weighted cross-entropy on your own samples"</span>
+      <strong>The objective</strong> is to maximize expected reward $J(\theta)=\mathbb{E}_{y\sim\pi_\theta}[R(y)]$. The obstacle: you can't differentiate "sampling." The <strong>log-derivative trick</strong> fixes this using the identity $\nabla_\theta\pi_\theta=\pi_\theta\,\nabla_\theta\log\pi_\theta$:
+      $$\nabla_\theta J=\nabla_\theta\!\sum_y\pi_\theta(y)R(y)=\sum_y R(y)\,\nabla_\theta\pi_\theta(y)=\mathbb{E}_{y\sim\pi_\theta}\big[R(y)\,\nabla_\theta\log\pi_\theta(y)\big].$$
+      It converts "gradient of an expectation" into "expectation of a gradient," which you estimate by averaging over sampled responses.<br><br>
+      <strong>For an LLM, $\log\pi_\theta(y\mid x)$ is just the sum of per-token log-probs</strong> — the <em>same</em> quantity as ordinary language-model training (the negative cross-entropy of the sampled tokens):
+      $$\log\pi_\theta(y\mid x)=\sum_{t=1}^{T}\log\pi_\theta(y_t\mid x,y_{\lt t}).$$
+      So the loss you actually backprop is plain cross-entropy on the sampled response, <strong>scaled by its reward</strong>:
+      $$L(\theta)=-\,R(y)\sum_{t}\log\pi_\theta(y_t\mid x,y_{\lt t}),$$
+      where $R(y)$ is treated as a <em>constant</em> (detached — you never backprop through the reward; it's just a scalar weight). High $R$ → a big push to make those tokens more likely; $R=0$ → no push; a negative reward/advantage flips the sign and pushes them <em>down</em>.</div>
+    <p><strong>The 5-step recipe (this is literally the code):</strong></p>
+    <ol>
+      <li>Sample a response $y$ from the <em>current</em> model (on-policy).</li>
+      <li>Score it → reward $R$ (a verifier, a reward model, …).</li>
+      <li>Forward pass to get the per-token log-probs of the sampled tokens (teacher-force the model's own sample).</li>
+      <li>Loss $=-\,R\cdot\sum_t\log\pi_\theta(y_t\mid\dots)$.</li>
+      <li>Backprop, optimizer step.</li>
+    </ol>
+    <pre><code>logp = logprobs_of(model, prompt, sampled_response)   # sum over sampled tokens (like LM training)
+loss = -(reward.detach() * logp).mean()               # reward is just a scalar weight
+loss.backward(); opt.step()
+</code></pre>
+    <div class="callout keyidea"><span class="label">Worked numbers — "2+2="</span>
+      The model samples the token "4"; the verifier returns $R=1$. The forward pass gives $\pi_\theta(\text{"4"}\mid\text{"2+2="})=0.3$, so $\log\pi=-1.20$ and the loss is $-R\cdot\log\pi=-(1)(-1.20)=1.20$. Backprop lowers this loss by <em>increasing</em> $\pi(\text{"4"})$ — exactly the gradient of supervised fine-tuning on "4", scaled by the reward. Had it sampled "5" with $R=0$: loss $=-(0)\log\pi=0$ → no update from that sample. (With a baseline, "5" would get a <em>negative</em> advantage and be pushed down — Step 2.) For a multi-token answer like "the answer is 4," you sum the log-probs of all its tokens and the whole response is pushed up or down together by $R$.</div>
+    <p class="hint">Note: vanilla REINFORCE multiplies <em>every</em> token's gradient by the same final reward $R$ (uniform credit). Giving finer <em>per-token</em> credit — advantages, GAE, discounting — is the refinement that PPO and GRPO add on top.</p>
+
+    <div class="callout keyidea"><span class="label">"So REINFORCE is just scaled SFT?" — yes for one step, no for the algorithm</span>
+      <strong>Mechanically, for a single sample: yes.</strong> One REINFORCE update is the SFT cross-entropy gradient on the generated sequence, multiplied by the reward. In fact <strong>SFT is the special case</strong> of REINFORCE where the samples are a <em>fixed</em> external dataset and every reward is $+1$. But the <em>algorithm</em> differs in three ways that make it RL, not supervised learning:
+      <ul style="margin:6px 0;">
+        <li><strong>The data is the model's own, on-policy.</strong> SFT trains on a fixed dataset of human demonstrations; REINFORCE trains on fresh samples from the <em>current</em> policy — a <strong>moving target</strong> that shifts every update (a feedback loop). That's what lets it <strong>explore</strong> and discover behaviors not in any demonstration set — SFT can never exceed its data.</li>
+        <li><strong>The update can be <em>negative</em>.</strong> SFT only pushes samples <em>up</em> (imitate). REINFORCE pushes good samples up <em>and bad samples down</em> — when the reward/advantage is negative, the scaled-CE gradient flips sign. "Imitate the good, <em>anti</em>-imitate the bad."</li>
+        <li><strong>It optimizes reward, not demonstration-likelihood.</strong> SFT matches the data distribution; REINFORCE seeks high-<em>reward</em> outputs, which can look nothing like the demonstrations — and which is exactly why a badly-shaped reward lets it reinforce its <em>own</em> bad habits (reward hacking), something fixed-data SFT cannot do.</li>
+      </ul>
+      <strong>The clean bridge:</strong> sample many responses, keep only the high-reward ones, and SFT on the survivors — that's <em>rejection-sampling fine-tuning</em> (STaR / best-of-n SFT), the simplest possible RL: a positive-only, binary-reward REINFORCE that pretends each round's good samples are a fixed dataset. Full REINFORCE generalizes it with graded/negative rewards and on-policy updates; PPO and GRPO then add a baseline and a trust region for stability.</div>
+
+    <h3>Step 2 — Baseline / advantage: "better than <em>expected</em>"</h3>
+    <p>Subtract the <strong>average</strong> reward you'd expect on this prompt. Now you push <em>up</em> responses better than average and <em>down</em> ones worse than average. If the model usually scores 0.5 here, then $R=1$ has <strong>advantage</strong> $+0.5$ (push up) and $R=0$ has advantage $-0.5$ (push down). <strong>Advantage = how much better than expected.</strong> This is the single biggest variance fix. The baseline can be a running average or a learned <strong>value network</strong> (the "critic").</p>
+
+    <h3>Step 3 — PPO: "don't take reckless steps"</h3>
+    <p>After one update the policy changed, so the samples you collected are now slightly <em>stale</em> (they came from the old policy). Keep updating hard on stale samples and training blows up. PPO measures how far the new policy's probability for a response has moved from the old one (the <strong>ratio</strong>) and <strong>clips</strong> it — a "speed limit" that refuses to reward moving too far in one step. Net effect: you can safely reuse each batch of samples for several update steps. That's all the clip is: a trust region.</p>
+
+    <h3>Step 4 — RLHF: "where does the reward come from for fuzzy goals?"</h3>
+    <p>For "2+2" the reward is obvious. For "write a helpful reply" there's no formula — but humans can <strong>compare</strong>: "A is better than B." So: <strong>(1)</strong> collect many A-vs-B comparisons; <strong>(2)</strong> train a <strong>reward model</strong> to output a number where better responses score higher (Bradley–Terry: $P(A\succ B)=\sigma(r_A-r_B)$); <strong>(3)</strong> run PPO against that learned reward. <strong>The catch:</strong> the reward model is an imperfect <em>proxy</em> — optimize it too hard and the policy finds its bugs (<strong>reward hacking</strong>, e.g. just write longer). So add a <strong>KL penalty</strong> "stay close to the original model" — a leash.</p>
+
+    <h3>Step 5 — DPO: "skip the reward model"</h3>
+    <p>Insight: the policy that <em>optimally</em> solves RLHF's objective has a known closed-form shape. You can algebraically rearrange it so the reward is written in terms of the policy's <em>own</em> probabilities — substitute that into the preference loss and the reward model <strong>cancels out</strong>. What's left is a plain classification loss on the (chosen, rejected) pairs: <em>raise the log-prob of the chosen response and lower the rejected one, measured relative to the original model.</em> No reward model, no sampling loop. <strong>Tradeoff:</strong> it's <strong>offline</strong> — it can only re-rank responses already in your dataset; it can't explore and discover new behaviors.</p>
+
+    <h3>Step 6 — GRPO: "let the group be its own baseline"</h3>
+    <p>For math/code the reward is <strong>verifiable</strong> (1 if correct). PPO needs a <em>critic</em> (value network) to compute the baseline — an extra model to train and tune. GRPO's trick: for each prompt, sample a <strong>group</strong> of (say) 8 answers and use the <strong>group's average reward as the baseline</strong>. An answer better than the group average gets pushed up; worse, down; normalize by the group's standard deviation for a clean advantage. <strong>Example:</strong> a math problem, 8 samples, 3 correct ($R=1$) and 5 wrong ($R=0$) → group mean $0.375$; the 3 correct get positive advantage, the 5 wrong negative → push toward the correct ones. So GRPO = REINFORCE-with-a-baseline where the baseline is "how the <em>other</em> answers to this same question did" — no critic — and it keeps PPO's clip for stability.</p>
+
+    <div class="callout keyidea"><span class="label">★ The one skeleton behind all of them</span>
+      Every method is the same move — <strong>make good samples more likely</strong> — differing only in <strong>(a) where the reward comes from</strong> (a rule/verifier → RLVR; a reward model trained on human comparisons → RLHF; an AI judge → RLAIF; implicit in preference pairs → DPO) and <strong>(b) how you estimate "good" and limit the step</strong> (learned critic + GAE + clip → PPO; group average + clip → GRPO; closed-form, no sampling → DPO). The equations below just make each piece precise — read them with this picture in mind.</div>
+
+    <h2 class="section" id="b2">§B2 — Foundations & the derivation chain (MDP → PPO)</h2>
+    <p class="hint">This is the rigorous version of §B1½. Each method is <em>derived</em> from the previous one — read it as a single chain, not a list.</p>
+
+    <h3>B2.1 The RL setup (the MDP), for language</h3>
+    <p>Model generation as a <strong>Markov Decision Process</strong>: at step $t$ the <strong>state</strong> $s_t=(x,\,y_{\lt t})$ is the prompt plus tokens generated so far; the <strong>action</strong> $a_t=y_t$ is the next token; the <strong>policy</strong> $\pi_\theta(a_t\mid s_t)$ is the model; the transition is trivially deterministic (append the token); and a <strong>reward</strong> $r_t$ is given (usually only at the end: $r_T=R(x,y)$, $0$ elsewhere). A full generation is a <strong>trajectory</strong> $\tau=(s_0,a_0,\dots,s_T)$, and the <strong>return</strong> from step $t$ is $G_t=\sum_{k\ge t}\gamma^{k-t}r_k$ (discount $\gamma\in(0,1]$; for finite LLM episodes often $\gamma=1$). The objective is expected return:</p>
+    <p>$$J(\theta)=\mathbb{E}_{\tau\sim\pi_\theta}\Big[\textstyle\sum_t \gamma^t r_t\Big]=\mathbb{E}_{x,\,y\sim\pi_\theta}\big[R(x,y)\big].$$</p>
+
+    <h3>B2.2 Value, action-value, advantage (the vocabulary every method uses)</h3>
+    <div class="callout keyidea"><span class="label">Three definitions + the Bellman relation</span>
+      <ul style="margin:4px 0;">
+        <li><strong>State value</strong> $V^\pi(s)=\mathbb{E}_\pi[G_t\mid s_t=s]$ — expected return from state $s$ following $\pi$ ("how good is this position").</li>
+        <li><strong>Action value</strong> $Q^\pi(s,a)=\mathbb{E}_\pi[G_t\mid s_t=s,a_t=a]$ — expected return after taking action $a$ in $s$, then following $\pi$.</li>
+        <li><strong>Advantage</strong> $A^\pi(s,a)=Q^\pi(s,a)-V^\pi(s)$ — how much better action $a$ is than the policy's average in $s$ (the quantity policy gradient really wants).</li>
+        <li><strong>Bellman:</strong> $V^\pi(s)=\mathbb{E}_{a\sim\pi}\!\big[r+\gamma V^\pi(s')\big]$ — value decomposes into immediate reward plus discounted next-state value. This recursion is how the "critic" is trained.</li>
+      </ul></div>
+
+    <h3>B2.3 The policy-gradient theorem — derived from scratch</h3>
+    <p>We want $\nabla_\theta J$. Write $J=\sum_\tau P(\tau;\theta)R(\tau)$ and use the <strong>log-derivative trick</strong> $\nabla P=P\,\nabla\log P$:</p>
+    <p>$$\nabla_\theta J=\sum_\tau \nabla_\theta P(\tau;\theta)\,R(\tau)=\sum_\tau P(\tau;\theta)\,\nabla_\theta\log P(\tau;\theta)\,R(\tau)=\mathbb{E}_{\tau\sim\pi_\theta}\big[R(\tau)\,\nabla_\theta\log P(\tau;\theta)\big].$$</p>
+    <p>Now the trajectory probability factorizes: $P(\tau;\theta)=\rho(s_0)\prod_t \pi_\theta(a_t\mid s_t)\,P(s_{t+1}\mid s_t,a_t)$. Take $\log$ and $\nabla_\theta$: the start-state and dynamics terms have <em>no</em> $\theta$, so they vanish, leaving only the policy terms:</p>
+    <p>$$\nabla_\theta\log P(\tau;\theta)=\sum_t \nabla_\theta\log\pi_\theta(a_t\mid s_t)\quad\Rightarrow\quad \nabla_\theta J=\mathbb{E}\Big[\sum_t \nabla_\theta\log\pi_\theta(a_t\mid s_t)\;G_t\Big].$$</p>
+    <p>Two standard refinements: <strong>(1) causality</strong> — an action at $t$ can only affect <em>future</em> reward, so replace the whole-trajectory $R(\tau)$ with the return-to-go $G_t$ (done above); <strong>(2) baseline</strong> — subtract any state-dependent $b(s_t)$, giving the <strong>advantage form</strong> that every modern method uses:</p>
+    <p>$$\boxed{\ \nabla_\theta J=\mathbb{E}\Big[\textstyle\sum_t \nabla_\theta\log\pi_\theta(a_t\mid s_t)\,\big(G_t-b(s_t)\big)\Big],\qquad b(s)=V^\pi(s)\Rightarrow G_t-b\approx A^\pi(s_t,a_t).\ }$$</p>
+
+    <h3>B2.4 Why the baseline is free (unbiasedness proof) + GAE</h3>
+    <div class="callout keyidea"><span class="label">The baseline subtracts to zero in expectation</span>
+      For any baseline $b(s)$ that doesn't depend on the action,
+      $$\mathbb{E}_{a\sim\pi}\!\big[b(s)\,\nabla_\theta\log\pi_\theta(a\mid s)\big]=b(s)\!\sum_a \pi_\theta(a\mid s)\,\nabla_\theta\log\pi_\theta(a\mid s)=b(s)\!\sum_a \nabla_\theta\pi_\theta(a\mid s)=b(s)\,\nabla_\theta\!\underbrace{\textstyle\sum_a \pi_\theta(a\mid s)}_{=\,1}=0.$$
+      So subtracting $b$ leaves the gradient's <em>expectation</em> unchanged (unbiased) while it can dramatically cut <em>variance</em> — that's the whole reason for the baseline/advantage. The variance-minimizing $b$ is close to $V^\pi(s)$, which is why the learned value is the standard choice.</div>
+    <p><strong>Estimating the advantage (actor-critic & GAE).</strong> Two extremes: $\hat A=G_t-V(s_t)$ (Monte-Carlo: unbiased, high variance) vs the one-step TD error $\delta_t=r_t+\gamma V(s_{t+1})-V(s_t)$ (low variance, biased by $V$'s errors). <strong>GAE</strong> interpolates with a decay $\lambda$:</p>
+    <p>$$\hat A_t^{\text{GAE}(\gamma,\lambda)}=\sum_{l\ge0}(\gamma\lambda)^l\,\delta_{t+l},$$</p>
+    <p>$\lambda=0$ gives the TD error (low variance), $\lambda=1$ gives Monte-Carlo (low bias) — a tunable bias–variance knob. The <strong>critic</strong> $V$ is trained by regressing the returns (Bellman). This actor (policy) + critic (value) pair is "actor-critic."</p>
+
+    <h3>B2.5 Trust region → TRPO → PPO (why the clip exists)</h3>
+    <p>Policy gradient is <strong>on-policy</strong>: each batch must come from the current $\pi_\theta$, so you can take only a small step before the data is stale, and a too-large step can collapse the policy. <strong>TRPO</strong> formalizes "improve as much as possible without moving too far": maximize an importance-weighted surrogate under a KL constraint,</p>
+    <p>$$\max_\theta\ \mathbb{E}\big[\rho_t\,\hat A_t\big]\quad\text{s.t.}\quad \mathbb{E}\big[\mathrm{KL}(\pi_{\theta_\text{old}}\,\|\,\pi_\theta)\big]\le\delta,\qquad \rho_t=\frac{\pi_\theta(a_t\mid s_t)}{\pi_{\theta_\text{old}}(a_t\mid s_t)}.$$</p>
+    <p>The surrogate $\mathbb{E}[\rho_t\hat A_t]$ is a first-order-accurate model of $J(\theta)-J(\theta_\text{old})$ that's trustworthy only inside the KL ball (hence "trust region"); TRPO solves the constrained problem with conjugate gradients — accurate but heavy. <strong>PPO</strong> keeps the same intent but throws away the hard constraint, using a cheap <strong>clip</strong> that simply refuses to reward pushing $\rho_t$ past $1\pm\epsilon$ in the improving direction:</p>
+    <p>$$\mathcal{L}^{\text{CLIP}}(\theta)=\mathbb{E}\Big[\min\big(\rho_t\hat A_t,\ \operatorname{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat A_t\big)\Big].$$</p>
+    <div class="callout keyidea"><span class="label">Reading the clip</span>
+      If $\hat A_t\gt0$ (good action) the objective increases with $\rho_t$ but is capped at $\rho_t=1+\epsilon$ → no reward for moving further. If $\hat A_t\lt0$ (bad action) it's capped at $1-\epsilon$. The $\min$ makes it a <em>pessimistic</em> bound — you never get credit for a large beneficial move outside the trust region, which removes the incentive to take destabilizing steps. $\epsilon\approx0.2$. Same trust-region effect as TRPO, with an ordinary first-order optimizer and a few lines of code. Advantages come from GAE + a learned critic — the piece GRPO will drop (§B5).</div>
+
+    <h3>B2.6 The genealogy — how each method is generated from the last</h3>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>Genealogy of policy-optimization methods</title>
+      <desc>REINFORCE plus baseline gives actor-critic; plus a trust region gives TRPO; replacing the constraint with a clip gives PPO; dropping the critic for a group baseline gives GRPO. Separately, the KL-regularized RLHF objective solved in closed form gives DPO.</desc>
+      <style>.t{fill:#eaf0f7;font:700 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:9.5px -apple-system,sans-serif;text-anchor:middle;} .e{fill:#c7a4ff;font:9.5px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.4;fill:none;marker-end:url(#g);}</style>
+      <defs><marker id="g" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <rect x="20" y="40" width="120" height="44" rx="7" fill="#16241f" stroke="#7ee0c0"/><text x="80" y="60" class="t">REINFORCE</text><text x="80" y="75" class="s">∇log π · G</text>
+      <rect x="180" y="40" width="120" height="44" rx="7" fill="#16241f" stroke="#7ee0c0"/><text x="240" y="60" class="t">Actor–Critic</text><text x="240" y="75" class="s">G − V(s) = Â</text>
+      <rect x="340" y="40" width="120" height="44" rx="7" fill="#1c2530" stroke="#6ea8fe"/><text x="400" y="60" class="t">TRPO</text><text x="400" y="75" class="s">+ KL trust region</text>
+      <rect x="500" y="40" width="120" height="44" rx="7" fill="#1c2530" stroke="#6ea8fe"/><text x="560" y="60" class="t">PPO</text><text x="560" y="75" class="s">clip ≈ trust region</text>
+      <rect x="500" y="150" width="120" height="44" rx="7" fill="#231c30" stroke="#c7a4ff"/><text x="560" y="170" class="t">GRPO</text><text x="560" y="185" class="s">− critic, group mean</text>
+      <line class="ar" x1="140" y1="62" x2="178" y2="62"/><text x="159" y="34" class="e">+ baseline</text>
+      <line class="ar" x1="300" y1="62" x2="338" y2="62"/><text x="319" y="34" class="e">+ trust region</text>
+      <line class="ar" x1="460" y1="62" x2="498" y2="62"/><text x="479" y="34" class="e">clip</text>
+      <line class="ar" x1="560" y1="84" x2="560" y2="148"/><text x="612" y="120" class="e" text-anchor="start">drop critic</text>
+      <!-- DPO branch -->
+      <rect x="180" y="150" width="170" height="44" rx="7" fill="#231c30" stroke="#c7a4ff"/><text x="265" y="170" class="t">RLHF objective</text><text x="265" y="185" class="s">max E[r] − β·KL(π‖π_ref)</text>
+      <rect x="380" y="150" width="110" height="44" rx="7" fill="#231c30" stroke="#c7a4ff"/><text x="435" y="170" class="t">DPO</text><text x="435" y="185" class="s">closed form</text>
+      <line class="ar" x1="350" y1="172" x2="378" y2="172"/><text x="364" y="144" class="e">solve π*</text>
+      <text x="265" y="222" class="s">preference RL: skip the RL loop entirely (no sampling, no reward model)</text>
+    </svg>
+    </div>
+    <p>Read it as one chain: <strong>REINFORCE</strong> $\xrightarrow{+\text{baseline}}$ <strong>actor-critic</strong> $\xrightarrow{+\text{trust region}}$ <strong>TRPO</strong> $\xrightarrow{\text{clip}}$ <strong>PPO</strong> $\xrightarrow{-\text{critic}}$ <strong>GRPO</strong>; and the separate <strong>preference</strong> branch where solving the KL-regularized RLHF objective in closed form yields <strong>DPO</strong> (§B4). Everything is the same gradient — push up good actions, down bad ones — with progressively better variance control and step-size safety.</p>
+
+    <h2 class="section" id="b3">§B3 — RLHF & reward modeling</h2>
+    <p>The classic three-stage RLHF pipeline (InstructGPT):</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>RLHF three-stage pipeline</title>
+      <desc>SFT, then reward model from preferences, then PPO against the reward model with a KL penalty.</desc>
+      <style>.t{fill:#eaf0f7;font:700 12px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.4;fill:none;marker-end:url(#ab);}</style>
+      <defs><marker id="ab" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <rect x="20" y="70" width="180" height="64" rx="8" fill="#16241f" stroke="#7ee0c0"/><text x="110" y="96" class="t">1. SFT</text><text x="110" y="114" class="s">imitate demonstrations</text>
+      <rect x="270" y="70" width="180" height="64" rx="8" fill="#1c2530" stroke="#6ea8fe"/><text x="360" y="92" class="t">2. Reward model</text><text x="360" y="108" class="s">Bradley–Terry on</text><text x="360" y="121" class="s">preference pairs</text>
+      <rect x="520" y="70" width="180" height="64" rx="8" fill="#231c30" stroke="#c7a4ff"/><text x="610" y="92" class="t">3. PPO</text><text x="610" y="108" class="s">maximize reward −</text><text x="610" y="121" class="s">β·KL(π ‖ π_ref)</text>
+      <line class="ar" x1="200" y1="102" x2="268" y2="102"/><line class="ar" x1="450" y1="102" x2="518" y2="102"/>
+      <text x="360" y="40" class="t">Human preference labels</text>
+      <line class="ar" x1="360" y1="46" x2="360" y2="68"/>
+      <text x="610" y="160" class="s">KL leash keeps π near SFT → prevents reward hacking</text>
+    </svg>
+    </div>
+    <p>The <strong>reward model</strong> $r_\phi$ is trained on human preference pairs with the <strong>Bradley–Terry</strong> loss; the PPO stage maximizes reward minus a <strong>KL penalty</strong> to the SFT reference:</p>
+    <p>$$\mathcal{L}_\text{RM}=-\,\mathbb{E}\big[\log\sigma\big(r_\phi(x,y_w)-r_\phi(x,y_l)\big)\big],\qquad \max_{\pi_\theta}\ \mathbb{E}\big[r_\phi(x,y)\big]-\beta\,\mathrm{KL}\!\big(\pi_\theta\,\|\,\pi_\text{ref}\big)$$</p>
+    <div class="callout keyidea"><span class="label">Notation & the KL term</span>
+      $y_w\succ y_l$ = human-preferred vs dispreferred; $\sigma$ = sigmoid (so the RM learns a scalar reward whose <em>differences</em> predict preferences); $\pi_\text{ref}$ = frozen SFT model; $\beta$ = KL strength. The <strong>KL penalty</strong> keeps the policy from drifting into degenerate text that games the imperfect reward model (<strong>reward hacking</strong>) and from forgetting its language skills. Too small $\beta$ → hacking; too large → no improvement. This is the central knob of RLHF stability.</div>
+
+    <h2 class="section" id="b4">§B4 — DPO & offline preference methods</h2>
+    <p><strong>DPO</strong> (Direct Preference Optimization) observes that the KL-regularized RLHF objective has a <strong>closed-form optimal policy</strong>, $\pi^\star(y\mid x)\propto\pi_\text{ref}(y\mid x)\,e^{r(x,y)/\beta}$. Inverting it expresses the reward in terms of the policy, so preference learning becomes a direct logistic loss on the policy — <strong>no reward model, no sampling, no RL loop:</strong></p>
+    <p>$$\mathcal{L}_\text{DPO}=-\,\mathbb{E}_{(x,y_w,y_l)}\Big[\log\sigma\Big(\beta\log\tfrac{\pi_\theta(y_w|x)}{\pi_\text{ref}(y_w|x)}-\beta\log\tfrac{\pi_\theta(y_l|x)}{\pi_\text{ref}(y_l|x)}\Big)\Big]$$</p>
+    <div class="callout keyidea"><span class="label">Notation</span>The term $\hat r=\beta\log(\pi_\theta/\pi_\text{ref})$ is the <strong>implicit reward</strong>; DPO directly increases $\hat r(y_w)-\hat r(y_l)$ — the Bradley–Terry objective with the reward parameterized <em>by the policy itself</em>. $\beta$ plays the KL-strength role.</div>
+    <div class="callout keyidea"><span class="label">The DPO derivation in three steps (this is the whole trick)</span>
+      <strong>Step 1 — solve the KL-regularized objective.</strong> Maximize $\mathbb{E}_{y\sim\pi}[r(x,y)]-\beta\,\mathrm{KL}(\pi\,\|\,\pi_\text{ref})$ over $\pi$. Writing the KL out and adding a Lagrange term for $\sum_y\pi=1$, the unconstrained optimum is the <strong>Gibbs/Boltzmann distribution</strong>
+      $$\pi^\star(y\mid x)=\frac{1}{Z(x)}\,\pi_\text{ref}(y\mid x)\,\exp\!\Big(\tfrac{1}{\beta}r(x,y)\Big),\qquad Z(x)=\sum_y \pi_\text{ref}(y\mid x)\,e^{r(x,y)/\beta}.$$
+      (Intuition: tilt the reference distribution toward high reward, with $\beta$ controlling how hard; $Z$ just renormalizes.)<br><br>
+      <strong>Step 2 — invert for the reward.</strong> Take logs and solve for $r$:
+      $$r(x,y)=\beta\log\frac{\pi^\star(y\mid x)}{\pi_\text{ref}(y\mid x)}+\beta\log Z(x).$$
+      The reward is now expressed <em>entirely in terms of the policy</em> (plus an intractable $Z(x)$).<br><br>
+      <strong>Step 3 — plug into Bradley–Terry; $Z$ cancels.</strong> Preference probability is $P(y_w\succ y_l)=\sigma\big(r(x,y_w)-r(x,y_l)\big)$. Because both responses share the same prompt $x$, the $\beta\log Z(x)$ terms are <em>identical and subtract away</em>:
+      $$r(x,y_w)-r(x,y_l)=\beta\log\frac{\pi_\theta(y_w\mid x)}{\pi_\text{ref}(y_w\mid x)}-\beta\log\frac{\pi_\theta(y_l\mid x)}{\pi_\text{ref}(y_l\mid x)}.$$
+      Substituting into the negative-log-likelihood of the preference data gives exactly $\mathcal{L}_\text{DPO}$ above. <strong>That's it:</strong> the reward model and the intractable $Z(x)$ both disappear, leaving a supervised classification loss on $(x,y_w,y_l)$ triples. The price: it's <em>offline</em> — you optimize the closed-form optimum for a <em>fixed</em> preference dataset, so there's no exploration (you re-rank what's there, you don't discover new behaviors).</div>
+
+    <p>The offline-preference family (be able to one-line each):</p>
+    <table>
+      <thead><tr><th>Method</th><th>Idea / difference from DPO</th></tr></thead>
+      <tbody>
+        <tr><td><strong>DPO</strong></td><td>Closed-form RLHF → logistic loss on implicit reward; offline, simple, stable; no exploration.</td></tr>
+        <tr><td><strong>IPO</strong></td><td>Fixes DPO's tendency to overfit deterministic preferences by regularizing toward a margin (avoids pushing log-ratios to ±∞).</td></tr>
+        <tr><td><strong>KTO</strong></td><td>Learns from <em>unpaired</em> good/bad labels (prospect-theory utility) — no need for matched pairs.</td></tr>
+        <tr><td><strong>ORPO</strong></td><td>Combines SFT + preference in one stage with an odds-ratio penalty — no separate reference model.</td></tr>
+        <tr><td><strong>SimPO</strong></td><td>Length-normalized implicit reward, no reference model — simpler and avoids length bias.</td></tr>
+        <tr><td><strong>Online / iterative DPO</strong></td><td>Re-sample from the current policy and re-label preferences each round → recovers exploration DPO lacks.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout practice"><span class="label">⚙ DPO vs PPO — the real tradeoff</span>
+      DPO is cheaper and more stable (no RM, no online rollouts) and great when you have a <em>fixed</em> preference dataset. PPO/online RL is worth its complexity when you need <strong>exploration</strong> — the policy should <em>discover</em> high-reward behaviors not present in the fixed data — or when you have a strong reward/verifier to optimize against (e.g., RLVR). "Offline ranks what exists; online discovers what doesn't."</div>
+
+    <h2 class="section" id="b5">§B5 — GRPO & RLVR (the reasoning era)</h2>
+    <p><strong>RLVR</strong> (RL from Verifiable Rewards) replaces the learned, hackable reward model with a <strong>ground-truth checker</strong> — unit tests for code, exact-match for math — so $R\in\{0,1\}$ is (in principle) unhackable. <strong>GRPO</strong> (Group Relative Policy Optimization) is the workhorse algorithm: it keeps PPO's clipped objective but <strong>removes the critic</strong>, estimating the advantage by normalizing rewards <em>within a group of samples for the same prompt</em>:</p>
+    <p>$$\hat A_i=\frac{r_i-\operatorname{mean}(r_1,\dots,r_G)}{\operatorname{std}(r_1,\dots,r_G)},\qquad \mathcal{J}_\text{GRPO}=\mathbb{E}\Big[\tfrac1G\textstyle\sum_{i}\min\big(\rho_i\hat A_i,\ \operatorname{clip}(\rho_i,1{-}\epsilon,1{+}\epsilon)\hat A_i\big)\Big]-\beta\,\mathrm{KL}$$</p>
+    <div class="callout keyidea"><span class="label">Notation & why drop the critic</span>
+      Sample $G$ completions per prompt; $r_i$ = verifiable reward of completion $i$; $\hat A_i$ = group z-score (the <strong>group mean is the baseline</strong>, replacing PPO's learned value network). This is exactly REINFORCE-with-a-baseline where the baseline is the empirical group average — cheaper, less to tune, and well-suited to sparse 0/1 rewards. $\rho_i$, $\epsilon$, $\beta\,\mathrm{KL}$ are as in PPO.</div>
+    <div class="callout keyidea"><span class="label">Why the group mean is a valid baseline (the derivation)</span>
+      For LLM post-training each prompt is essentially a <strong>one-step bandit</strong>: the "action" is the whole response $y$, and the reward arrives at the end. The variance-optimal baseline is the state value $V(x)=\mathbb{E}_{y\sim\pi_\theta}[R(x,y)]$ — the expected reward of this prompt under the current policy. PPO <em>learns</em> $V$ with a critic network; GRPO instead <strong>estimates it on the spot</strong> by the Monte-Carlo average over the $G$ sampled completions: $\hat V(x)=\tfrac1G\sum_i r_i=\operatorname{mean}(r_1,\dots,r_G)$. By the §B2.4 proof, subtracting <em>any</em> such baseline keeps the gradient unbiased, so
+      $$\hat A_i=r_i-\operatorname{mean}(r_{1..G})$$
+      is a valid advantage with <em>no critic</em>; dividing by $\operatorname{std}(r_{1..G})$ is just per-prompt reward scaling for stable step sizes. So GRPO = "<strong>PPO with the learned value function replaced by the batch's own group average</strong>." Trade-off: you pay $G$ samples per prompt (compute) and the empirical baseline is higher-variance than a good critic, but you delete a whole network and its tuning — a great fit for sparse, verifiable 0/1 rewards where a critic is hard to fit anyway.</div>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 180" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>The policy-gradient lineage</title>
+      <desc>REINFORCE to actor-critic to PPO to GRPO, showing what each step adds or removes.</desc>
+      <style>.t{fill:#eaf0f7;font:700 12px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.4;fill:none;marker-end:url(#al);}</style>
+      <defs><marker id="al" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <rect x="10" y="64" width="150" height="56" rx="8" fill="#16241f" stroke="#7ee0c0"/><text x="85" y="86" class="t">REINFORCE</text><text x="85" y="103" class="s">+ baseline (variance)</text>
+      <rect x="195" y="64" width="150" height="56" rx="8" fill="#1c2530" stroke="#6ea8fe"/><text x="270" y="86" class="t">Actor–Critic</text><text x="270" y="103" class="s">learned value (GAE)</text>
+      <rect x="380" y="64" width="150" height="56" rx="8" fill="#1c2530" stroke="#6ea8fe"/><text x="455" y="86" class="t">PPO</text><text x="455" y="103" class="s">+ clipped trust region</text>
+      <rect x="565" y="64" width="150" height="56" rx="8" fill="#231c30" stroke="#c7a4ff"/><text x="640" y="86" class="t">GRPO</text><text x="640" y="103" class="s">− critic, group baseline</text>
+      <line class="ar" x1="160" y1="92" x2="193" y2="92"/><line class="ar" x1="345" y1="92" x2="378" y2="92"/><line class="ar" x1="530" y1="92" x2="563" y2="92"/>
+      <text x="360" y="30" class="t">What each step adds (+) or removes (−)</text>
+      <text x="360" y="150" class="s">advantage = how each method estimates "better than expected"</text>
+    </svg>
+    </div>
+    <p><strong>Evidence/impact.</strong> RLVR+GRPO drove the 2025 reasoning wave (DeepSeek-R1-style): big math/code gains and emergent long chain-of-thought from pure RL. <strong>Limits.</strong> Needs a verifier (domain-limited); can hack the checker (e.g., pass tests without solving); collapses output diversity; group sampling is compute-heavy.</p>
+    <h4>Process vs outcome rewards</h4>
+    <p><strong>ORM</strong> (outcome reward model) scores only the final answer; <strong>PRM</strong> (process reward model) scores each reasoning <em>step</em>. PRMs give denser signal and catch right-answer-wrong-reasoning, but need step-level labels (expensive, often auto-generated) and can be gamed. Frontier practice mixes verifiable outcome rewards with process supervision for credit assignment on long chains.</p>
+
+    <h2 class="section" id="b6">§B6 — Reward hacking, RLAIF, and agents + RL</h2>
+    <ul>
+      <li><strong>Reward hacking</strong> = the policy exploits flaws in the reward signal (length bias, sycophancy, formatting tricks, passing tests via edge cases). <em>Symptom:</em> reward ↑ but true quality ↓. <em>Mitigations:</em> stronger KL leash, reward-model ensembles, length normalization, fresh on-policy preference data, and <strong>verifiable rewards</strong> where possible.</li>
+      <li><strong>RLAIF / Constitutional AI:</strong> replace (some) human labels with an <em>AI</em> giving feedback against a written set of principles — scales preference data; risk is inheriting the labeler-model's biases.</li>
+      <li><strong>Agents + RL:</strong> multi-step tool-use trajectories with sparse, end-of-episode rewards → hard <strong>credit assignment</strong> over long horizons; the frontier trains agents with outcome rewards (extending GRPO/RLVR to tool-use), which is why coding/computer-use agents jumped in 2025 (Day 4 §3.6).</li>
+    </ul>
+    <div class="callout frontier"><span class="label">◆ The mental model to carry</span>
+      Every RL method answers two questions: <strong>(1) where does the reward come from?</strong> (human pref → RM; AI pref → RLAIF; checker → RLVR) and <strong>(2) how do you estimate the advantage / control the step?</strong> (critic+GAE+clip → PPO; group baseline+clip → GRPO; closed-form, no sampling → DPO). Place any new method on these two axes and you can reason about its tradeoffs.</div>
+
+    <h4>Self-test — Part B</h4>
+    <div class="qa"><div class="q">Derive the policy gradient and say why you need a baseline.<span class="chev">▶</span></div><div class="a">$\nabla J=\mathbb{E}[R\,\nabla\log\pi_\theta(y|x)]$ (log-derivative trick) → increase log-prob of high-reward samples. Subtract a baseline $b$: $\mathbb{E}[(R-b)\nabla\log\pi]$ is still unbiased (since $\mathbb{E}[\nabla\log\pi]=0$) but has far lower variance. $A=R-b$ is the advantage; without it, REINFORCE is too noisy to train LLMs.</div></div>
+    <div class="qa"><div class="q">What does PPO's clip do, and what does GRPO remove?<span class="chev">▶</span></div><div class="a">The clip bounds the importance ratio $\rho$ to $[1-\epsilon,1+\epsilon]$ in the improving direction — a soft trust region preventing destructive large updates while allowing sample reuse. GRPO removes the <strong>critic</strong> (learned value network), using the <em>group mean reward</em> as the baseline → cheaper, fewer moving parts, good for sparse verifiable rewards.</div></div>
+    <div class="qa"><div class="q">RLHF-PPO vs DPO vs RLVR-GRPO — when each?<span class="chev">▶</span></div><div class="a">DPO when you have a <em>fixed preference dataset</em> and want cheap, stable alignment (no exploration). RLHF-PPO when you need exploration or to optimize a strong learned reward. RLVR-GRPO when the task has a <em>verifiable</em> answer (math/code) — ground-truth reward, no RM to hack, group baseline replaces the critic.</div></div>
+
+    <!-- ===================== Cheat sheet ===================== -->
+    <h2 class="section" id="cheat">Quick-reference cheat sheet</h2>
+    <table>
+      <thead><tr><th>Item</th><th>One-liner</th></tr></thead>
+      <tbody>
+        <tr><td>Temperature</td><td>pᵢ ∝ exp(zᵢ/T); T→0 greedy, T→∞ uniform; reshapes, never truncates</td></tr>
+        <tr><td>Top-k / top-p</td><td>fixed-count vs adaptive cumulative-mass nucleus; top-p is the open-ended default</td></tr>
+        <tr><td>Beam search</td><td>maximize seq-likelihood; good for closed tasks, bland for chat → sample instead</td></tr>
+        <tr><td>Speculative decode</td><td>draft proposes, target verifies in parallel; exact via accept min(1,p/q)+residual</td></tr>
+        <tr><td>Test-time compute</td><td>self-consistency (majority vote n CoT) · best-of-n (reward-scored)</td></tr>
+        <tr><td>Policy gradient</td><td>∇J=E[(R−b)∇log π]; baseline → variance; A=R−b</td></tr>
+        <tr><td>PPO</td><td>clipped surrogate min(ρÂ, clip(ρ,1±ε)Â); trust region + critic(GAE)</td></tr>
+        <tr><td>RLHF</td><td>SFT → Bradley–Terry RM → PPO with −β·KL(π‖π_ref); KL stops reward hacking</td></tr>
+        <tr><td>DPO</td><td>closed-form RLHF → logistic loss on β·log(π/π_ref); offline, no RM/critic</td></tr>
+        <tr><td>GRPO/RLVR</td><td>verifiable 0/1 reward + group-normalized advantage (no critic); reasoning RL</td></tr>
+        <tr><td>Reward hacking</td><td>reward↑ quality↓; fix: KL, RM ensembles, length norm, on-policy data, verifiable</td></tr>
+        <tr><td>PRM vs ORM</td><td>per-step vs final-answer reward; PRM denser but needs step labels</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ===================== Drills ===================== -->
+    <h2 class="section" id="drills">14 mock drills</h2>
+    <p class="hint">Out loud, ~2 min each, then reveal. Mix of sampling and RL.</p>
+
+    <div class="qa"><div class="q">Drill 1 — Derive the temperature softmax and explain the two limits.<span class="chev">▶</span></div><div class="a">$p_i(T)=e^{z_i/T}/\sum_j e^{z_j/T}$. As $T\to0^+$, the largest logit dominates → probability 1 on the argmax (<strong>greedy</strong>). As $T\to\infty$, $z_i/T\to0$ so all logits equal → <strong>uniform</strong>. $T\lt1$ sharpens (amplifies logit gaps, more deterministic); $T\gt1$ flattens (more diverse). It reshapes but never zeroes the tail — pair with top-p.</div></div>
+
+    <div class="qa"><div class="q">Drill 2 — Top-k vs top-p: give a failure mode of each.<span class="chev">▶</span></div><div class="a"><strong>Top-k</strong> uses a fixed count: when the model is very confident (one token should get ~all mass), top-k still admits $k-1$ junk tokens; when it's very uncertain (many valid tokens), top-k cuts good options. <strong>Top-p</strong> is adaptive but a single very-confident token can still let one near-threshold tail token sneak in at high temperature → min-p (relative-to-max threshold) is more robust there. Best practice: top-p (or min-p) + moderate temperature.</div></div>
+
+    <div class="qa"><div class="q">Drill 3 — Why does beam search hurt open-ended generation?<span class="chev">▶</span></div><div class="a">Open-ended text is high-entropy; the <em>single most-likely</em> sequence is bland, generic, and prone to repetition (the likelihood-degeneration paradox). Beam also collapses diversity (beams share prefixes) and is slow. Maximizing likelihood ≠ maximizing quality for creative/chat tasks. Keep beam for low-entropy tasks (translation/ASR) with a sharply peaked correct sequence.</div></div>
+
+    <div class="qa"><div class="q">Drill 4 — How does speculative decoding give a speedup without changing outputs?<span class="chev">▶</span></div><div class="a">A cheap draft model proposes $k$ tokens; the target verifies all in one parallel pass. Accept token $y$ with prob $\min(1,p(y)/q(y))$ ($p$ target, $q$ draft); on rejection, resample from the normalized residual $\max(0,p-q)$. This rejection sampling makes the accepted stream exactly target-distributed. Speed: $k$ sequential decode steps → one verification (≈2–3× when draft agrees often). Memory-bandwidth bound decode is the reason it helps.</div></div>
+
+    <div class="qa"><div class="q">Drill 5 — When and why does self-consistency help?<span class="chev">▶</span></div><div class="a">Sample $n$ chains-of-thought with temperature and majority-vote the final answer. It helps on tasks with a <em>checkable single answer</em> where multiple reasoning paths converge: correct paths agree, errors scatter, so the mode is more often right. Needs <strong>diversity</strong> (sample, don't greedy) and a single canonical answer to vote over. It's test-time compute: trade $n\times$ inference for accuracy; gains saturate with $n$.</div></div>
+
+    <div class="qa"><div class="q">Drill 6 — Your RL run's samples all look identical after a while. What happened?<span class="chev">▶</span></div><div class="a"><strong>Diversity/entropy collapse</strong> — common in RLVR/GRPO. Causes: temperature too low during rollouts (no exploration), KL leash too weak (policy over-commits to one high-reward mode), or reward sparsity collapsing to a single pattern. Fixes: raise sampling temperature, add an <strong>entropy bonus</strong>, strengthen the KL term, keep some on-policy diversity, and monitor pass@k (not just pass@1) — collapse shows as pass@k falling toward pass@1.</div></div>
+
+    <div class="qa"><div class="q">Drill 7 — Derive the policy gradient; why is a baseline unbiased but variance-reducing?<span class="chev">▶</span></div><div class="a">$J=\mathbb{E}_{y\sim\pi_\theta}[R]$; $\nabla J=\mathbb{E}[R\nabla\log\pi_\theta(y|x)]$ (log-derivative trick). Subtract baseline $b(x)$: $\mathbb{E}[(R-b)\nabla\log\pi]$. Unbiased because $\mathbb{E}_y[\,b\,\nabla\log\pi]=b\,\nabla\!\sum_y\pi=b\,\nabla1=0$. Variance drops because $b$ centers the reward — you push up <em>above-average</em> samples and down <em>below-average</em> ones instead of scaling everything by raw $R$. $A=R-b$ = advantage.</div></div>
+
+    <div class="qa"><div class="q">Drill 8 — Explain PPO's clipped objective and what $\epsilon$ controls.<span class="chev">▶</span></div><div class="a">$\mathcal{L}^{CLIP}=\mathbb{E}[\min(\rho\hat A,\operatorname{clip}(\rho,1{-}\epsilon,1{+}\epsilon)\hat A)]$, $\rho=\pi_\theta/\pi_{\theta_{old}}$. The clip caps how much an update can increase the probability ratio in the improving direction — a soft <strong>trust region</strong> that lets you reuse samples for several epochs without the policy moving so far that the importance weights become invalid and training diverges. $\epsilon$ (~0.2) sets the trust-region width: smaller = more conservative.</div></div>
+
+    <div class="qa"><div class="q">Drill 9 — Why the KL penalty in RLHF? What if it's too small / too large?<span class="chev">▶</span></div><div class="a">$-\beta\,\mathrm{KL}(\pi_\theta\|\pi_\text{ref})$ keeps the policy near the SFT model so it (a) doesn't <strong>reward-hack</strong> the imperfect RM by drifting into degenerate high-reward text and (b) doesn't forget language/skills. Too small $\beta$ → reward hacking (reward↑, quality↓, weird outputs); too large → the policy can't move, no improvement. It's the core stability knob; DPO encodes the same KL implicitly via $\beta$.</div></div>
+
+    <div class="qa"><div class="q">Drill 10 — GRPO vs PPO: what's dropped, what's gained, what's risked?<span class="chev">▶</span></div><div class="a"><strong>Dropped:</strong> the critic/value network — GRPO uses the <em>group mean reward</em> (z-score within $G$ samples per prompt) as the baseline. <strong>Gained:</strong> simplicity (no value net to train/tune), memory, and a natural fit for sparse 0/1 verifiable rewards. <strong>Risked:</strong> needs $G$ samples per prompt (compute), the group baseline is higher-variance than a good critic for dense rewards, and it inherits diversity-collapse / reward-hacking-the-checker issues.</div></div>
+
+    <div class="qa"><div class="q">Drill 11 — DPO vs PPO — the honest tradeoff.<span class="chev">▶</span></div><div class="a">DPO: no reward model, no online sampling, no RL instability — a logistic loss on a fixed preference set. Cheaper, more stable, reproducible. But it's <strong>offline</strong>: it can only re-rank behaviors present in the data, can drift / over-optimize on OOD prompts, and is sensitive to the reference and to preference-data coverage. PPO/online RL costs more but <strong>explores</strong> — discovers new high-reward behaviors — and can optimize a strong verifier (RLVR). Use DPO for fixed-preference alignment; go online when exploration or verifiable reward matters.</div></div>
+
+    <div class="qa"><div class="q">Drill 12 — Reward goes up but the model gets worse. Diagnose and fix.<span class="chev">▶</span></div><div class="a"><strong>Reward hacking</strong>: the policy exploits RM weaknesses (length bias, sycophancy, format tricks, or for RLVR, passing tests via edge cases without solving). Diagnose: inspect samples, length-control the metric, hold out a human/verifiable eval that the RM didn't train on. Fix: stronger KL leash, RM <em>ensembles</em> / fresh on-policy preference data, length normalization, and move to <strong>verifiable rewards</strong> where possible. Lesson: "the reward is a proxy; optimize it too hard and you find its bugs."</div></div>
+
+    <div class="qa"><div class="q">Drill 13 — PRM vs ORM — when is process supervision worth it?<span class="chev">▶</span></div><div class="a"><strong>ORM</strong> scores the final answer; <strong>PRM</strong> scores each reasoning step. PRM gives <em>denser</em> credit assignment (catches right-answer/wrong-reasoning and localizes errors on long chains), improving search/best-of-n and RL on multi-step reasoning. Cost: step-level labels (expensive; often auto-labeled via rollouts/Monte-Carlo), and PRMs can be gamed. Worth it for long-horizon reasoning where the outcome signal is too sparse to assign credit; otherwise ORM/verifiable outcome is simpler.</div></div>
+
+    <div class="qa"><div class="q">Drill 14 — How do you do RL on a long-horizon tool-use agent?<span class="chev">▶</span></div><div class="a">The hard part is <strong>credit assignment</strong> over many steps with a sparse end-of-episode reward. Approaches: outcome reward (task success, verifiable when possible) + GRPO/PPO over full trajectories; add <strong>process/step rewards</strong> or learned value to densify credit; trajectory-level advantage with discounting; reduce variance with many rollouts and group baselines. Practical issues: long trajectories overflow context (summarize/prune), environments are stochastic (average over rollouts), and reward hacking the environment. This is the 2025 frontier (computer-use/coding agents) — connects to Day 4 §3.6.</div></div>
+
+    <h2 class="section" id="codedrills">Code-debug drills (AI-coding round)</h2>
+    <p class="hint">Find the bug(s) <strong>out loud</strong>, then reveal the fix. These are the RL/sampling losses you'd actually be asked to implement.</p>
+
+    <h3>CD1 — REINFORCE loss</h3>
+    <div class="callout keyidea"><span class="label">🎤 Mock interview</span> Your policy-gradient update isn't learning (loss goes negative and the model degrades). The core step:</div>
+    <pre><code>logp   = token_logprobs(model, prompt, response).sum()   # log π(y|x)
+reward = reward_model(prompt, response)                  # a scalar
+loss   = reward * logp
+loss.backward(); opt.step()
+</code></pre>
+    <p class="hint">Three problems. (1) Sign? (2) Is reward a constant? (3) Variance?</p>
+    <div class="qa"><div class="q">Reveal<span class="chev">▶</span></div><div class="a"><strong>Bugs:</strong> (1) <strong>Wrong sign.</strong> You <em>maximize</em> $R\cdot\log\pi$, but optimizers <em>minimize</em>, so the loss must be the negative: <code>loss = -(reward * logp)</code>. As written, gradient descent <em>minimizes</em> reward·logp → pushes good samples down. (2) <strong>Reward not detached.</strong> If <code>reward</code> carries a grad (it's a model), you'll backprop through the reward model — it must be a constant weight: <code>reward.detach()</code>. (3) <strong>No baseline</strong> → very high variance; subtract a baseline/advantage. <strong>Fix:</strong><pre style="background:#0d1612;margin:8px 0;"><code>adv  = (reward - baseline).detach()
+loss = -(adv * logp).mean()      # minimize → maximizes advantage-weighted log-prob</code></pre><strong>One-liner:</strong> "REINFORCE is reward-weighted cross-entropy — negate it for descent, detach the reward, and subtract a baseline."</div></div>
+
+    <h3>CD2 — DPO loss</h3>
+    <div class="callout keyidea"><span class="label">🎤 Mock interview</span> Your DPO run drifts and forgets language; the loss:</div>
+    <pre><code>piw, pil = policy_logp(x, y_w), policy_logp(x, y_l)
+logits   = beta * (piw - pil)
+loss     = -F.logsigmoid(logits).mean()
+</code></pre>
+    <p class="hint">What anchors the policy? What's missing entirely?</p>
+    <div class="qa"><div class="q">Reveal<span class="chev">▶</span></div><div class="a"><strong>Bug: the reference model is missing.</strong> DPO's implicit reward is $\beta\log(\pi_\theta/\pi_\text{ref})$ — a log-<em>ratio</em> to the frozen reference. This code uses raw policy log-probs, dropping the $\pi_\text{ref}$ anchor (the KL term), so nothing stops the policy from drifting/degenerating. <strong>Fix</strong> — subtract the (no-grad) reference log-probs:<pre style="background:#0d1612;margin:8px 0;"><code>with torch.no_grad():
+    refw, refl = ref_logp(x, y_w), ref_logp(x, y_l)
+logits = beta * ((piw - refw) - (pil - refl))   # β·[log π/π_ref]_w − [..]_l
+loss   = -F.logsigmoid(logits).mean()</code></pre><strong>One-liner:</strong> "DPO compares the <em>implicit reward</em> β·log(π/π_ref) of chosen vs rejected — drop the reference and you've dropped the KL leash."</div></div>
+
+    <h3>CD3 — PPO clipped objective</h3>
+    <div class="callout keyidea"><span class="label">🎤 Mock interview</span> Your PPO is unstable and the policy occasionally collapses:</div>
+    <pre><code>ratio     = torch.exp(logp - logp_old)
+unclipped = ratio * adv
+clipped   = torch.clamp(ratio, 1-eps, 1+eps) * adv
+loss      = -torch.max(unclipped, clipped).mean()
+</code></pre>
+    <p class="hint">min or max? And is <code>logp_old</code> a constant?</p>
+    <div class="qa"><div class="q">Reveal<span class="chev">▶</span></div><div class="a"><strong>Bugs:</strong> (1) It should be <strong>min, not max</strong>. PPO is a <em>pessimistic</em> bound: $\min(\rho\hat A,\ \text{clip}(\rho)\hat A)$ — taking the <em>max</em> rewards the largest move and destroys the trust region (exactly the instability you see). (2) <strong><code>logp_old</code> must be detached</strong> — it's from the old policy, a constant; if it carries grad the ratio is wrong. <strong>Fix:</strong> <code>loss = -torch.min(unclipped, clipped).mean()</code> with <code>logp_old = logp_old.detach()</code>. <strong>One-liner:</strong> "the clip only protects you under a <em>min</em> — it's a pessimistic surrogate; max would reward leaving the trust region."</div></div>
+
+    <h3>CD4 — GRPO group advantage</h3>
+    <div class="callout keyidea"><span class="label">🎤 Mock interview</span> Your GRPO advantages explode and training is erratic. For one prompt's group of rewards:</div>
+    <pre><code>rewards = torch.tensor([r1, r2, ..., rG])   # G completions of ONE prompt
+adv     = rewards / rewards.std()
+</code></pre>
+    <p class="hint">Where's the baseline? What if all rewards are equal?</p>
+    <div class="qa"><div class="q">Reveal<span class="chev">▶</span></div><div class="a"><strong>Bugs:</strong> (1) <strong>Not centered</strong> — you forgot to subtract the group <em>mean</em> (the baseline). Without it there's no "better/worse than average" signal and the magnitudes are meaningless. (2) <strong>Divide-by-zero</strong> when all $G$ rewards are equal (e.g. all wrong or all correct) → <code>std=0</code> → NaN/explosion. (3) Must be computed <strong>per prompt-group</strong>, not across the whole batch. <strong>Fix:</strong><pre style="background:#0d1612;margin:8px 0;"><code>adv = (rewards - rewards.mean()) / (rewards.std() + 1e-6)</code></pre><strong>One-liner:</strong> "GRPO's advantage is the group <em>z-score</em> — center by the group mean (that's the baseline) and guard the std."</div></div>
+
+    <h3>CD5 — top-p (nucleus) sampling</h3>
+    <div class="callout keyidea"><span class="label">🎤 Mock interview</span> Your top-p sampler sometimes emits garbage and sometimes crashes:</div>
+    <pre><code>probs        = softmax(logits)
+sp, idx      = probs.sort(descending=True)
+cum          = sp.cumsum(0)
+keep         = cum &lt;= p          # boolean mask of tokens to keep
+sp[~keep]    = 0
+next_token   = sample(sp, idx)   # categorical over sp, mapped back via idx
+</code></pre>
+    <p class="hint">Two issues: the cutoff boundary, and one missing step before sampling.</p>
+    <div class="qa"><div class="q">Reveal<span class="chev">▶</span></div><div class="a"><strong>Bugs:</strong> (1) <strong>Off-by-one cutoff.</strong> <code>cum &lt;= p</code> drops the very token that <em>crosses</em> $p$ — and if the single top token already exceeds $p$ (e.g. it has prob 0.95, p=0.9), <em>every</em> token is removed → all-zero → crash. You must <em>keep</em> the first token that crosses $p$. (2) <strong>No renormalization</strong> — after zeroing the tail, <code>sp</code> no longer sums to 1, so sampling is mis-weighted. <strong>Fix</strong> — shift the removal mask right by one (keep the crossing token), then renormalize:<pre style="background:#0d1612;margin:8px 0;"><code>remove = cum &gt; p
+remove[1:] = remove[:-1].clone()   # shift: always keep the first token over p
+remove[0]  = False
+sp[remove] = 0
+sp = sp / sp.sum()                 # renormalize before sampling</code></pre><strong>One-liner:</strong> "keep the nucleus <em>including</em> the token that crosses p, and always renormalize the survivors."</div></div>
+
+    <h3>CD6 — temperature sampling</h3>
+    <div class="callout keyidea"><span class="label">🎤 Mock interview</span> Your "temperature" knob behaves strangely — T&gt;1 doesn't add diversity the way it should:</div>
+    <pre><code>probs = softmax(logits)
+probs = probs ** (1.0 / T)     # apply temperature
+probs = probs / probs.sum()
+</code></pre>
+    <p class="hint">Temperature acts on <em>what</em>, exactly?</p>
+    <div class="qa"><div class="q">Reveal<span class="chev">▶</span></div><div class="a"><strong>Bug:</strong> temperature scales the <strong>logits before softmax</strong>, not the probabilities after. $p_i(T)=\text{softmax}(z/T)_i$. Exponentiating the probabilities (<code>probs ** (1/T)</code>) is a different, ad-hoc sharpening that does <em>not</em> equal the temperature softmax and behaves wrongly (and you lose the numerical-stability max-subtraction inside softmax). <strong>Fix:</strong> <code>probs = softmax(logits / T)</code>. <strong>One-liner:</strong> "temperature divides the <em>logits</em>; $T\to0$ → greedy, $T\to\infty$ → uniform — exponentiating probabilities is not the same operation."</div></div>
+
+    <h3>CD7 — speculative-decoding acceptance</h3>
+    <div class="callout keyidea"><span class="label">🎤 Mock interview</span> Your speculative decoder is fast but its outputs no longer match the target model's distribution:</div>
+    <pre><code>for j in range(k):
+    if random() &lt; p[j][draft[j]] / q[j][draft[j]]:
+        out.append(draft[j])
+    else:
+        break
+out.append(sample(p[k]))     # bonus token from the target
+</code></pre>
+    <p class="hint">What should happen on a <em>rejection</em>? When is the bonus token valid?</p>
+    <div class="qa"><div class="q">Reveal<span class="chev">▶</span></div><div class="a"><strong>Bug:</strong> on a rejection the code just <code>break</code>s and then appends a bonus token from <code>p[k]</code> — but that's wrong on two counts. (1) On rejection at position $j$ you must <strong>resample the replacement from the residual</strong> $\propto\max(0,\,p[j]-q[j])$, not skip it. (2) The bonus token from <code>p[k]</code> is only valid when <em>all</em> $k$ drafts were accepted; after a rejection the later positions are invalid (they were conditioned on the rejected token). Without the residual correction, the output distribution is no longer exactly the target's. <strong>Fix:</strong><pre style="background:#0d1612;margin:8px 0;"><code>accepted_all = True
+for j in range(k):
+    if random() &lt; min(1.0, p[j][draft[j]] / q[j][draft[j]]):
+        out.append(draft[j])
+    else:
+        resid = torch.clamp(p[j] - q[j], min=0); resid /= resid.sum()
+        out.append(sample(resid)); accepted_all = False; break
+if accepted_all:
+    out.append(sample(p[k]))     # bonus only if nothing was rejected</code></pre><strong>One-liner:</strong> "reject → resample from max(0,p−q) and stop; the free bonus token is valid only when the whole draft was accepted."</div></div>
+
+    <hr>
+    <p class="hint">End of Day 6. See the Resume Interview Prep doc next, and Day 7 (100 drills).</p>
+  </main>
+</div>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+  const prog = document.getElementById('progress');
+  const backTop = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop)/(h.scrollHeight - h.clientHeight)*100 + '%';
+    backTop.style.display = h.scrollTop > 600 ? 'block' : 'none';
+  });
+  document.querySelectorAll('.qa').forEach((qa, i) => {
+    const key = 'd6_qa_' + i;
+    if (localStorage.getItem(key) === '1') qa.classList.add('open');
+    qa.querySelector('.q').addEventListener('click', () => {
+      qa.classList.toggle('open');
+      localStorage.setItem(key, qa.classList.contains('open') ? '1' : '0');
+    });
+  });
+  document.querySelectorAll('[data-sched]').forEach(cb => {
+    const key = 'd6_sched_' + cb.dataset.sched;
+    if (localStorage.getItem(key) === '1') cb.checked = true;
+    cb.addEventListener('change', () => localStorage.setItem(key, cb.checked ? '1' : '0'));
+  });
+  function resetProgress() {
+    document.querySelectorAll('[data-sched]').forEach(cb => { cb.checked = false; localStorage.setItem('d6_sched_' + cb.dataset.sched, '0'); });
+  }
+  const tocLinks = [...document.querySelectorAll('nav.toc a')];
+  const sections = tocLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll', () => {
+    let current = sections[0];
+    for (const s of sections) { if (s.getBoundingClientRect().top <= 120) current = s; }
+    if (current) tocLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + (current ? current.id : '')));
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const TEXT = '#d7dee8', GRID = '#2a3340', MUTED = '#8b97a7';
+    Chart.defaults.color = MUTED; Chart.defaults.borderColor = GRID; Chart.defaults.font.size = 11;
+    // temperature softmax bar chart
+    (function(){
+      if(!document.getElementById('tempChart')) return;
+      var logits=[3.0,2.0,1.2,0.5,-0.3];
+      function sm(T){ var e=logits.map(z=>Math.exp(z/T)); var s=e.reduce((a,b)=>a+b,0); return e.map(x=>x/s); }
+      new Chart(document.getElementById('tempChart'), { type:'bar',
+        data:{ labels:['tok A','tok B','tok C','tok D','tok E'], datasets:[
+          { label:'T = 0.5 (sharp)', data:sm(0.5), backgroundColor:'#7ee0c0' },
+          { label:'T = 1.0 (native)', data:sm(1.0), backgroundColor:'#6ea8fe' },
+          { label:'T = 1.5 (flat)', data:sm(1.5), backgroundColor:'#ffb454' } ]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ position:'bottom', labels:{ color:TEXT } } },
+          scales:{ x:{ title:{display:true,text:'next-token candidates (fixed logits)',color:MUTED} },
+                   y:{ title:{display:true,text:'probability',color:MUTED}, beginAtZero:true } } } });
+    })();
+  });
+</script>
+</body>
+</html>
