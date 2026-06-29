@@ -1,207 +1,513 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Day 5 — Research Taste + Paper Deep-Dives</title><style>
-  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
-  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
-  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
-  .layout{display:flex;max-width:1240px;margin:0 auto;}
-  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
-  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
-  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
-  nav.toc a:hover{color:var(--text);background:var(--panel);}
-  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
-  main{flex:1;min-width:0;padding:40px 48px 120px;}
-  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
-  header.hero h1{margin:0 0 10px;font-size:30px;}
-  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
-  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;}
-  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
-  p{margin:12px 0;} a{color:var(--accent);}
-  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
-  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
-  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
-  ul,ol{padding-left:24px;} li{margin:6px 0;}
-  ul ul,ol ul{margin:6px 0;}
-  strong{color:#f0f4f9;}
-  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
-  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
-  th{background:var(--table-head);color:#eaf0f7;}
-  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
-  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
-  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
-  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
-  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
-  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
-  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
-  .qa .q:hover{background:var(--panel-2);}
-  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
-  .qa.open .q .chev{transform:rotate(90deg);}
-  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
-  .qa.open .a{display:block;}
-  .qa .a code{background:#0d1612;}
-  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
-  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
-  .back-top:hover{border-color:var(--accent);color:var(--accent);}
-  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
-</style></head><body>
-<div id="progress"></div>
-<div class="layout">
-<nav class="toc"><h2>Contents</h2><a href="#top">Overview</a>
-<a href="#s1">Suggested 8-hour schedule</a>
-<a href="#s2">§1</a>
-<a href="#s3">§2</a>
-<a href="#s4">§3</a>
-<a href="#s5">§4</a>
-<a href="#s6">§5</a>
-<a href="#s7">§6</a>
-<a href="#s8">Quick-reference cheat sheet</a></nav>
-<main>
-<header class="hero" id="top"><h1>Day 5 — Research Taste + Paper Deep-Dives</h1><p style="margin:4px 0;color:var(--muted)"><strong>Target:</strong> Research Scientist loop at a frontier lab (Meta TBD / MSL style).</p><p style="margin:4px 0;color:var(--muted)"><strong>Mode:</strong> Concepts + spoken practice; this is the differentiator day.</p><p style="margin:4px 0;color:var(--muted)"><strong>Time budget:</strong> ~8 hours.</p><p style="margin:4px 0;color:var(--muted)"><strong>The bar for today:</strong> Walk in able to (1) discuss 2–3 papers with <em>real</em> depth using a repeatable frame, (2) propose <strong>sharp, falsifiable, compute-aware</strong> experiments, and (3) reason about <em>what&#x27;s worth doing</em> — the skill that separates &quot;studied ML&quot; from &quot;thinks like a researcher.&quot;</p><p style="margin:4px 0;color:var(--muted)">Research taste is what RS interviews actually select for. The technical days give you the substrate; today is about <em>judgment</em> on top of it.</p></header>
-<hr>
-<h2 class="section" id="s1">Suggested 8-hour schedule</h2>
-<table><thead><tr><th>Block</th><th>Time</th><th>Topic</th><th>Section</th></tr></thead><tbody><tr><td>1</td><td>0:00–1:30</td><td>Research taste fundamentals + the weak→strong pattern</td><td>§1</td></tr><tr><td>2</td><td>1:30–2:15</td><td>The 5-point paper deep-dive frame</td><td>§2</td></tr><tr><td>—</td><td>2:15–2:30</td><td>Break</td><td></td></tr><tr><td>3</td><td>2:30–3:45</td><td>Anchor paper 1: Chinchilla (scaling)</td><td>§3</td></tr><tr><td>4</td><td>3:45–5:15</td><td>Anchor topic 2: RL/DPO landscape</td><td>§4</td></tr><tr><td>—</td><td>5:15–5:30</td><td>Break</td><td></td></tr><tr><td>5</td><td>5:30–6:45</td><td>Anchor paper 3: FlashAttention (systems)</td><td>§5</td></tr><tr><td>6</td><td>6:45–8:00</td><td>Research-proposal practice (out loud)</td><td>§6</td></tr></tbody></table>
-<hr>
-<h2 class="section" id="s2">§1 — Research taste fundamentals</h2>
-<h3>1.1 What &quot;research taste&quot; actually means</h3>
-<p>It&#x27;s the set of judgments that determine whether your time/compute produces real progress:</p>
-<ul>
-<li><strong>Problem selection:</strong> picking high-leverage problems (big if true, tractable, on the critical path) over merely interesting ones.</li>
-<li><strong>Hypothesis formation:</strong> stating a <em>specific, falsifiable</em> prediction before running anything.</li>
-<li><strong>Clean experimental design:</strong> controls, baselines, ablations, isolating one variable (Day 3 §3.3).</li>
-<li><strong>Skepticism:</strong> distrusting noisy/too-good results; asking &quot;what would make this not true?&quot;</li>
-<li><strong>Debugging negative results:</strong> distinguishing &quot;the idea is wrong&quot; from &quot;the implementation/eval is broken.&quot;</li>
-<li><strong>Compute-awareness:</strong> knowing what&#x27;s worth scaling and what to test cheaply first.</li>
-<li><strong>Knowing when to stop:</strong> killing a direction that isn&#x27;t working.</li>
-</ul>
-<h3>1.2 The weak → strong answer pattern (internalize this)</h3>
-<p>Frontier interviewers can tell taste from <em>how you answer open questions.</em> The difference:</p>
-<p><strong>Weak (vague, not falsifiable, not compute-aware):</strong></p>
-<div class="callout keyidea">&quot;I&#x27;d train a better model with more and cleaner data.&quot;</div>
-<p><strong>Strong (specific, falsifiable, controlled, compute-aware):</strong></p>
-<div class="callout keyidea">&quot;I&#x27;d test whether targeted high-quality synthetic math traces improve pass@k on <em>held-out, post-cutoff</em> contest problems, after controlling for contamination. I&#x27;d run small-scale <strong>data-mixture ablations</strong> first — same model size and token budget, varying only the math-trace fraction — and scale only the mixtures that improve reasoning <strong>without</strong> regressing general chat quality, refusal rate, or hallucination.&quot;</div>
-<p>What makes the strong answer strong — check your own answers against these:</p>
-<ol>
-<li><strong>Specific intervention</strong> (targeted synthetic math traces, not &quot;better data&quot;).</li>
-<li><strong>Falsifiable metric</strong> (pass@k on held-out problems) with a <strong>clear success/failure line</strong>.</li>
-<li><strong>Controls</strong> (contamination, compute-matched, hold other capabilities fixed).</li>
-<li><strong>Compute-awareness</strong> (small-scale first, scale only winners).</li>
-<li><strong>Awareness of side effects / tradeoffs</strong> (don&#x27;t regress chat/safety — the alignment-tax instinct).</li>
-</ol>
-<h3>1.3 The taste question bank (practice all out loud)</h3>
-<ul>
-<li>&quot;What paper changed your thinking recently?&quot; → have 2–3 ready (§3–§5).</li>
-<li>&quot;What result do you <em>not</em> believe?&quot; → pick something plausibly over-claimed; explain the likely confound (contamination, cherry-picked eval, no compute-matched baseline).</li>
-<li>&quot;What would you work on with <strong>1,000 GPUs</strong>?&quot; vs &quot;with only <strong>8 GPUs</strong>?&quot; → big-compute: a real scaling/data/post-training bet; small-compute: clever proxy experiments, ablations, evals, mechanistic studies.</li>
-<li>&quot;How would you improve LLM reasoning?&quot; → verifiable-reward RL, process supervision, high-quality traces, better eval to avoid contamination — be specific.</li>
-<li>&quot;How would you make agents more reliable?&quot; → error-recovery training, environment-feedback RL, better long-horizon eval, prompt-injection robustness.</li>
-<li>&quot;What&#x27;s an underrated bottleneck in frontier AI?&quot; → e.g. evaluation/contamination, data quality, inference cost, long-horizon reliability — pick one and defend it.</li>
-<li>&quot;What experiment would you run first?&quot; → always the <strong>cheapest decisive</strong> one.</li>
-</ul>
-<div class="callout keyidea"><strong>The meta-skill:</strong> for <em>every</em> open question, produce a <em>specific, falsifiable, compute-aware</em> answer with a named first experiment and an awareness of what could confound it.</div>
-<h3>Self-test §1</h3>
-<div class="qa"><div class="q"><span><strong>Turn a weak answer into a strong one.</strong></span><span class="chev">▶</span></div><div class="a">Add: specific intervention, falsifiable metric + success line, controls (contamination/compute-matched), small-scale-first, side-effect awareness.</div></div>
-<div class="qa"><div class="q"><span><strong>&quot;What result do you not believe, and why?&quot;</strong></span><span class="chev">▶</span></div><div class="a">Name one; cite the missing control (compute-matched baseline, contamination check, CIs, cherry-picked eval).</div></div>
-<div class="qa"><div class="q"><span><strong>&quot;1,000 GPUs vs 8 GPUs?&quot;</strong></span><span class="chev">▶</span></div><div class="a">Big: a scaling/data/post-training bet with a clear hypothesis. Small: proxy/ablation/eval/mechanistic work that informs the big bet cheaply.</div></div>
-<hr>
-<h2 class="section" id="s3">§2 — The 5-point paper deep-dive frame</h2>
-<p>Use this for <strong>any</strong> paper — so you can speak to one an interviewer raises, not only your prepped three.</p>
-<p>For each paper, be able to state:</p>
-<ol>
-<li><strong>Problem</strong> — what limitation/question motivated it? (Why did this need to exist?)</li>
-<li><strong>Core idea</strong> — the key insight, in one or two sentences.</li>
-<li><strong>Why it worked</strong> — the mechanism; <em>why</em> the idea addresses the problem.</li>
-<li><strong>Main limitation</strong> — what it doesn&#x27;t solve, its cost, or where it breaks.</li>
-<li><strong>One follow-up experiment you&#x27;d run</strong> — shows you think like a contributor, not a reader.</li>
-</ol>
-<p>Practice compressing each anchor paper into these five points until you can do it from memory in ~90 seconds. The follow-up (point 5) is where you demonstrate taste — make it <em>specific and falsifiable.</em></p>
-<hr>
-<h2 class="section" id="s4">§3 — Anchor 1: Chinchilla (compute-optimal scaling)</h2>
-<p><em>Hoffmann et al., 2022 — &quot;Training Compute-Optimal Large Language Models.&quot;</em></p>
-<p><strong>1. Problem.</strong> Given a fixed compute budget, how should you split it between <strong>model size (N)</strong> and <strong>training tokens (D)</strong>? Models like GPT-3 were huge but (it turned out) undertrained — was that optimal?</p>
-<p><strong>2. Core idea.</strong> Empirically fit how loss depends on N and D at fixed compute; find the compute-optimal allocation. Result: <strong>N and D should scale roughly equally</strong> — about <strong>20 training tokens per parameter</strong>. Most large models of the era were <strong>too big and trained on too little data.</strong></p>
-<p><strong>3. Why it worked.</strong> Loss follows predictable <strong>power laws</strong> in N and D; by training many models across the N/D grid and fitting the surface, you can <em>solve</em> for the optimum at a given compute. Chinchilla (70B, 1.4T tokens) beat Gopher (280B) using the <strong>same compute</strong>, validating the prediction — a smaller, better-trained model won.</p>
-<p><strong>4. Main limitation.</strong> It optimizes <strong>training</strong> compute only. It ignores <strong>inference cost</strong> — if you serve the model a lot, a <em>smaller</em> model trained on <em>more</em> tokens than Chinchilla-optimal (&quot;overtraining&quot;) is better overall because it&#x27;s cheaper to run. (LLaMA models deliberately overtrain for this reason.) Also assumes a fixed data distribution and enough non-repeated data — data quality and repetition complicate the clean power laws.</p>
-<p><strong>5. Follow-up you&#x27;d run.</strong> Re-derive the optimal N/D frontier under a <strong>combined training+inference compute objective</strong> for a target query volume — quantifying how far past Chinchilla-optimal you should overtrain as a function of expected inference load. (Specific, falsifiable, decision-relevant.)</p>
-<p><strong>Why this is a great anchor:</strong> it&#x27;s the densest &quot;research taste&quot; paper — it&#x27;s about <em>allocating</em> resources, power-law extrapolation, and the deep point that <strong>compute-optimal-for-training ≠ optimal-for-deployment.</strong> Say that line in an interview.</p>
-<h3>Self-test §3</h3>
-<div class="qa"><div class="q"><span><strong>What did Chinchilla show and why does it matter?</strong></span><span class="chev">▶</span></div><div class="a">Compute-optimal training balances N and D (~20 tok/param); prior models were undertrained. It lets you de-risk big runs by extrapolating power laws.</div></div>
-<div class="qa"><div class="q"><span><strong>What&#x27;s Chinchilla&#x27;s blind spot?</strong></span><span class="chev">▶</span></div><div class="a">Inference cost — overtraining a smaller model is better when serving heavily. Training-optimal ≠ deployment-optimal.</div></div>
-<hr>
-<h2 class="section" id="s5">§4 — Anchor 2: The RL / post-training landscape (anchored on DPO)</h2>
-<p>Rather than one paper, own the <strong>comparative map</strong> (deep version of Day 2 §6). The interviewer wants to see you reason about <em>tradeoffs in practice</em>.</p>
-<h3>4.1 Why RL for LLMs at all</h3>
-<p>We want to optimize <strong>human preference</strong>, which is <strong>non-differentiable</strong> and easier to <em>compare</em> than to <em>demonstrate</em>. So: learn from comparisons, optimize the policy toward preferred behavior. KL-regularize to a reference model so you don&#x27;t drift into degenerate, reward-hacking text.</p>
-<h3>4.2 The methods and their practical pros/cons</h3>
-<table><thead><tr><th>Method</th><th>How it works</th><th>Pros</th><th>Cons / when it fails</th></tr></thead><tbody><tr><td><strong>SFT</strong></td><td>Fine-tune on (prompt, good answer) demos</td><td>Simple, stable, essential foundation</td><td>Only shows one good answer; can&#x27;t rank; demos expensive; no negative signal</td></tr><tr><td><strong>PPO-RLHF</strong></td><td>Reward model from preferences + on-policy RL with KL penalty</td><td>Powerful; <strong>on-policy</strong> (learns from its own current outputs); reward model reusable; can keep improving</td><td>Complex/unstable; 4 models (policy, ref, RM, critic); expensive; reward hacking; hyperparameter-sensitive</td></tr><tr><td><strong>DPO</strong></td><td>Reparameterize so optimal policy relates to reward in closed form → optimize preferences directly, <strong>offline</strong></td><td>Simple, stable, cheap (no RM, no RL loop); strong results</td><td><strong>Offline</strong> — bound to the fixed preference dataset&#x27;s coverage; can&#x27;t learn from fresh on-policy mistakes; less control</td></tr><tr><td><strong>RLAIF / Constitutional</strong></td><td>AI-generated preferences guided by principles</td><td>Scales past human labeling; consistent, steerable</td><td>Inherits the judge model&#x27;s biases; quality depends on the constitution</td></tr><tr><td><strong>Rejection sampling / best-of-n</strong></td><td>Sample n, keep best by an RM, fine-tune on those</td><td>Dead simple; strong baseline; bootstraps better SFT data</td><td>Bounded by the base model&#x27;s best samples; compute at sampling time</td></tr><tr><td><strong>Verifiable-reward RL</strong></td><td>Reward = automatic checker (tests pass / answer correct)</td><td>Clean, <strong>ungameable</strong> reward → strong signal; behind reasoning gains</td><td>Only works where you can verify (math, code); reward sparsity</td></tr></tbody></table>
-<h3>4.3 The judgments to articulate</h3>
-<ul>
-<li><strong>SFT vs RLHF:</strong> demos teach behavior/format; preference optimization teaches <em>ranking</em> better-vs-worse, which demos can&#x27;t.</li>
-<li><strong>DPO vs PPO:</strong> DPO is simpler/cheaper/more stable and often matches PPO; <strong>PPO/online RL pulls ahead when you can iterate with fresh on-policy data</strong>, because the model learns from its <em>own current</em> failures rather than a static dataset.</li>
-<li><strong>Process vs outcome supervision:</strong> rewarding each reasoning <em>step</em> (process) gives denser signal and better reasoning than rewarding only the final answer (outcome), at higher labeling cost.</li>
-<li><strong>The universal risks:</strong> reward hacking (→ KL penalty), alignment tax (capability dip), over/under-refusal, sycophancy.</li>
-</ul>
-<h3>Self-test §4</h3>
-<div class="qa"><div class="q"><span><strong>Walk the post-training landscape with pros/cons.</strong></span><span class="chev">▶</span></div><div class="a">Use the table: SFT (foundation, no ranking) → PPO-RLHF (powerful, on-policy, heavy/unstable) → DPO (simple/offline, coverage-bound) → RLAIF (scales labels) → rejection sampling (strong baseline) → verifiable-reward (clean signal, math/code only).</div></div>
-<div class="qa"><div class="q"><span><strong>When does PPO beat DPO in practice?</strong></span><span class="chev">▶</span></div><div class="a">When you can generate fresh on-policy data and iterate — the model learns from its own current mistakes vs DPO&#x27;s static dataset.</div></div>
-<div class="qa"><div class="q"><span><strong>Process vs outcome supervision?</strong></span><span class="chev">▶</span></div><div class="a">Process rewards each step (denser, better reasoning, costlier); outcome rewards only the final answer.</div></div>
-<hr>
-<h2 class="section" id="s6">§5 — Anchor 3: FlashAttention (IO-aware exact attention)</h2>
-<p><em>Dao et al., 2022 — &quot;FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness.&quot;</em></p>
-<p><strong>1. Problem.</strong> Standard attention materializes the full <strong>N×N</strong> score matrix in slow GPU <strong>high-bandwidth memory (HBM)</strong>, making it <strong>memory-bandwidth-bound</strong> and O(N²) in memory — the bottleneck for long sequences (Day 2 §2.5, §4.3). The compute isn&#x27;t the limit; the <strong>memory traffic</strong> is.</p>
-<p><strong>2. Core idea.</strong> Compute attention <strong>without ever materializing the full score matrix</strong>. Tile Q/K/V into blocks that fit in fast on-chip <strong>SRAM</strong>, compute attention block-by-block, and use the <strong>online softmax</strong> trick to combine blocks correctly. It&#x27;s <strong>exact</strong> (not an approximation) — same result, far less HBM traffic.</p>
-<p><strong>3. Why it worked.</strong> It&#x27;s an <strong>IO-aware</strong> algorithm: GPU performance here is gated by reads/writes between HBM and SRAM, not FLOPs. By keeping intermediate work in SRAM and avoiding the N×N write/read to HBM, it slashes memory traffic → big wall-clock speedups and <strong>O(N) memory</strong> instead of O(N²). This is the canonical &quot;know your hardware&quot; result — same math, restructured around the memory hierarchy.</p>
-<p><strong>4. Main limitation.</strong> It&#x27;s still <strong>O(N²) compute</strong> (it attacks memory, not the fundamental quadratic) — truly long context still needs sparse/linear attention or other tricks. It&#x27;s also a hardware-specific, hand-tuned kernel (GPU-dependent); newer versions (FlashAttention-2/3) refine the parallelization for newer GPUs.</p>
-<p><strong>5. Follow-up you&#x27;d run.</strong> Combine FlashAttention&#x27;s IO-aware tiling with a <strong>sparse/sliding-window</strong> attention pattern and measure the wall-clock vs quality frontier at long context — testing whether you can get sub-quadratic compute <em>and</em> IO-efficiency without quality loss on long-context retrieval tasks.</p>
-<p><strong>Why this anchor shows range:</strong> it connects the <strong>attention math (Day 2)</strong> to <strong>GPU memory hierarchy (systems)</strong> — exactly the &quot;reason from math to hardware&quot; signal an RS+systems-literate candidate wants. Saying &quot;the bottleneck was HBM traffic, not FLOPs — they restructured the computation around SRAM&quot; is a strong line.</p>
-<h3>Self-test §5</h3>
-<div class="qa"><div class="q"><span><strong>What problem does FlashAttention solve and how?</strong></span><span class="chev">▶</span></div><div class="a">Standard attention is memory-bandwidth-bound from materializing the N×N matrix in HBM; FlashAttention tiles Q/K/V into SRAM and uses online softmax to compute attention exactly without ever writing the full matrix → O(N) memory, big speedup.</div></div>
-<div class="qa"><div class="q"><span><strong>Is it an approximation?</strong></span><span class="chev">▶</span></div><div class="a">No — exact attention; it changes the IO pattern, not the math.</div></div>
-<div class="qa"><div class="q"><span><strong>What&#x27;s its limitation?</strong></span><span class="chev">▶</span></div><div class="a">Still O(N²) compute; attacks memory, not the quadratic. Long context still needs sparse/linear methods.</div></div>
-<hr>
-<h2 class="section" id="s7">§6 — Research-proposal practice (do this out loud)</h2>
-<p>For each prompt below: give a <strong>2–3 minute spoken proposal</strong> with <strong>(a)</strong> a specific hypothesis, <strong>(b)</strong> a falsifiable metric + success line, <strong>(c)</strong> controls (contamination, compute-matched, side-effects), <strong>(d)</strong> the <em>cheapest decisive first experiment</em>, and <strong>(e)</strong> what would make you kill it. Then self-grade against the §1.2 strong-answer checklist.</p>
-<ol>
-<li><strong>&quot;How would you improve LLM reasoning?&quot;</strong></li>
-<li><strong>&quot;How would you make agents more reliable on long-horizon tasks?&quot;</strong></li>
-<li><strong>&quot;You have 10× more compute — what do you do?&quot;</strong> (Anchor on Chinchilla: scale data with model; but weigh inference cost and post-training ROI — don&#x27;t just say &quot;bigger model.&quot;)</li>
-<li><strong>&quot;What&#x27;s an underrated bottleneck in frontier AI, and how would you attack it?&quot;</strong></li>
-<li><strong>&quot;Design an experiment to test whether synthetic data helps reasoning without hurting general ability.&quot;</strong> (This is the §1.2 worked example — deliver it cleanly.)</li>
-</ol>
-<p><strong>Self-grade rubric (per answer):</strong></p>
-<ul>
-<li>Specific intervention (not &quot;more/better X&quot;)</li>
-<li>Falsifiable metric with a success/failure line</li>
-<li>Controls: contamination, compute-matched, hold other capabilities fixed</li>
-<li>Compute-aware: cheap proxy / small-scale first, scale winners</li>
-<li>Names the first experiment and a kill condition</li>
-<li>Aware of side effects (alignment tax, regressions, safety)</li>
-</ul>
-<h3>What &quot;great&quot; sounds like today</h3>
-<ul>
-<li>You discuss each anchor paper in the <strong>5-point frame</strong> from memory, ending with a <em>specific</em> follow-up.</li>
-<li>Every open-ended answer is <strong>specific, falsifiable, controlled, and compute-aware</strong>, with a named first experiment.</li>
-<li>You volunteer the deep lines: <em>&quot;training-optimal ≠ deployment-optimal&quot; (Chinchilla); &quot;the bottleneck was HBM traffic, not FLOPs&quot; (FlashAttention); &quot;PPO wins when you can iterate on-policy&quot; (post-training).</em></li>
-</ul>
-<hr>
-<h2 class="section" id="s8">Quick-reference cheat sheet</h2>
-<ul>
-<li><strong>Research taste = problem selection + falsifiable hypotheses + clean controls + skepticism + compute-awareness + knowing when to stop.</strong></li>
-<li><strong>Weak→strong:</strong> specific intervention · falsifiable metric + success line · controls (contamination, compute-matched) · small-scale-first · side-effect awareness · named first experiment + kill condition.</li>
-<li><strong>Paper frame (any paper):</strong> Problem · Core idea · Why it worked · Limitation · Your follow-up.</li>
-<li><strong>Chinchilla:</strong> balance N &amp; D (~20 tok/param); power-law extrapolation de-risks big runs; <strong>training-optimal ≠ deployment-optimal</strong> (overtrain to cut inference cost).</li>
-<li><strong>Post-training landscape:</strong> SFT (foundation) · PPO-RLHF (powerful, on-policy, heavy) · DPO (simple, offline, coverage-bound) · RLAIF (scales labels) · rejection sampling (strong baseline) · verifiable-reward (clean signal, math/code). PPO beats DPO when you can iterate on-policy. KL penalty fights reward hacking.</li>
-<li><strong>FlashAttention:</strong> exact attention, IO-aware tiling into SRAM + online softmax → O(N) memory, big speedup; <strong>memory traffic was the bottleneck, not FLOPs</strong>; still O(N²) compute.</li>
-<li><strong>For every open question:</strong> specific, falsifiable, compute-aware, cheapest-decisive-first-experiment.</li>
-</ul>
-</main></div>
-<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<title>Day 5 — Research Taste & Paper Deep-Dives</title>
 <script>
-  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
-  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
-  const KEY=document.title.replace(/\W/g,'_');
-  document.querySelectorAll('.qa').forEach((qa,i)=>{const k=KEY+'_qa_'+i;if(localStorage.getItem(k)==='1')qa.classList.add('open');qa.querySelector('.q').addEventListener('click',()=>{qa.classList.toggle('open');localStorage.setItem(k,qa.classList.contains('open')?'1':'0');});});
-  const tl=[...document.querySelectorAll('nav.toc a')],secs=tl.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
-  window.addEventListener('scroll',()=>{let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<=120)cur=s;}tl.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+(cur&&cur.id)));});
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
 </script>
-</body></html>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --border: #2a3340;
+    --code-bg: #11161d; --table-head: #1f2937; --reveal-bg: #16241f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 16.5px; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); z-index: 100; transition: width 0.1s ease-out; }
+  .layout { display: flex; max-width: 1240px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+    width: 280px; min-width: 280px; padding: 24px 16px 60px 20px; border-right: 1px solid var(--border); font-size: 14px; }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 6px; margin: 1px 0; border-left: 2px solid transparent; }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+  main { flex: 1; min-width: 0; padding: 40px 48px 120px; }
+  header.hero { border: 1px solid var(--border); background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 14px; padding: 28px 30px; margin-bottom: 36px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 30px; }
+  header.hero .sub { color: var(--muted); margin: 4px 0; font-size: 15px; }
+  .bar-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent-2); padding: 4px 11px; border-radius: 20px; font-size: 13px; }
+  h2.section { font-size: 24px; margin: 52px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h3 { font-size: 19px; margin: 30px 0 10px; color: #eaf0f7; }
+  h4 { font-size: 16px; margin: 20px 0 8px; color: var(--accent-2); }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1.5px 6px; border-radius: 5px; font-size: 14px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #e8c98a; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; }
+  pre code { background: none; padding: 0; color: #c7d3e0; font-size: 13.5px; line-height: 1.55; }
+  ul, ol { padding-left: 24px; } li { margin: 6px 0; }
+  strong { color: #f0f4f9; }
+  table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--table-head); color: #eaf0f7; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; border: 1px solid var(--border); }
+  .callout .label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .practice { background: rgba(255,180,84,0.07); border-color: rgba(255,180,84,0.35); } .practice .label { color: var(--warn); }
+  .keyidea { background: rgba(126,224,192,0.07); border-color: rgba(126,224,192,0.3); } .keyidea .label { color: var(--accent-2); }
+  .frontier { background: rgba(180,130,255,0.08); border-color: rgba(180,130,255,0.4); } .frontier .label { color: #c7a4ff; }
+  .qa { border: 1px solid var(--border); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+  .qa .q { padding: 12px 16px; cursor: pointer; background: var(--panel); font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .qa .q:hover { background: var(--panel-2); }
+  .qa .q .chev { color: var(--muted); transition: transform .2s; font-size: 13px; }
+  .qa.open .q .chev { transform: rotate(90deg); }
+  .qa .a { display: none; padding: 14px 16px; background: var(--reveal-bg); border-top: 1px solid var(--border); }
+  .qa.open .a { display: block; }
+  .qa .a code { background: #0d1612; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 18px; }
+  .sched label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .sched input { width: 17px; height: 17px; accent-color: var(--accent-2); }
+  .controls { margin: 10px 0 24px; }
+  .btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .back-top { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; z-index: 50; }
+  .back-top:hover { border-color: var(--accent); color: var(--accent); }
+  .chartbox { position: relative; width: 100%; height: 280px; margin: 8px 0; }
+  .cap { font-size: 12px; color: var(--muted); margin: 4px 0 14px; }
+  @media (max-width: 880px) { nav.toc { display: none; } main { padding: 24px 18px 100px; } }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="layout">
+  <nav class="toc" id="toc">
+    <h2>Day 5 Contents</h2>
+    <a href="#top">Overview & schedule</a>
+    <a href="#s1">§1 · What research taste is</a>
+    <a href="#s2">§2 · The 5-point paper frame</a>
+    <a href="#s3">§3 · Anchor papers (the canon)</a>
+    <a href="#s4">§4 · "Do you believe this result?"</a>
+    <a href="#s5">§5 · Proposing research</a>
+    <a href="#cheat">Cheat sheet</a>
+    <a href="#drills">14 research-taste drills</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="top">
+      <h1>Day 5 — Research Taste & Paper Deep-Dives</h1>
+      <div class="sub"><strong>Target:</strong> the <em>research round</em> of a frontier-lab RS loop — where they probe judgment, not recall.</div>
+      <div class="sub"><strong>Mode:</strong> a transferable framework for taste + deep-dives on the canon, every claim with equations, notation, and a visualization.</div>
+      <div class="sub"><strong>The bar:</strong> turn any prompt into a <em>strong</em> answer — mechanism → tradeoffs → an experiment you'd run → how you'd know you're right — and read a paper for what to <em>believe</em>, not just what it says.</div>
+      <div class="bar-meta">
+        <span class="pill">~8 hours</span>
+        <span class="pill">Synthesizes Days 1–4</span>
+        <span class="pill">14 drills</span>
+      </div>
+    </header>
+
+    <div class="callout keyidea">
+      <span class="label">How to use this page</span>
+      Research taste is <em>learnable as a set of habits</em>. §1 gives the answer pattern, §2 a way to read any paper, §3 deep-dives the papers you'll be asked about (with full math + visuals), §4 a checklist for believing a result, §5 how to propose work. Then <strong>14 drills</strong> — answer each <em>out loud</em> before revealing. Self-tests are click-to-reveal.
+    </div>
+
+    <h3>Suggested 8-hour schedule</h3>
+    <div class="controls"><button class="btn" onclick="resetProgress()">Reset checkboxes</button></div>
+    <div class="sched">
+    <table>
+      <thead><tr><th>✓</th><th>Time</th><th>Topic</th><th>§</th></tr></thead>
+      <tbody>
+        <tr><td><label><input type="checkbox" data-sched="1"></label></td><td>0:00–1:15</td><td>Taste fundamentals + the weak→strong pattern</td><td>§1</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="2"></label></td><td>1:15–2:00</td><td>The 5-point paper frame + how to critique</td><td>§2</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="3"></label></td><td>2:00–4:30</td><td>Anchor papers: Transformer, Chinchilla, FlashAttention, DPO, GRPO/RLVR, CLIP</td><td>§3</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="4"></label></td><td>4:30–5:30</td><td>"Do you believe this result?" framework</td><td>§4</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="5"></label></td><td>5:30–6:15</td><td>Proposing research out loud</td><td>§5</td></tr>
+        <tr><td><label><input type="checkbox" data-sched="6"></label></td><td>6:15–8:00</td><td>The 14 drills, timed and out loud</td><td>drills</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="hint">The research round rewards <strong>structured judgment under uncertainty</strong>. Everything here is about producing that on demand.</p>
+
+    <!-- ===================== §1 ===================== -->
+    <h2 class="section" id="s1">§1 — What "research taste" actually is</h2>
+    <p><strong>Research taste</strong> is the set of judgments you make <em>under uncertainty</em>: what problem is worth attacking, which hypothesis is most likely true, what is the cheapest experiment that would change your mind, what evidence you'd accept, and when to stop, scale, or pivot. Interviewers can't test taste by asking facts — they test it by asking <em>open</em> questions and listening to <strong>how you reason</strong>.</p>
+    <p>It decomposes into five habits, and every drill in this doc trains one of them:</p>
+    <table>
+      <thead><tr><th>Habit</th><th>The question it answers</th><th>Signal of good taste</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Problem selection</strong></td><td>Is this worth working on <em>now</em>?</td><td>High impact × tractable × differentiated; aware of what scaling will solve for free.</td></tr>
+        <tr><td><strong>Hypothesis quality</strong></td><td>What do I actually believe, and why?</td><td>A falsifiable claim with a mechanism, not a vibe.</td></tr>
+        <tr><td><strong>Experimental design</strong></td><td>What's the cheapest test that moves my belief most?</td><td>Isolates one variable; compute-matched; has a clear decision rule.</td></tr>
+        <tr><td><strong>Evidence standards</strong></td><td>Do I believe this number?</td><td>Asks about baselines, seeds/variance, contamination, confounds before celebrating.</td></tr>
+        <tr><td><strong>Knowing the next move</strong></td><td>Scale, ablate, pivot, or ship?</td><td>Reads the result and chooses the action with the best information-per-compute.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>1.1 The weak → strong answer pattern (internalize this)</h3>
+    <p>For <em>any</em> question, answers live on a ladder. Weak answers recite; strong answers reason about tradeoffs, propose a test, and tie back to compute/data economics. Climb the ladder out loud:</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:760px">
+      <title>The answer-altitude ladder: weak to strong</title>
+      <desc>Five rungs from reciting a fact up to proposing an experiment and stating how you'd know you're right.</desc>
+      <style>
+        .t{fill:#eaf0f7;font:600 13px -apple-system,sans-serif;}
+        .s{fill:#8b97a7;font:11px -apple-system,sans-serif;}
+        .lv{fill:#7ee0c0;font:700 12px -apple-system,sans-serif;}
+      </style>
+      <defs><marker id="up" markerWidth="9" markerHeight="9" refX="3" refY="6" orient="auto"><path d="M0,6 L3,0 L6,6 Z" fill="#8b97a7"/></marker></defs>
+      <text x="64" y="58" class="t">Aim for L3–L5 on every answer.</text>
+      <line x1="46" y1="272" x2="46" y2="74" stroke="#2a3340" stroke-width="1.5" marker-end="url(#up)"/>
+      <text x="22" y="180" class="s" transform="rotate(-90 22 180)">weak → strong</text>
+      <!-- rungs: label column | example column -->
+      <rect x="62" y="244" width="686" height="34" rx="6" fill="#1c2530" stroke="#2a3340"/><text x="78" y="266" class="lv">L1 · Recite</text><text x="252" y="266" class="s">Adam = momentum + adaptive learning rate.</text>
+      <rect x="62" y="202" width="686" height="34" rx="6" fill="#1c2530" stroke="#6ea8fe"/><text x="78" y="224" class="lv">L2 · Mechanism</text><text x="252" y="224" class="s">1st/2nd moment + bias correction; why each term.</text>
+      <rect x="62" y="160" width="686" height="34" rx="6" fill="#16241f" stroke="#7ee0c0"/><text x="78" y="182" class="lv">L3 · Tradeoffs</text><text x="252" y="182" class="s">vs SGD: faster early, 2× memory, can hurt generalization.</text>
+      <rect x="62" y="118" width="686" height="34" rx="6" fill="#16241f" stroke="#7ee0c0"/><text x="78" y="140" class="lv">L4 · Experiment</text><text x="252" y="140" class="s">Decide via a compute-matched LR sweep, same seeds, val loss + var.</text>
+      <rect x="62" y="76" width="686" height="34" rx="6" fill="#231c30" stroke="#c7a4ff"/><text x="78" y="98" class="lv">L5 · Falsifiable</text><text x="252" y="98" class="s">Believe it if it holds across 3 seeds and survives 10× scale.</text>
+      <line x1="240" y1="78" x2="240" y2="276" stroke="#2a3340" stroke-dasharray="3 3"/>
+    </svg>
+    </div>
+    <p class="cap">Most candidates stop at L1–L2. Taste is visible at L3–L5: tradeoffs, a concrete experiment, and a <em>falsification condition</em>. You don't need to be right — you need to reason like someone who finds out.</p>
+    <div class="callout practice">
+      <span class="label">⚙ The reusable closing move</span>
+      End open answers with one sentence that names the <strong>experiment</strong> and the <strong>decision rule</strong>: <em>"The cheapest way to find out is [experiment], and I'd believe [hypothesis] if [measurable outcome] — otherwise I'd conclude [alternative]."</em> This single habit lifts almost any answer two rungs.
+    </div>
+
+    <h3>1.2 The taste rubric — what the interviewer is scoring</h3>
+    <ul>
+      <li><strong>Compute-awareness:</strong> do you reason about FLOPs, data, and inference cost, or only accuracy? (Days 2–3.)</li>
+      <li><strong>Falsifiability:</strong> can you state what would <em>change your mind</em>?</li>
+      <li><strong>Skepticism without cynicism:</strong> you probe a claim's evidence but still know how to make progress.</li>
+      <li><strong>Connection across areas:</strong> "this is the same Goodhart problem as evals," "KV-cache cost is why GQA exists" — you see the field as one graph.</li>
+      <li><strong>Calibration:</strong> you say how confident you are and why; you distinguish "I know" from "I'd bet" from "I'd test."</li>
+    </ul>
+
+    <h4>Self-test §1</h4>
+    <div class="qa"><div class="q">What are the five habits research taste decomposes into?<span class="chev">▶</span></div><div class="a">Problem selection (worth doing now?), hypothesis quality (falsifiable + mechanism), experimental design (cheapest decisive test, compute-matched), evidence standards (do I believe this number?), and knowing the next move (scale/ablate/pivot/ship by information-per-compute).</div></div>
+    <div class="qa"><div class="q">Take any answer two rungs higher — what do you add?<span class="chev">▶</span></div><div class="a">Add <strong>tradeoffs</strong> (L3), a concrete <strong>compute-matched experiment</strong> (L4), and a <strong>falsification condition</strong> + scale check (L5). Close with "the cheapest test is X; I'd believe it if Y, else Z."</div></div>
+
+    <!-- ===================== §2 ===================== -->
+    <h2 class="section" id="s2">§2 — The 5-point paper deep-dive frame</h2>
+    <p>You'll be asked "tell me about a paper you like." A strong answer is not a summary — it's a <strong>structured judgment</strong>. Use the same five points for every paper, and you'll never freeze:</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>The 5-point paper frame</title>
+      <desc>Problem, key idea, method, evidence, limitations and what next, flowing left to right.</desc>
+      <style>.t{fill:#eaf0f7;font:700 12px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10.5px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.4;fill:none;marker-end:url(#a2);}</style>
+      <defs><marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <rect x="14" y="70" width="124" height="60" rx="8" fill="#231c30" stroke="#c7a4ff"/><text x="76" y="95" class="t">1. Problem</text><text x="76" y="112" class="s">what was broken</text>
+      <rect x="160" y="70" width="124" height="60" rx="8" fill="#1c2530" stroke="#6ea8fe"/><text x="222" y="95" class="t">2. Key idea</text><text x="222" y="112" class="s">the one insight</text>
+      <rect x="306" y="70" width="124" height="60" rx="8" fill="#16241f" stroke="#7ee0c0"/><text x="368" y="95" class="t">3. Method</text><text x="368" y="112" class="s">how, precisely</text>
+      <rect x="452" y="70" width="124" height="60" rx="8" fill="#16241f" stroke="#7ee0c0"/><text x="514" y="95" class="t">4. Evidence</text><text x="514" y="112" class="s">why believe it</text>
+      <rect x="598" y="70" width="108" height="60" rx="8" fill="#231c30" stroke="#c7a4ff"/><text x="652" y="92" class="t">5. Limits</text><text x="652" y="108" class="s">+ what's</text><text x="652" y="121" class="s">next</text>
+      <line class="ar" x1="138" y1="100" x2="158" y2="100"/><line class="ar" x1="284" y1="100" x2="304" y2="100"/><line class="ar" x1="430" y1="100" x2="450" y2="100"/><line class="ar" x1="576" y1="100" x2="596" y2="100"/>
+      <text x="360" y="30" class="t">Tell me about a paper you like →</text>
+      <text x="360" y="170" class="s">Points 4 and 5 are where taste shows: you weigh the evidence and see the next experiment.</text>
+    </svg>
+    </div>
+    <ol>
+      <li><strong>Problem.</strong> What concrete thing was broken/expensive/impossible before? (One sentence.)</li>
+      <li><strong>Key idea.</strong> The single insight, stated so a smart non-expert gets it.</li>
+      <li><strong>Method.</strong> The mechanism, precisely — the equation or the algorithm, with notation defined.</li>
+      <li><strong>Evidence.</strong> What experiment makes the claim credible? Is the baseline fair, compute-matched, ablated? What's the strongest result and the most suspicious one?</li>
+      <li><strong>Limitations & what's next.</strong> Where it breaks, what it assumes, and the experiment <em>you'd</em> run next. This is the taste payload.</li>
+    </ol>
+    <div class="callout frontier">
+      <span class="label">◆ How to critique (the believe-it checklist, short form)</span>
+      Is the <strong>baseline strong and compute-matched</strong>? Are gains within <strong>noise</strong> (seeds/variance)? Could <strong>contamination</strong> explain it (Day 3)? Is the improvement a <strong>confound</strong> (more data/params/tuning) rather than the named cause? Did they <strong>ablate</strong> the one component they credit? Would it <strong>survive at scale</strong>? (Full framework in §4.)
+    </div>
+
+    <!-- ===================== §3 ===================== -->
+    <h2 class="section" id="s3">§3 — Anchor papers (the canon you must be able to deep-dive)</h2>
+    <p>Six papers cover most of what a frontier interviewer will probe. For each: problem → key idea → method (with math) → evidence → limitations → "what to say." Master these and you can frame almost anything by analogy.</p>
+
+    <h3>3.1 Transformer — <em>Attention Is All You Need</em> (2017)</h3>
+    <p><strong>Problem.</strong> RNNs process sequences <em>sequentially</em> — no parallelism over time, and long-range dependencies pass through many steps (vanishing signal). <strong>Key idea.</strong> Replace recurrence with <strong>self-attention</strong>: every token directly attends to every other in one parallel operation, so path length between any two tokens is $O(1)$. <strong>Method:</strong></p>
+    <p>$$\text{Attention}(Q,K,V)=\operatorname{softmax}\!\Big(\frac{QK^\top}{\sqrt{d_k}}\Big)V$$</p>
+    <div class="callout keyidea"><span class="label">Notation</span>
+      $Q=XW_Q,\,K=XW_K,\,V=XW_V$ are the <strong>queries / keys / values</strong> ($X\in\mathbb{R}^{n\times d}$ the token embeddings, $n$ tokens, $d$ model width). $QK^\top\in\mathbb{R}^{n\times n}$ scores every token pair; $\sqrt{d_k}$ rescales so the dot product has unit variance (stops softmax saturation, Day 2); softmax makes each row a distribution; multiplying by $V$ returns a <em>weighted average of values</em> — a content-based lookup. Multi-head runs $h$ of these in parallel subspaces.</div>
+    <p><strong>Evidence.</strong> SOTA translation at a fraction of the training cost, and — the real payload — it <em>scales</em>: the architecture's parallelism made today's LLMs trainable. <strong>Limitations.</strong> $O(n^2)$ attention compute/memory (the long-context wall, Day 2 § long-context → FlashAttention §3.3); no built-in recurrence/state. <strong>What to say:</strong> "The lasting contribution isn't translation quality — it's an architecture whose compute is dense, parallel, and hardware-friendly, so it kept paying off as we scaled $N$ and $D$. That's why 'attention is all you need' was an understatement."</p>
+
+    <h3>3.2 Chinchilla — compute-optimal scaling (2022)</h3>
+    <p><strong>Problem.</strong> Given a fixed compute budget $C$, how should you split it between model size $N$ (parameters) and data $D$ (tokens)? Pre-Chinchilla models (GPT-3, Gopher) were <em>too big and under-trained</em>. <strong>Key idea.</strong> There's a <strong>compute-optimal frontier</strong>: for each $C$, scale $N$ and $D$ <em>together</em> — roughly <strong>20 tokens per parameter</strong>. <strong>Method.</strong> Fit a parametric loss surface and minimize it under the compute constraint $C\approx 6ND$:</p>
+    <p>$$L(N,D)=\underbrace{E}_{\text{irreducible}}+\underbrace{\frac{A}{N^{\alpha}}}_{\text{finite model}}+\underbrace{\frac{B}{D^{\beta}}}_{\text{finite data}},\qquad \min_{N,D} L \ \text{ s.t. }\ C=6ND$$</p>
+    <div class="callout keyidea"><span class="label">Notation</span>
+      $L$ = test cross-entropy (nats/token); $E$ = irreducible entropy of language; $A,B,\alpha,\beta$ = fitted constants ($\alpha\approx\beta\approx0.34$). The two power-law terms are the cost of a <em>finite</em> model and a <em>finite</em> dataset. $C=6ND$ is the training-FLOP rule (6 FLOPs per parameter per token). Solving the constrained minimization gives $N_\text{opt}\propto C^{0.5}$ and $D_\text{opt}\propto C^{0.5}$ — <em>both</em> grow as $\sqrt{C}$, i.e. equally.</div>
+    <div class="chartbox"><canvas id="isoflopD5"></canvas></div>
+    <p class="cap">IsoFLOP view (the method that found the law): at each compute budget, sweep model size; loss is U-shaped (too small underfits; too big is under-trained for that budget). The minimum is compute-optimal; the locus of minima is the frontier $N_\text{opt}(C)$. Chinchilla (70B/1.4T) beat Gopher (280B/300B tokens) at equal compute.</p>
+    <p><strong>Evidence.</strong> Three independent estimation methods agreed; the 70B Chinchilla beat the 280B Gopher at <em>equal compute</em>. <strong>Limitations / nuance.</strong> The law is for <em>training</em> loss-optimal allocation; if you'll serve the model a lot, <strong>over-train a smaller model</strong> past compute-optimal to cut inference cost (the Llama/inference-aware regime). The constants are dataset- and tokenizer-dependent. <strong>What to say:</strong> "Chinchilla reframed scaling as an <em>allocation</em> problem and showed everyone was under-training. The modern caveat is inference-awareness: compute-optimal for training ≠ optimal for total cost of ownership."</p>
+
+    <h3>3.3 FlashAttention — IO-aware exact attention (2022)</h3>
+    <p><strong>Problem (told properly).</strong> A GPU has two kinds of memory: a <em>huge but slow</em> main memory (<strong>HBM</strong>, ~40–80 GB, ~2–3 TB/s) and a <em>tiny but fast</em> on-chip scratchpad (<strong>SRAM</strong>, ~20 MB, ~19 TB/s — roughly 10× faster). Standard attention computes the full $n\times n$ score matrix $S=QK^\top$, <strong>writes all of it to HBM</strong>, reads it back to do softmax, writes the softmax matrix back, reads it again to multiply by $V$. For a 8k-token sequence that matrix is 64M numbers — and you move it across the slow HBM bus several times. The GPU's math units sit idle waiting for data: attention is <strong>memory-bandwidth-bound</strong>, not compute-bound. The wasted resource is <em>data movement</em>, not FLOPs.</p>
+    <p><strong>Key idea.</strong> <strong>Never write the $n\times n$ matrix to HBM at all.</strong> Cut $Q,K,V$ into blocks small enough to fit in SRAM; for each block of queries, stream the key/value blocks through SRAM, accumulating the output on the fly. The only thing written back to HBM is the final output $O$ (size $n\times d$, not $n\times n$). HBM traffic drops from $O(n^2)$ to $O(n)$.</p>
+    <p><strong>The one obstacle, and the fix.</strong> Softmax needs the <em>whole</em> row to normalize ($\frac{e^{s_j}}{\sum_k e^{s_k}}$ needs the sum over <em>all</em> keys), but we only have one key-block in SRAM at a time. The fix is <strong>online (streaming) softmax</strong>: keep a running maximum $m$ and a running denominator $\ell$, and <em>retro-actively rescale</em> what you've accumulated whenever a new block reveals a larger max.</p>
+    <div class="callout keyidea"><span class="label">Worked micro-example — online softmax of [1, 3] in two chunks</span>
+      Goal: softmax-weight values $v_a$ (logit 1) and $v_b$ (logit 3), but see them one at a time.<br>
+      <strong>Chunk 1 (logit 1):</strong> running max $m=1$, denom $\ell=e^{1-1}=1$, output $O=\tfrac{e^{0}}{1}v_a=v_a$.<br>
+      <strong>Chunk 2 (logit 3):</strong> new max $m'=3$. <em>Rescale the old state</em> by $e^{m-m'}=e^{1-3}=e^{-2}$: $\ell' = e^{-2}\cdot 1 + e^{3-3}=e^{-2}+1$, and $O' = \tfrac{e^{-2}\cdot \ell_{\text{old}}}{\ell'}O + \tfrac{e^{0}}{\ell'}v_b$.<br>
+      Final weights: $v_a$ gets $\tfrac{e^{-2}}{e^{-2}+1}\approx0.12$, $v_b$ gets $\tfrac{1}{e^{-2}+1}\approx0.88$ — <strong>exactly</strong> $\text{softmax}([1,3])$. The $e^{m-m'}$ factor is the whole trick: it corrects earlier partial sums the instant a bigger logit appears, so streaming gives the same answer as seeing the row all at once.</div>
+    <p>Generalized to blocks (block $i$ over streamed key blocks): running max $m_i=\max(m_{i-1},\tilde m_i)$; running denom $\ell_i=e^{m_{i-1}-m_i}\ell_{i-1}+e^{\tilde m_i-m_i}\tilde\ell_i$; running output $O_i=\tfrac{e^{m_{i-1}-m_i}\ell_{i-1}}{\ell_i}O_{i-1}+(\text{contribution of block }i)$, where $\tilde m_i,\tilde\ell_i$ are the current block's local max and exp-sum. Because every step is an exact algebraic rescale, the result is <strong>bit-for-bit the true softmax</strong> — it's <em>not</em> an approximation.</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 230" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>FlashAttention: stream K/V blocks through SRAM, keep running (m, ℓ, O)</title>
+      <desc>A block of queries stays in fast SRAM while key/value blocks stream through; a running max, denominator, and output are updated and rescaled; only the final output is written to slow HBM.</desc>
+      <style>.t{fill:#eaf0f7;font:600 11px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.4;fill:none;marker-end:url(#af);}</style>
+      <defs><marker id="af" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <rect x="14" y="40" width="120" height="150" rx="8" fill="#11161d" stroke="#2a3340"/><text x="74" y="32" class="s">HBM — slow, big (~3 TB/s)</text><text x="74" y="90" class="t">K, V blocks</text><text x="74" y="150" class="t">O (final only)</text>
+      <rect x="250" y="34" width="300" height="162" rx="10" fill="#16241f" stroke="#7ee0c0"/><text x="400" y="26" class="s">SRAM — fast, tiny (~19 TB/s)</text>
+      <rect x="270" y="56" width="70" height="40" rx="5" fill="#1c2530" stroke="#6ea8fe"/><text x="305" y="80" class="t">Q block</text>
+      <rect x="360" y="56" width="80" height="40" rx="5" fill="#231c30" stroke="#c7a4ff"/><text x="400" y="80" class="t">Kⱼ, Vⱼ</text>
+      <text x="455" y="80" class="s">stream →</text>
+      <rect x="270" y="116" width="260" height="62" rx="6" fill="#11161d" stroke="#2a3340"/>
+      <text x="400" y="136" class="t">running state (m, ℓ, O)</text>
+      <text x="400" y="153" class="s">on bigger max: rescale old O, ℓ by e^(m−m′)</text>
+      <text x="400" y="168" class="s">add this block's weighted V</text>
+      <line class="ar" x1="134" y1="90" x2="268" y2="76"/>
+      <line class="ar" x1="528" y1="150" x2="135" y2="150"/>
+      <text x="600" y="70" class="s">loop key blocks;</text><text x="600" y="86" class="s">n×n never stored</text>
+      <text x="330" y="150" class="s" transform="rotate(-90 330 150)">exact</text>
+    </svg>
+    </div>
+    <p><strong>Evidence.</strong> 2–4× wall-clock speedup, exact (not an approximation), and it made long context practical; now the default kernel everywhere. FlashAttention-2/3 further improved work-partitioning and used newer GPU features. <strong>Limitations.</strong> Compute is still $O(n^2 d)$ FLOPs (long context is <em>fundamentally</em> expensive — this fixes memory, not the quadratic compute), and the kernels are hardware-specific. <strong>What to say:</strong> "The lesson is that the bottleneck was <em>IO, not FLOPs</em> — attention was bandwidth-bound, so the win came from restructuring the computation to respect the memory hierarchy (keep things in SRAM, never spill the $n^2$ matrix to HBM), made possible by online softmax. And crucially it's <em>exact</em>, which is why it beat the dozens of approximate-attention methods that traded accuracy for speed."</p>
+
+    <h3>3.4 RLHF → DPO — aligning to preferences (2022–2023)</h3>
+    <p><strong>Problem.</strong> Many goals (helpfulness, harmlessness) are easier to <em>compare</em> than to <em>demonstrate</em> — and easier to compare than to write a reward for. <strong>Key idea (RLHF).</strong> Learn a <strong>reward model</strong> $r_\phi$ from human preference pairs, then RL-optimize the policy against it with a KL leash to stay near the SFT model. <strong>Key idea (DPO).</strong> You don't need the RL loop or a separate reward model at all — the KL-regularized objective has a <em>closed-form optimum</em>, which turns preference learning into a simple classification loss on the policy itself.</p>
+    <p>RLHF objective and the Bradley–Terry reward model:</p>
+    <p>$$\max_{\pi_\theta}\ \mathbb{E}_{x,\,y\sim\pi_\theta}\big[r_\phi(x,y)\big]-\beta\,\mathrm{KL}\!\big(\pi_\theta(\cdot|x)\,\|\,\pi_\text{ref}(\cdot|x)\big),\qquad P(y_w\!\succ\!y_l)=\sigma\big(r_\phi(x,y_w)-r_\phi(x,y_l)\big)$$</p>
+    <p>DPO substitutes the closed-form optimal policy back in, eliminating $r_\phi$:</p>
+    <p>$$\mathcal{L}_\text{DPO}=-\,\mathbb{E}_{(x,y_w,y_l)}\Big[\log\sigma\Big(\beta\log\tfrac{\pi_\theta(y_w|x)}{\pi_\text{ref}(y_w|x)}-\beta\log\tfrac{\pi_\theta(y_l|x)}{\pi_\text{ref}(y_l|x)}\Big)\Big]$$</p>
+    <div class="callout keyidea"><span class="label">Notation</span>
+      $\pi_\theta$ = the policy (model) being trained; $\pi_\text{ref}$ = frozen SFT reference; $x$ = prompt; $y_w,y_l$ = preferred ("win") and dispreferred ("lose") responses; $r_\phi$ = reward model; $\sigma$ = logistic sigmoid; $\beta$ = KL strength (how far the policy may drift). The DPO term inside $\sigma$ is the <strong>implicit reward</strong> $\hat r=\beta\log(\pi_\theta/\pi_\text{ref})$ — DPO raises the implicit reward of $y_w$ over $y_l$, which is exactly the Bradley–Terry objective without an explicit $r_\phi$ or sampling.</div>
+    <p><strong>Evidence.</strong> RLHF made GPT-style assistants usable; DPO matches or beats PPO-RLHF on many preference benchmarks while being far simpler/cheaper (no reward model, no online sampling). <strong>Limitations.</strong> DPO is <em>offline</em> (fixed preference data) → can't explore; can over-fit / drift on out-of-distribution prompts; the KL leash and reward hacking still bite RLHF. <strong>What to say:</strong> "DPO's elegance is recognizing that the RL objective has a closed-form solution, so you can skip the reward model and the unstable online loop. The cost is losing exploration — which is exactly why online/iterative DPO and back-to-PPO show up when you need the policy to discover behaviors, not just rank fixed ones." (Full mechanics: Day 6.)</p>
+
+    <h3>3.5 GRPO / RLVR — RL for reasoning (2024–2025)</h3>
+    <p><strong>Problem.</strong> Preference RL optimizes <em>style</em>; it doesn't directly teach <em>correctness</em> on tasks with checkable answers (math, code). <strong>Key idea.</strong> Use <strong>verifiable rewards</strong> (RLVR) — the reward is 1 if the answer passes a checker (unit tests, exact match) — and a critic-free policy-gradient method, <strong>GRPO</strong>, that estimates advantage by <em>normalizing rewards within a group of sampled answers</em> to the same prompt. <strong>Method:</strong></p>
+    <p>$$\hat A_i=\frac{r_i-\operatorname{mean}(r_1,\dots,r_G)}{\operatorname{std}(r_1,\dots,r_G)},\qquad \mathcal{J}_\text{GRPO}=\mathbb{E}\Big[\tfrac1G\textstyle\sum_i \min\big(\rho_i\hat A_i,\ \operatorname{clip}(\rho_i,1\!-\!\epsilon,1\!+\!\epsilon)\hat A_i\big)\Big]-\beta\,\mathrm{KL}$$</p>
+    <div class="callout keyidea"><span class="label">Notation</span>
+      For one prompt, sample a <strong>group</strong> of $G$ completions; $r_i$ = (verifiable) reward of completion $i$; $\hat A_i$ = its <strong>group-normalized advantage</strong> (z-score within the group — no learned value/critic network needed, which is GRPO's whole simplification vs PPO); $\rho_i=\pi_\theta/\pi_{\theta_\text{old}}$ = importance ratio; $\operatorname{clip}$ + $\epsilon$ = PPO-style trust region; $\beta\,\mathrm{KL}$ = leash to the reference. Intuition: "make the above-average answers in this group more likely, the below-average ones less."</div>
+    <p><strong>Evidence.</strong> Drove the 2025 reasoning wave (DeepSeek-R1-style): large gains on math/code with pure RL from verifiable rewards, and emergent long chain-of-thought. <strong>Limitations.</strong> Needs a verifier (limits domains); reward hacking the checker; can collapse diversity; group sampling is compute-heavy. <strong>What to say:</strong> "RLVR works because the reward is <em>unhackable in principle</em> — it's ground truth — and GRPO drops the critic by using the group as its own baseline. The frontier question is extending verifiable reward beyond math/code to fuzzy domains." (Full derivation chain: Day 6.)</p>
+
+    <h3>3.6 CLIP — contrastive vision-language pretraining (2021)</h3>
+    <p><strong>Problem.</strong> Vision models needed labeled datasets per task; no open-vocabulary, no zero-shot. <strong>Key idea.</strong> Learn a <strong>shared image–text embedding space</strong> from cheap web (image, caption) pairs with a contrastive loss, enabling zero-shot classification by comparing an image to text prompts. <strong>Method.</strong> Symmetric InfoNCE over the $N\times N$ cosine-similarity matrix of a batch (full treatment in Day 4 §1.1):</p>
+    <p>$$\mathcal{L}=\tfrac12\Big[-\tfrac1N\textstyle\sum_i\log\frac{e^{s_{ii}/\tau}}{\sum_j e^{s_{ij}/\tau}}-\tfrac1N\sum_j\log\frac{e^{s_{jj}/\tau}}{\sum_i e^{s_{ij}/\tau}}\Big],\quad s_{ij}=\frac{I_i\cdot T_j}{\lVert I_i\rVert\lVert T_j\rVert}$$</p>
+    <div class="callout keyidea"><span class="label">Notation</span>$N$ = batch size; $I_i,T_j$ = L2-normalized image/text embeddings; $s_{ij}$ = cosine similarity; $\tau$ = learned temperature; diagonal = true pairs, off-diagonal = in-batch negatives. More negatives (bigger batch) = a harder, more informative task.</div>
+    <p><strong>Evidence.</strong> Strong zero-shot transfer across dozens of datasets from <em>web</em> supervision; became the default vision backbone for VLMs. <strong>Limitations.</strong> Weak at counting/spatial/fine detail; data-distribution-dependent; the embedding is global (poor dense features → pair with DINOv2, Day 4 §1.10). <strong>What to say:</strong> "CLIP's lesson is that <em>natural-language supervision scales</em>: captions are a cheap, open-vocabulary label source, and the contrastive objective turns them into a transferable representation. Its limits (no generation, weak dense features) are exactly what CoCa, SigLIP, and DINO addressed next."</p>
+
+    <h3>3.7 Recent papers — "good-taste" deep-dives (2024–2026)</h3>
+    <p>When they ask "a paper you like," a <em>recent</em> pick signals you're reading the current literature. Here are four, each in the 5-point frame with the taste angle — the non-obvious "why it matters" that separates a summary from a judgment.</p>
+
+    <div class="callout frontier">
+      <span class="label">◆ DeepSeek-R1 / R1-Zero — RL incentivizes reasoning (2025)</span>
+      <strong>Problem:</strong> reasoning was taught mostly by SFT on human/curated chains-of-thought — expensive and capped by the demonstrations. <strong>Key idea:</strong> you can <em>elicit</em> reasoning with pure RL from <strong>verifiable rewards</strong>, no SFT at all. <strong>Method:</strong> R1-Zero starts from the base model and runs <strong>GRPO</strong> with a <em>rule-based</em> reward = accuracy (is the final answer right, checked by a math verifier or code tests) + a format reward (put thinking in <code>&lt;think&gt;</code> tags). No reward model, no human labels. <strong>Evidence:</strong> long chains-of-thought, self-reflection, and "aha moments" (the model spontaneously re-checks its work) <em>emerge</em>; large math/code gains. R1 then adds a little SFT cold-start for readability. <strong>Limitations:</strong> needs verifiable domains; R1-Zero's raw output is unreadable/mixed-language; diversity can collapse. <strong>Taste angle:</strong> "the striking claim is that the <em>capability was latent in the base model</em> and RL just <em>surfaced</em> it — pretraining built the reasoning, RL learned to <em>use</em> it. And it works because the reward is <strong>ground truth, not a learned proxy</strong>, so there's nothing to hack. The open question is extending verifiable reward beyond math/code."
+    </div>
+
+    <div class="callout frontier">
+      <span class="label">◆ DeepSeek-V3 — frontier quality via efficiency co-design (2024)</span>
+      <strong>Problem:</strong> frontier models are ruinously expensive to train <em>and</em> serve; the KV cache and dense FFNs dominate cost. <strong>Key idea:</strong> get frontier quality by <em>co-designing</em> the architecture for efficiency, not by brute scale. <strong>Method (the four moves to name):</strong> (1) <strong>MLA</strong> (Multi-head Latent Attention) — compress the keys/values into a small <em>latent</em> vector, so the KV cache shrinks dramatically (attacks the Day-2 KV-cache wall); (2) <strong>DeepSeekMoE</strong> — many <em>fine-grained</em> experts + a few always-on <em>shared</em> experts (671B params, only ~37B active per token); (3) <strong>auxiliary-loss-free load balancing</strong> — balance expert usage with a learned per-expert bias instead of a balancing loss that hurts quality; (4) <strong>multi-token prediction</strong> (predict several next tokens → denser signal + speculative decoding) and <strong>FP8</strong> training. <strong>Evidence:</strong> GPT-4-class quality at a fraction of the training cost; strong open weights. <strong>Limitations:</strong> MoE serving/memory complexity; FP8 stability engineering. <strong>Taste angle:</strong> "the lesson is that <em>systems and modeling are inseparable at the frontier</em> — the wins are architectural efficiency (MLA on the KV cache, fine-grained MoE on FLOPs), not raw scale. It's the most concrete recent example of Chinchilla's successor question: optimize total cost of ownership, not just training loss."
+    </div>
+
+    <div class="callout frontier">
+      <span class="label">◆ Mamba — selective state-space models (2023–24)</span>
+      <strong>Problem:</strong> attention is $O(n^2)$ and its KV cache grows with context; can we model sequences in <em>linear</em> time with constant state? <strong>Key idea:</strong> a <strong>selective state-space model</strong> — a learned recurrence whose transition parameters are <em>input-dependent</em> (the "selection" mechanism), so it can choose what to remember/forget, recovering much of what made attention powerful. <strong>Method:</strong> an SSM $h_t=\bar A h_{t-1}+\bar B x_t,\ y_t=Ch_t$ with $\bar A,\bar B$ functions of the input; a <strong>hardware-aware parallel scan</strong> makes it fast on GPUs. Linear time, $O(1)$ state at inference (no growing KV cache). <strong>Evidence:</strong> matches/beats Transformers at similar scale on language and excels on very long sequences (audio, genomics). <strong>Limitations:</strong> weaker at <em>exact</em> in-context recall/copying (attention's random-access is genuinely useful), so the field moved to <strong>hybrids</strong> (mostly-Mamba + a few attention layers). <strong>Taste angle:</strong> "the key insight is <em>selectivity</em> — earlier linear-attention/SSM models failed because they were input-<em>independent</em>; making the recurrence content-aware closed most of the gap. But the honest read is that attention's exact recall is hard to give up, which is why the winning recipe is a hybrid, not a replacement."
+    </div>
+
+    <div class="callout frontier">
+      <span class="label">◆ Test-time compute scaling — the new axis (o1 / R1 era, 2024–25)</span>
+      <strong>Problem:</strong> the train-time scaling laws (Chinchilla) are hitting data/compute limits; is there another axis? <strong>Key idea:</strong> spend more compute at <strong>inference</strong> — let the model "think" longer (long CoT, sampling + verification, search) — and accuracy keeps rising, an <em>inference-time</em> scaling law. <strong>Method:</strong> RL-train models to produce long reasoning traces (R1/o1), then at test time scale via longer chains, best-of-n with a verifier, or self-consistency; on some tasks a small model + lots of test-time compute beats a big model decoded once. <strong>Evidence:</strong> steep accuracy-vs-inference-compute curves on math/code/reasoning. <strong>Limitations:</strong> only helps where extra thinking pays (verifiable/reasoning tasks), and inference cost balloons. <strong>Taste angle:</strong> "this reframes 'scaling' — there are now <em>two</em> knobs, train-time and test-time, and the compute-optimal frontier is a <em>tradeoff between them</em>. It shifts cost from training to serving, which changes the economics (you pay per query), and it's why 'reasoning models' are a distinct product tier."
+    </div>
+
+    <div class="callout practice"><span class="label">⚙ How to open the answer</span>
+      Pick one and lead with the <strong>taste angle</strong>, not the abstract: <em>"I like DeepSeek-R1 because it shows the reasoning capability was latent in the base model and pure RL with verifiable rewards surfaced it — which reframes post-training as eliciting rather than teaching."</em> Then offer to go deeper on method/evidence. For multimodal picks, use <strong>SigLIP 2</strong>, <strong>Qwen2-VL (M-RoPE)</strong>, <strong>Apple's native-multimodal scaling</strong>, or <strong>Janus/Transfusion</strong> (Day 4 / resume-prep doc).</p></div>
+
+    <h4>The broader canon (be ready to one-line these)</h4>
+    <table>
+      <thead><tr><th>Paper</th><th>One-line key idea</th></tr></thead>
+      <tbody>
+        <tr><td><strong>ResNet</strong> (2015)</td><td>Residual connections let you train very deep nets — learn $F(x)$ so output is $x+F(x)$; gradients flow through the identity (Day 1).</td></tr>
+        <tr><td><strong>BatchNorm / LayerNorm</strong></td><td>Normalize activations to stabilize/accelerate training; LayerNorm (per-token) is the transformer default.</td></tr>
+        <tr><td><strong>Adam / AdamW</strong></td><td>Per-parameter adaptive LR from 1st/2nd moment estimates; AdamW decouples weight decay (Day 1).</td></tr>
+        <tr><td><strong>GPT-3</strong> (2020)</td><td>Scale + in-context few-shot learning — capabilities emerge from a frozen LM prompted with examples.</td></tr>
+        <tr><td><strong>Mixture-of-Experts</strong> (Switch/GShard)</td><td>Route each token to a few experts → more parameters at ~constant FLOPs/token (conditional compute).</td></tr>
+        <tr><td><strong>DDPM (diffusion)</strong></td><td>Learn to reverse a gradual noising process; generate by denoising from noise — the image/video-gen workhorse.</td></tr>
+        <tr><td><strong>LoRA</strong></td><td>Fine-tune via low-rank weight updates $\Delta W=BA$ — tiny trainable footprint, no inference cost.</td></tr>
+        <tr><td><strong>Chain-of-Thought / Self-Consistency</strong></td><td>Eliciting intermediate steps (and majority-voting over sampled chains) raises reasoning accuracy — the seed of test-time compute.</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Self-test §3</h4>
+    <div class="qa"><div class="q">State Chinchilla's result and its modern caveat.<span class="chev">▶</span></div><div class="a">At fixed compute, scale $N$ and $D$ together (~20 tokens/param); prior models were under-trained. Caveat: that's <em>training</em>-optimal — if you serve heavily, over-train a smaller model past compute-optimal to cut inference cost.</div></div>
+    <div class="qa"><div class="q">Why does DPO avoid a reward model?<span class="chev">▶</span></div><div class="a">The KL-regularized RLHF objective has a closed-form optimal policy; substituting it turns preference learning into a logistic loss on $\beta\log(\pi_\theta/\pi_\text{ref})$ — the implicit reward. No $r_\phi$, no online RL. Cost: it's offline (no exploration).</div></div>
+    <div class="qa"><div class="q">What does FlashAttention actually optimize, and is it exact?<span class="chev">▶</span></div><div class="a">HBM memory traffic ($O(n^2)\to O(n)$) via tiling + online softmax — attention was bandwidth-bound, not FLOP-bound. It's <strong>exact</strong>, not an approximation; compute stays $O(n^2 d)$.</div></div>
+    <div class="qa"><div class="q">Why is GRPO "critic-free," and why RLVR?<span class="chev">▶</span></div><div class="a">GRPO replaces a learned value function with the <em>group mean</em> as the baseline (z-score advantage within $G$ samples). RLVR uses verifiable rewards (checker = 1/0) so the reward is ground-truth and hard to hack — ideal for math/code.</div></div>
+
+    <!-- ===================== §4 ===================== -->
+    <h2 class="section" id="s4">§4 — "Do you believe this result?" — a framework</h2>
+    <p>The single most common research-round move: present a result, watch you evaluate it. Run this checklist out loud — it's the operationalization of evidence standards.</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:720px">
+      <title>Believe-it decision flow</title>
+      <desc>From a reported gain, check baseline, noise, contamination, confound, ablation, and scale before believing.</desc>
+      <style>.t{fill:#eaf0f7;font:600 11.5px -apple-system,sans-serif;text-anchor:middle;} .s{fill:#8b97a7;font:10px -apple-system,sans-serif;text-anchor:middle;} .ar{stroke:#8b97a7;stroke-width:1.3;fill:none;marker-end:url(#a4);}</style>
+      <defs><marker id="a4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker></defs>
+      <rect x="285" y="14" width="150" height="34" rx="8" fill="#231c30" stroke="#c7a4ff"/><text x="360" y="35" class="t">"Method Y gives +2%"</text>
+      <rect x="40" y="78" width="150" height="40" rx="6" fill="#1c2530" stroke="#6ea8fe"/><text x="115" y="95" class="t">Strong baseline?</text><text x="115" y="110" class="s">compute-matched, tuned</text>
+      <rect x="285" y="78" width="150" height="40" rx="6" fill="#1c2530" stroke="#6ea8fe"/><text x="360" y="95" class="t">Within noise?</text><text x="360" y="110" class="s">seeds, variance, CIs</text>
+      <rect x="530" y="78" width="160" height="40" rx="6" fill="#1c2530" stroke="#6ea8fe"/><text x="610" y="95" class="t">Contamination?</text><text x="610" y="110" class="s">test set in train? (D3)</text>
+      <rect x="40" y="150" width="150" height="40" rx="6" fill="#16241f" stroke="#7ee0c0"/><text x="115" y="167" class="t">Confound?</text><text x="115" y="182" class="s">more data/params/tuning</text>
+      <rect x="285" y="150" width="150" height="40" rx="6" fill="#16241f" stroke="#7ee0c0"/><text x="360" y="167" class="t">Ablated?</text><text x="360" y="182" class="s">remove the named cause</text>
+      <rect x="530" y="150" width="160" height="40" rx="6" fill="#16241f" stroke="#7ee0c0"/><text x="610" y="167" class="t">Scales?</text><text x="610" y="182" class="s">holds at 10×?</text>
+      <rect x="270" y="210" width="180" height="32" rx="8" fill="#231c30" stroke="#c7a4ff"/><text x="360" y="231" class="t">believe / partly / not yet</text>
+      <line class="ar" x1="360" y1="48" x2="360" y2="76"/>
+      <line class="ar" x1="360" y1="190" x2="360" y2="208"/>
+    </svg>
+    </div>
+    <ol>
+      <li><strong>Strong, compute-matched baseline?</strong> The #1 way papers mislead — a weak/under-tuned baseline. Gains vs a strong baseline at equal compute are the only ones that count.</li>
+      <li><strong>Within noise?</strong> 1 seed and +0.3% is nothing. Ask for variance / multiple seeds / confidence intervals.</li>
+      <li><strong>Contamination?</strong> Could the test set (or near-duplicates) be in training? Especially for public benchmarks (Day 3 §2).</li>
+      <li><strong>Confound vs cause?</strong> Did the method also bring more data, parameters, or tuning? Then the <em>named</em> mechanism may not be why.</li>
+      <li><strong>Ablation?</strong> Did they remove <em>just</em> the credited component and show the gain disappears? No ablation → no causal claim.</li>
+      <li><strong>Scale?</strong> Many effects vanish (or invert) at scale. Would you bet it survives 10×? (Some things scaling fixes for free — don't work on those.)</li>
+    </ol>
+    <div class="callout practice"><span class="label">⚙ The one-liner to deploy</span> <em>"Before I believe +2%, I'd want a compute-matched strong baseline, variance across seeds, a contamination check, and an ablation that removes the one component they credit — and I'd ask whether it survives at scale."</em></div>
+
+    <!-- ===================== §5 ===================== -->
+    <h2 class="section" id="s5">§5 — Proposing research (do this out loud)</h2>
+    <p>"How would you improve X?" wants a <strong>structured proposal</strong>, not a brainstorm. Use this skeleton; it mirrors how you'd actually scope a project:</p>
+    <ol>
+      <li><strong>Motivation:</strong> what's broken and why it matters (impact).</li>
+      <li><strong>Hypothesis:</strong> a falsifiable claim with a mechanism ("I believe Z because…").</li>
+      <li><strong>Minimal experiment:</strong> the cheapest test that would confirm/refute it — one variable, compute-matched, clear metric.</li>
+      <li><strong>Metric & decision rule:</strong> what you'd measure and the threshold to proceed.</li>
+      <li><strong>Risks & confounds:</strong> what could fool you; how you'd control it.</li>
+      <li><strong>Scaling plan:</strong> if the small test wins, how you'd ladder up (and what could break at scale).</li>
+    </ol>
+    <div class="callout keyidea">
+      <span class="label">★ Worked example — "improve long-context reasoning"</span>
+      <strong>Motivation:</strong> models degrade on mid-context info (lost-in-the-middle) and multi-hop reasoning over long inputs. <strong>Hypothesis:</strong> failures are <em>retrieval-within-context</em> failures, not reasoning failures — the model can reason if the relevant spans are surfaced. <strong>Minimal experiment:</strong> on a multi-hop long-context benchmark, compare (a) raw long context vs (b) same context with an in-context summary of relevant spans prepended — compute-matched, same model. <strong>Metric:</strong> accuracy on questions whose evidence sits mid-context; decision rule: proceed if (b) closes &gt;50% of the gap to short-context. <strong>Risks:</strong> the summary leaks the answer (confound) → use an extraction step that can't see the question. <strong>Scaling:</strong> if it holds, train the behavior in (retrieval-augmented attention / learned span selection) and test at longer lengths. State which result would make you <em>drop</em> the idea.
+    </div>
+
+    <h3>What "great" sounds like today</h3>
+    <div class="callout keyidea"><span class="label">★ The Day-5 bar</span> You climb to <strong>L3–L5</strong> on open questions (tradeoffs → experiment → falsification), deep-dive any canon paper with the <strong>5-point frame</strong> and weigh its evidence, run the <strong>believe-it checklist</strong> on a fresh claim, and turn "improve X" into a scoped, compute-matched proposal with a decision rule. Throughout you stay <strong>compute-aware</strong> and connect across Days 1–4.</div>
+
+    <!-- ===================== Cheat sheet ===================== -->
+    <h2 class="section" id="cheat">Quick-reference cheat sheet</h2>
+    <table>
+      <thead><tr><th>Item</th><th>One-liner</th></tr></thead>
+      <tbody>
+        <tr><td>Answer ladder</td><td>recite → mechanism → tradeoffs → experiment → falsification; aim L3–L5</td></tr>
+        <tr><td>Closing move</td><td>"cheapest test is X; I'd believe Y if measurable-Z, else conclude W"</td></tr>
+        <tr><td>5-point paper frame</td><td>problem · key idea · method(math) · evidence · limits+next</td></tr>
+        <tr><td>Transformer</td><td>self-attention → O(1) path length, parallel, scales; softmax(QKᵀ/√dₖ)V</td></tr>
+        <tr><td>Chinchilla</td><td>scale N,D together (~20 tok/param); L=E+A/Nᵃ+B/Dᵇ; over-train for inference</td></tr>
+        <tr><td>FlashAttention</td><td>tile+online softmax → O(n) HBM, exact; bottleneck was IO not FLOPs</td></tr>
+        <tr><td>RLHF/DPO</td><td>RM + KL-RL vs closed-form logistic loss on β·log(π/π_ref); DPO offline</td></tr>
+        <tr><td>GRPO/RLVR</td><td>verifiable reward + group-normalized advantage (no critic); reasoning RL</td></tr>
+        <tr><td>CLIP</td><td>shared image-text space via InfoNCE; zero-shot; weak dense → +DINO</td></tr>
+        <tr><td>Believe-it</td><td>baseline · noise · contamination · confound · ablation · scale</td></tr>
+        <tr><td>Proposal</td><td>motivation · hypothesis · minimal experiment · metric+rule · risks · scaling</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ===================== Drills ===================== -->
+    <h2 class="section" id="drills">14 research-taste drills</h2>
+    <p class="hint">Answer each <strong>out loud</strong>, ~2–3 min, reaching L4–L5 (experiment + falsification). Then reveal a model answer.</p>
+
+    <div class="qa"><div class="q">Drill 1 — A new method beats the baseline by 2% on benchmark X. What do you check before believing it?<span class="chev">▶</span></div><div class="a">Run the believe-it checklist: (1) is the baseline <strong>strong and compute-matched</strong> (same params/data/tuning)? (2) is +2% <strong>within noise</strong> — how many seeds, what's the variance/CI? (3) <strong>contamination</strong> — could test data be in train, esp. a public benchmark? (4) <strong>confound</strong> — did the method also add data/params/tuning? (5) <strong>ablation</strong> — does the gain vanish when you remove only the credited component? (6) does it <strong>scale</strong>? Closing: "I'd believe it given a compute-matched baseline, seed variance, a contamination check, and an isolating ablation."</div></div>
+
+    <div class="qa"><div class="q">Drill 2 — Design an experiment to test whether data <em>quality</em> or <em>quantity</em> matters more.<span class="chev">▶</span></div><div class="a"><strong>Hold compute fixed</strong> and vary the axis: train compute-matched models on (a) the full noisy corpus of $D$ tokens vs (b) a quality-filtered subset of $D'\lt D$ tokens, optionally repeated to match tokens-seen. Also sweep a quality×quantity grid at one budget. <strong>Metric:</strong> held-out loss + downstream evals on a clean, contamination-checked set. <strong>Decision rule:</strong> quality wins if filtered-but-fewer beats full-but-noisy at equal compute (the FineWeb/DataComp finding). <strong>Confounds:</strong> filtering can change domain mix (control it); repetition has its own diminishing returns (cap epochs). Falsification: if (a)≈(b) across budgets, quantity dominates in this regime.</div></div>
+
+    <div class="qa"><div class="q">Drill 3 — Propose a direction to improve long-context reasoning.<span class="chev">▶</span></div><div class="a">Use the §5 skeleton. Hypothesis: long-context failures are <em>in-context retrieval</em> failures (lost-in-the-middle), not reasoning. Minimal test: compare raw long context vs context + surfaced relevant spans, compute-matched, measuring accuracy on mid-context-evidence questions; proceed if it closes &gt;50% of the gap. Risk: the span-surfacer leaks the answer → make extraction blind to the question. Scale: if it holds, train learned span-selection / retrieval-augmented attention and test at longer lengths. Name the result that would kill the idea.</div></div>
+
+    <div class="qa"><div class="q">Drill 4 — A teammate wants to scale the model 10×. How do you decide if it's worth it?<span class="chev">▶</span></div><div class="a">Frame as <strong>information-per-compute</strong>. (1) Predict the gain with a <strong>scaling law</strong> fit at small scale (IsoFLOP / extrapolate $L(N,D)$) — does 10× move the metric you care about, or is it on the flat part? (2) Is the bottleneck <strong>capacity or data</strong>? If data-bound, 10× params won't help (Chinchilla) — get/clean data instead. (3) <strong>Inference cost</strong>: will you serve it? maybe over-train a smaller model instead. (4) <strong>Cheaper alternatives first</strong>: better data, post-training, architecture. Decision rule: scale only if the extrapolated gain on a <em>real held-out metric</em> beats the same compute spent on data/post-training.</div></div>
+
+    <div class="qa"><div class="q">Drill 5 — Your eval improved but users complain. What happened, what do you do?<span class="chev">▶</span></div><div class="a"><strong>Goodhart / metric–reality gap.</strong> Possible causes: the benchmark is contaminated or saturated; you optimized a proxy (e.g., perplexity, or an LLM-judge with length/sycophancy bias) that diverged from utility; distribution shift between eval and real prompts; reward hacking in post-training. Do: (1) collect real failing prompts, build a <em>held-out, contamination-checked</em> eval that mirrors usage; (2) check for proxy bias (length-controlled, human spot-checks); (3) A/B with humans. Lesson: "an eval is a proxy; when proxy and reality diverge, fix the proxy, don't trust the number."</div></div>
+
+    <div class="qa"><div class="q">Drill 6 — Is a capability "emergent," or an artifact of the metric?<span class="chev">▶</span></div><div class="a">Many "emergent jumps" are artifacts of <strong>discontinuous metrics</strong> (exact-match/accuracy) — switch to a <em>smooth</em> metric (per-token log-prob, partial credit, edit distance) and the jump often becomes a smooth curve (Schaeffer et al.). Test: plot the capability vs scale under both a hard and a soft metric; if the discontinuity disappears under the soft metric, it was measurement, not a phase change. Also check for contamination and prompt-format sensitivity. Taste: distinguish "the model genuinely couldn't, now can" from "our ruler couldn't see partial progress."</div></div>
+
+    <div class="qa"><div class="q">Drill 7 — You have 1000 H100s for a month to improve a 10B model. What do you do?<span class="chev">▶</span></div><div class="a">Spend the first slice on <strong>cheap diagnosis</strong>: is it data-, capacity-, or post-training-bound? Fit a small scaling law; inspect failures. Then allocate by expected info-per-compute, likely: (1) <strong>data</strong> — clean/curate/dedup, fix mixture (often the highest ROI per FLOP); (2) <strong>post-training</strong> — SFT on targeted weaknesses + preference/RLVR where verifiable (big gains, cheap vs pretraining); (3) <strong>architecture/efficiency</strong> — GQA/long-context/MoE only if that's the bottleneck. Run <strong>compute-matched single-change ablations</strong>; ladder winners up. Avoid "just train longer" unless the law says you're under-trained. State the decision rule for each bet.</div></div>
+
+    <div class="qa"><div class="q">Drill 8 — Critique: "We added component C and accuracy rose, so C causes the gain."<span class="chev">▶</span></div><div class="a">That's a <strong>correlation, not a causal, claim</strong> without an ablation. Adding C may have co-introduced more parameters, more tuning, a different data order, or a longer schedule. To support causality: (1) <strong>ablate</strong> — same setup, C removed, everything else fixed; gain should vanish. (2) <strong>dose-response</strong> — vary C's strength, expect monotonic effect. (3) <strong>mechanism</strong> — does the proposed mechanism predict <em>where</em> C helps (which examples)? (4) compute-matched + multi-seed. Without these, "C causes the gain" is unsupported.</div></div>
+
+    <div class="qa"><div class="q">Drill 9 — You have 10 promising ideas. How do you pick which to pursue?<span class="chev">▶</span></div><div class="a">Score each on <strong>(impact × probability × differentiation) / cost</strong>, and prefer ideas with a <strong>cheap decisive test</strong>. Concretely: (1) what would scaling solve for free? (drop those). (2) which has the highest <em>information-per-compute</em> early experiment? (3) which is differentiated vs what everyone else is doing? (4) which has a clear kill criterion so you fail fast? Sequence them: run the cheapest high-information tests first, kill aggressively, double down on survivors. Taste = a portfolio of fast falsifiable bets, not one big gamble.</div></div>
+
+    <div class="qa"><div class="q">Drill 10 — A reviewer asks "why does your method work?" and you're not fully sure. How do you answer?<span class="chev">▶</span></div><div class="a">Be <strong>calibrated and constructive</strong>, not hand-wavy. State the leading hypothesis and the evidence for it, the alternative hypotheses, and the experiment that would distinguish them: "Our working explanation is M, supported by ablation A and the fact that it helps most on examples of type T. An alternative is M′; the discriminating test is E, which we're running." Showing you know <em>what you don't know</em> and how to find out is higher-taste than a confident wrong story.</div></div>
+
+    <div class="qa"><div class="q">Drill 11 — Design an ablation to isolate the contribution of one component C.<span class="chev">▶</span></div><div class="a"><strong>Change one thing.</strong> Keep architecture, data, compute, schedule, and seeds fixed; produce a variant with C removed/replaced by the natural null (identity, random, or the prior method). Run multiple seeds; report mean ± variance. Strengthen with a <strong>dose-response</strong> sweep of C and a <strong>mechanism probe</strong> (does C help exactly where its story predicts?). Watch for interactions: if C only helps <em>with</em> D, do the 2×2 (±C, ±D). Compute-match every cell. The claim "C contributes X" is only as good as the cell that differs <em>only</em> in C.</div></div>
+
+    <div class="qa"><div class="q">Drill 12 — When do you trust a small-scale result to transfer to large scale?<span class="chev">▶</span></div><div class="a">When it lies on a <strong>smooth, fitted trend</strong> you can extrapolate (scaling-law-like), the mechanism isn't scale-specific, and it's been <strong>compute-matched</strong> at each small scale. Validate by <em>predicting</em> a held-out larger run from smaller ones and checking it lands. Distrust transfer when: the effect is near noise, depends on a fixed hyperparameter not re-tuned at scale, or interacts with things that change with scale (batch size, LR, data mix, emergence). Taste: "I trust trends, not single points, and I confirm by extrapolation before committing big compute."</div></div>
+
+    <div class="qa"><div class="q">Drill 13 — A result replicates on 1 seed. How many seeds, and why?<span class="chev">▶</span></div><div class="a">One seed tells you <em>nothing</em> about variance. Use enough seeds to estimate the standard error and compare to the effect size: if the per-seed std is $s$, the SE of the mean over $k$ seeds is $s/\sqrt{k}$, so to resolve an effect $\Delta$ you need $k\gtrsim (z\,s/\Delta)^2$ — small effects need many seeds. Practically 3–5 for a sanity signal, more if the gain is within a couple std. Report mean ± std (or CIs), and prefer effects that survive the <em>worst</em> seed. "A gain smaller than seed-to-seed variance isn't a result yet."</div></div>
+
+    <div class="qa"><div class="q">Drill 14 — Propose how to evaluate a model's "physical reasoning."<span class="chev">▶</span></div><div class="a">Define the construct first: physical reasoning = predicting outcomes consistent with physics (object permanence, support/containment, dynamics, affordances). Build a battery that <strong>can't be solved by language priors or a single frame</strong>: (1) controlled synthetic scenes with counterfactual pairs (same caption, different physics) so shortcuts fail; (2) video where the answer requires temporal dynamics (shuffle/ablate frames to prove time is used — Day 4 §2); (3) intervention questions ("what if the support is removed?"). Metrics beyond accuracy: consistency across rephrasings, calibration, and a failure taxonomy. Guard against contamination and "looks-right but wrong-mechanism." (Connects to the 3D / physical-intelligence theme in the resume-prep doc — the eval must reward grounded prediction, not plausible captions.)</div></div>
+
+    <hr>
+    <p class="hint">End of Day 5. Next: Day 6 (post-training: sampling + RL) and the resume deep-dive prep.</p>
+  </main>
+</div>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+  const prog = document.getElementById('progress');
+  const backTop = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop)/(h.scrollHeight - h.clientHeight)*100 + '%';
+    backTop.style.display = h.scrollTop > 600 ? 'block' : 'none';
+  });
+  document.querySelectorAll('.qa').forEach((qa, i) => {
+    const key = 'd5_qa_' + i;
+    if (localStorage.getItem(key) === '1') qa.classList.add('open');
+    qa.querySelector('.q').addEventListener('click', () => {
+      qa.classList.toggle('open');
+      localStorage.setItem(key, qa.classList.contains('open') ? '1' : '0');
+    });
+  });
+  document.querySelectorAll('[data-sched]').forEach(cb => {
+    const key = 'd5_sched_' + cb.dataset.sched;
+    if (localStorage.getItem(key) === '1') cb.checked = true;
+    cb.addEventListener('change', () => localStorage.setItem(key, cb.checked ? '1' : '0'));
+  });
+  function resetProgress() {
+    document.querySelectorAll('[data-sched]').forEach(cb => { cb.checked = false; localStorage.setItem('d5_sched_' + cb.dataset.sched, '0'); });
+  }
+  const tocLinks = [...document.querySelectorAll('nav.toc a')];
+  const sections = tocLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll', () => {
+    let current = sections[0];
+    for (const s of sections) { if (s.getBoundingClientRect().top <= 120) current = s; }
+    if (current) tocLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const TEXT = '#d7dee8', GRID = '#2a3340', MUTED = '#8b97a7';
+    Chart.defaults.color = MUTED; Chart.defaults.borderColor = GRID; Chart.defaults.font.size = 11;
+    const opts = (xT, yT, extra) => Object.assign({
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: TEXT } } },
+      scales: { x: { title: { display: true, text: xT, color: MUTED }, ticks: { maxTicksLimit: 10 } },
+                y: { title: { display: true, text: yT, color: MUTED } } }
+    }, extra || {});
+
+    // Chinchilla IsoFLOP
+    (function(){
+      if(!document.getElementById('isoflopD5')) return;
+      var sizes=['70M','150M','400M','1B','2.5B','7B','17B'];
+      var low =[3.30,3.05,2.96,3.02,3.18,3.45,3.80];
+      var mid =[3.55,3.20,3.00,2.86,2.84,2.95,3.20];
+      var high=[3.80,3.45,3.18,2.96,2.82,2.76,2.80];
+      var frontier=[null,null,2.96,null,2.84,2.76,null];
+      new Chart(document.getElementById('isoflopD5'), { type:'line',
+        data:{ labels:sizes, datasets:[
+          { label:'compute budget C₁', data:low,  borderColor:'#7ee0c0', pointRadius:0, borderWidth:2, tension:0.35 },
+          { label:'C₂ = 10·C₁',        data:mid,  borderColor:'#6ea8fe', pointRadius:0, borderWidth:2, tension:0.35 },
+          { label:'C₃ = 100·C₁',       data:high, borderColor:'#ffb454', pointRadius:0, borderWidth:2, tension:0.35 },
+          { label:'compute-optimal frontier', data:frontier, borderColor:'#c7a4ff', backgroundColor:'#c7a4ff', borderDash:[6,4], pointRadius:5, borderWidth:2, spanGaps:true } ]},
+        options: opts('model size N (params)','test loss (nats/token)') });
+    })();
+  });
+</script>
+</body>
+</html>
