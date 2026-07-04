@@ -1,6 +1,6 @@
 # LatentFusion: Multimodal Language Models that Predict in a Frozen Video-JEPA Space
 
-**Research Proposal** · Yiming Gu · July 2026 · Status: draft v0.1
+**Research Proposal** · July 2026 · Status: draft v0.1
 
 ---
 
