@@ -1,12 +1,12 @@
 # LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces
 
-**Research Proposal** · July 2026 · Status: draft v0.2
+**Research Proposal** · July 2026 · Status: draft v0.3
 
 ---
 
 ## Abstract
 
-Current unified multimodal models couple language modeling with *pixel-level* generative objectives — discrete VQ tokens (Chameleon), or diffusion over image latents (Transfusion). Both force the model to spend capacity on high-frequency visual detail that is irrelevant for reasoning, and neither exploits the strong *predictive* representations learned by self-supervised vision models. We propose **LatentFusion**: a language model that **consumes** images through a standard text-aligned vision tower (CLIP/CoCa) but is **trained to predict** upcoming visual content in frozen self-supervised latent spaces — **DINOv2 for image spans** (dense semantics, geometry) and **video-JEPA for video spans** (dynamics, physics). Input space and target space are deliberately decoupled: the model *sees* in a text-aligned space and *predicts* in spaces that encode exactly what text alignment lacks. Targets are frozen and precomputed, so representation collapse is impossible by construction and the vision towers never run in the training loop. We study four prediction objectives — dense regression, contrastive (InfoNCE), discretized-latent cross-entropy, and a lightweight latent flow head — as progressively stronger treatments of the multimodal-future / regression-to-the-mean problem. We hypothesize this yields stronger spatial, temporal, and world-model capability per FLOP than pixel-generative training, at the cost of native image synthesis — recoverable, optionally, with a separately trained latent-to-pixel decoder.
+Current unified multimodal models couple language modeling with *pixel-level* generative objectives — discrete VQ tokens (Chameleon), or diffusion over image latents (Transfusion). Both force the model to spend capacity on high-frequency visual detail that is irrelevant for reasoning, and neither exploits the strong *predictive* representations learned by self-supervised vision models. We propose **LatentFusion**: a language model that **consumes** images through a standard text-aligned vision tower (CLIP/CoCa) but is **trained to predict** upcoming visual content in frozen self-supervised latent spaces — **DINOv2 for image spans** (dense semantics, geometry) and **video-JEPA for video spans** (dynamics, physics). Input space and target space are deliberately decoupled: the model *sees* in a text-aligned space and *predicts* in spaces that encode exactly what text alignment lacks. Targets are frozen and precomputed, so representation collapse is impossible by construction and the target encoders never run in the training loop. We study a spectrum of prediction objectives — dense regression, contrastive (InfoNCE), discretized-latent cross-entropy (including an extended-vocabulary variant that is *literally* standard LLM training), and a lightweight latent flow head — as progressively stronger treatments of the multimodal-future / regression-to-the-mean problem. We hypothesize this yields stronger spatial, temporal, and world-model capability per FLOP than pixel-generative training, at the cost of native image synthesis — recoverable, optionally, with a separately trained latent-to-pixel decoder.
 
 ## 1. Motivation
 
@@ -18,17 +18,24 @@ Current unified multimodal models couple language modeling with *pixel-level* ge
 
 ## 2. Related work (positioning)
 
-| Work | Visual objective | Target space | Gap we fill |
-| --- | --- | --- | --- |
-| Chameleon | AR over VQ tokens | discrete pixels | pixel-level, lossy quantization |
-| Transfusion | diffusion head | VAE pixel latents | still pixel-generative |
-| Emu / Emu2 | AR regression | frozen CLIP/EVA feats | regression-to-mean; target ≈ input space |
-| MetaMorph | aux. regression | frozen SigLIP feats | predicts the same text-aligned space it consumes |
-| RCG | diffusion | frozen SSL (image) reps | unconditional image gen, no LLM |
-| MAR | per-token diffusion head | VAE latents | pixels, not semantic latents |
-| DINO-WM | latent dynamics model | frozen DINOv2 | world model works in DINO space — but no language interface |
-| V-JEPA 2 / 2-AC | latent prediction | video-JEPA | no language interface |
-| **LatentFusion (ours)** | regression / contrastive / discrete-CE / latent flow | **frozen DINOv2 (image) + video-JEPA (video)** | language-conditioned prediction in spaces complementary to the input tower |
+Three converging threads, none of which occupies our slot:
+
+**(i) Feature prediction/reconstruction as a VLM auxiliary objective.** MetaMorph (AR regression of frozen SigLIP features improves understanding — same-space, same-frame, regression-only); ROSS (denoising reconstruction of the input image's latent tokens — same-frame); Emu/Emu2 (AR regression of frozen CLIP/EVA features in interleaved data); REPA (the mirror direction: aligning diffusion-transformer internals to DINOv2 targets speeds up generation — evidence the DINO target carries dense signal).
+
+**(ii) World models in frozen SSL latent spaces — without language.** DINO-WM (dynamics + planning directly in frozen DINOv2 space); V-JEPA 2-AC (action-conditioned prediction in JEPA space, zero-shot robot planning); IWM (JEPA-style image world models).
+
+**(iii) Semantic visual tokenizers.** SEED/SEED-LLaMA, LaViT, VILA-U (quantize semantic features into discrete tokens for plain LLM prediction); Janus (decouples understanding vs. generation encoders — kindred to our input/target decoupling).
+
+| Work | Visual objective | Target space | Language-conditioned? | Future prediction? |
+| --- | --- | --- | --- | --- |
+| Chameleon / Transfusion | VQ-AR / diffusion | pixels (discrete/VAE) | ✅ | ✅ (but pixel-level) |
+| Emu2, MetaMorph, ROSS | regression / denoising | frozen text-aligned feats | ✅ | ❌ (same-frame / same-space) |
+| REPA | alignment | frozen DINOv2 | ❌ (DiT) | ❌ |
+| DINO-WM, V-JEPA 2-AC, IWM | latent dynamics | frozen DINO / JEPA | ❌ | ✅ |
+| SEED, LaViT, VILA-U, Janus | discrete semantic tokens | quantized CLIP-ish | ✅ | partially |
+| **LatentFusion (ours)** | regression / NCE / discrete-CE / flow | **frozen DINOv2 + V-JEPA** | ✅ | ✅ |
+
+**The open slot:** nobody predicts *future* content in a *complementary, dynamics-oriented* frozen space from a *language-conditioned* model with a distribution-aware loss. DINO-WM has no language; MetaMorph/ROSS have no future; Emu has no complementary space.
 
 ## 3. Method
 
@@ -36,8 +43,8 @@ Current unified multimodal models couple language modeling with *pixel-level* ge
 
 - **Input tower:** a pretrained CLIP/CoCa vision encoder (initialized from an existing heavily-trained checkpoint; optionally fine-tuned), projected into the LLM. This preserves text-aligned strengths — OCR, documents, VQA, grounding.
 - **Target spaces (frozen, precomputed offline):**
-  - **Image spans → DINOv2** latents: dense semantics, object parts, geometry. Precedent: DINO-WM shows planning-grade world models live in frozen DINOv2 space; RCG shows the space supports diffusion.
-  - **Video spans → V-JEPA 2** latents: motion, physical dynamics. Precedent: V-JEPA 2-AC zero-shot planning.
+  - **Image spans → DINOv2** latents: dense semantics, object parts, geometry. Precedent: DINO-WM, REPA, RCG.
+  - **Video spans → V-JEPA 2** latents: motion, physical dynamics. Precedent: V-JEPA 2-AC.
 - **Separate lightweight prediction heads** per target space (shared trunk), each with its own per-dimension whitening — DINO and JEPA latents have different dimensionality and statistics; never mix them in one head.
 
 Complementarity is the design principle: predicting SigLIP targets from a CLIP input is nearly redundant; predicting DINO/JEPA targets injects what the input space lacks.
@@ -46,44 +53,56 @@ Complementarity is the design principle: predicting SigLIP targets from a CLIP i
 
 Targets must be the latents of **upcoming visual content** — the next image in the interleaved sequence, or frames \(t+k\) of a video given frames \(\le t\). Predicting the latents of the *same* frame the input tower is currently encoding degenerates into CLIP→DINO feature translation — a distillation signal, kept only as a small auxiliary term. The primary loss is temporal/anticipatory: *given what you see and read, predict what comes next.*
 
-### 3.3 Interleaved training
+### 3.3 The loss, concretely, in a standard causal LM
 
-Sequences `[text][BOI] v_1 … v_N [EOI][text] …` where `v_i` are input-tower tokens. Text positions get next-token cross-entropy; positions preceding a visual span predict that span's frozen target latents \(z\) through one of four objectives (ablation axis, ordered by strength against regression-to-the-mean):
+Everything stays next-token prediction under the ordinary causal mask; only *what the head outputs* changes at positions whose next slot is visual. With hidden states \(h_i\), LM head \(W\), latent head \(g\) (2-layer MLP per target space):
 
-**(a) Dense regression.**
 \[
-\mathcal{L}_{\text{reg}} = \tfrac{1}{N}\sum_i \| \hat z_i - z_i \|_2^2
+\mathcal{L} \;=\; \underbrace{\sum_{i:\,x_{i+1}\in\text{text}} -\log p_W(x_{i+1}\mid h_i)}_{\text{unchanged text CE}} \;+\; \lambda \underbrace{\sum_{i:\,x_{i+1}\in\text{visual}} \ell\big(g(h_i),\, \bar z_{i+1}\big)}_{\text{latent prediction}}, \qquad \bar z = \text{whiten}(z)
 \]
-Simplest; dense gradient (MetaMorph shows this improves understanding); collapses multimodal futures to their mean.
 
-**(b) Contrastive (InfoNCE).** Score the true target against in-batch negatives:
-\[
-\mathcal{L}_{\text{nce}} = -\log \frac{\exp(\text{sim}(\hat z_i, z_i)/\tau)}{\sum_{j}\exp(\text{sim}(\hat z_i, z_j)/\tau)}
-\]
-The model only needs to *rank* the true future above alternatives — no mean-collapse, negligible extra cost, most JEPA-native (energy-based) fix.
+```python
+h = model.transformer(inputs_embeds=emb).last_hidden_state    # [B, L, D], causal mask as usual
 
-**(c) Discretized-latent cross-entropy.** Quantize the frozen target space once (k-means codebook or FSQ), predict codes with softmax CE. A categorical distribution natively represents multimodal futures — AR-over-tokens without VQ-on-pixels lossiness, since codes live in an already-semantic space. Most scaling-friendly (a clean per-token loss to put on scaling curves).
+# text loss — untouched
+L_text = F.cross_entropy(lm_head(h[:, :-1]).transpose(1, 2), tokens[:, 1:],
+                         reduction='none')[text_next_mask[:, 1:]].mean()
 
-**(d) Latent flow-matching head (MAR-style).** The LLM emits a conditioning vector \(c_i\); a small MLP models the full continuous conditional:
-\[
-\mathcal{L}_{\text{flow}} = \mathbb{E}_{t,\epsilon}\| v_\theta(z_i^t, t, c_i) - (z_i - \epsilon) \|_2^2
-\]
-Fully distributional, sampleable rollouts; iterative inference (cheap: low-dim), needs schedules/normalization. The upper-bound treatment.
+# latent loss — positions whose NEXT slot is a visual target
+pred  = dino_head(h[:, :-1][visual_next_mask[:, 1:]])          # [M, d_dino]
+tgt   = (z_dino - mu) / sigma                                  # precomputed, whitened, frozen
+L_reg = F.mse_loss(pred, tgt)                                  # or InfoNCE / discrete-CE / flow
 
-A **VICReg-style variance regularizer** on predictions is an optional add-on to (a). Combined losses are weighted \(\mathcal{L} = \mathcal{L}_{\text{CE}} + \sum_k \lambda_k \mathcal{L}_k\).
+loss = L_text + lam * L_reg
+```
 
-### Objective trade-offs
+Input embeddings for visual slots come from the CLIP/CoCa tower through a projector; target latents `z` ship from the dataloader like labels. Input and target streams never mix. For future prediction, the target at an image span is the *next* span's latents — same code, different target alignment.
 
-| | (a) regression | (b) contrastive | (c) discrete-CE | (d) latent flow |
+### 3.4 Prediction objectives (ablation axis)
+
+Ordered by strength against regression-to-the-mean:
+
+**(a) Dense regression.** \(\mathcal{L}_{\text{reg}} = \tfrac{1}{N}\sum_i \|\hat z_i - z_i\|_2^2\). Simplest; dense gradient (MetaMorph shows this improves understanding); collapses multimodal futures to their mean. Optional VICReg-style variance regularizer.
+
+**(b) Contrastive (InfoNCE).** \(\mathcal{L}_{\text{nce}} = -\log \frac{\exp(\mathrm{sim}(\hat z_i, z_i)/\tau)}{\sum_j \exp(\mathrm{sim}(\hat z_i, z_j)/\tau)}\). Only needs to *rank* the true future above in-batch negatives — no mean-collapse, negligible cost, most JEPA-native (energy-based) fix.
+
+**(c) Discretized-latent cross-entropy.** Quantize the frozen target space once (k-means or FSQ), predict codes with softmax CE. A categorical natively represents multimodal futures — AR-over-tokens without VQ-on-pixels lossiness.
+
+**(c′) Extended-vocabulary variant.** Add the visual codes to the LLM vocabulary and predict them through the *normal LM head* — the entire system is then literally standard LLM training: one CE loss, one softmax, perplexity and scaling curves for free. The most infrastructure-friendly variant and the natural first run. **Tokenizer caveat:** codes must quantize *semantic* spaces (DINO/JEPA latents, or SEED/LaViT-style tokenizers) — VQGAN/pixel-VQ codes would smuggle texture back in and revert to Chameleon-style pixel modeling.
+
+**(d) Latent flow-matching head (MAR-style).** \(\mathcal{L}_{\text{flow}} = \mathbb{E}_{t,\epsilon}\|v_\theta(z_i^t, t, c_i) - (z_i - \epsilon)\|_2^2\) with LLM-emitted conditioning \(c_i\). Fully distributional, sampleable rollouts; iterative inference (cheap: low-dim); needs schedules/whitening. The upper-bound treatment.
+
+| | (a) regression | (b) contrastive | (c/c′) discrete-CE | (d) latent flow |
 | --- | --- | --- | --- | --- |
 | Multimodal futures | mean-collapse | ranking, no collapse | full categorical | full continuous |
 | Gradient to LLM | dense, strong | moderate | dense | indirect (cond. vector) |
 | Inference | single pass | single pass | single pass | iterative sampling |
 | Extra machinery | none | negatives, τ | codebook build | schedules, whitening, CFG |
 | Sampleable rollouts | no (point) | no | yes | yes (richest) |
-| Precedent | Emu2, MetaMorph | CPC/CLIP-style | VQ-AR models | MAR, RCG |
+| Infra friendliness | high | high | **highest (c′)** | low |
+| Precedent | Emu2, MetaMorph | CPC/CLIP-style | SEED/LaViT | MAR, RCG |
 
-### 3.4 Optional: latent-to-pixel decoder
+### 3.5 Optional: latent-to-pixel decoder
 
 A diffusion decoder trained separately to invert the target encoders (RCG-style), used for visualization and optional generation only; kept out of the main training loop by design.
 
@@ -95,12 +114,12 @@ A diffusion decoder trained separately to invert the target encoders (RCG-style)
 
 **H3 (objective).** (b)/(c)/(d) ≥ (a) wherever futures are genuinely multimodal (video continuation, next-image-in-document); (a) remains competitive for understanding gains. *Eval:* latent rollout metrics (feature PSNR, retrieval@k of true future), planning success à la V-JEPA 2-AC / DINO-WM.
 
-**H4 (efficiency).** At matched FLOPs, better spatial+temporal-understanding scaling than a Transfusion-style pixel-diffusion baseline (0.3B/1B/3B ladder; loss-vs-compute and benchmark-vs-compute curves; objective (c) gives the cleanest scaling ordinate).
+**H4 (efficiency).** At matched FLOPs, better spatial+temporal-understanding scaling than a Transfusion-style pixel-diffusion baseline (0.3B/1B/3B ladder; loss-vs-compute and benchmark-vs-compute curves; objective (c′) gives the cleanest scaling ordinate).
 
 **De-risking probe (week 1):** linear-probe frozen DINOv2 and V-JEPA 2 features on all target evals *before* Stage-2 training; weak probes ⇒ revise target spaces first.
 
 ### Minimal viable experiment
-Existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets with regression head (a), on interleaved image-text data. Single-node; targets precomputed. Baseline: same run, prediction loss off. Video/JEPA arm second.
+Existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets, objectives (a) and (c′), on interleaved image-text data. Single-node; targets precomputed. Baseline: same run, prediction loss off. Video/JEPA arm second.
 
 ## 5. Risks & mitigations
 
@@ -109,7 +128,7 @@ Existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets with regression h
 | Same-frame prediction degenerates to feature translation | **High — main design risk** | temporal targets only (§3.2); translation kept as small aux term; monitor gain vs. a translation-only control |
 | Prediction losses don't move downstream benchmarks | Medium | H1 ablation is the primary claim, not loss curves |
 | Latent geometry unfriendly to flow head | Medium | per-dim whitening per target space (RCG/Emu2 recipe) |
-| Codebook quality bottlenecks objective (c) | Medium | FSQ over k-means; sweep codebook size |
+| Codebook quality bottlenecks (c)/(c′) | Medium | FSQ over k-means; residual VQ; sweep codebook size |
 | Loss balancing (\(\lambda_k\)) unstable across objectives | Low | small-scale grid; μP-style transfer upward |
 | Two target spaces complicate the pipeline | Low | targets precomputed offline; separate heads, shared trunk |
 
@@ -117,7 +136,7 @@ Existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets with regression h
 
 ## 6. What this is not
 
-- **Not an image generator.** Native synthesis is deliberately traded away; §3.4 recovers it approximately if needed.
+- **Not an image generator.** Native synthesis is deliberately traded away; §3.5 recovers it approximately if needed.
 - **Not joint JEPA training.** No EMA/stop-grad anywhere; stability is bought with frozen targets, at the cost of non-adaptable target spaces (probed in week 1, mapped in H2).
 
 ## 7. Timeline (single researcher + modest compute)
@@ -125,11 +144,11 @@ Existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets with regression h
 | Weeks | Milestone |
 | --- | --- |
 | 1–2 | Linear probes of DINOv2 + V-JEPA 2 features on target evals (go/no-go) |
-| 3–6 | MVE: DINO targets, regression head, H1 ablation + translation-only control |
-| 7–10 | Objectives (b)/(c)/(d) on images; whitening + codebook studies |
+| 3–6 | MVE: DINO targets, objectives (a)+(c′), H1 ablation + translation-only control |
+| 7–10 | Objectives (b)/(d) on images; whitening + codebook studies |
 | 11–14 | Video/V-JEPA arm; target-space swap (H2) |
 | 15–18 | Scaling ladder (H4), write-up |
 
 ## References (non-exhaustive)
 
-I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022)
+I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022)
