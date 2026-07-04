@@ -47,7 +47,7 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 
 <header class="hero">
   <h1>LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces</h1>
-  <div class="meta">Research Proposal · July 2026 · draft v0.4</div>
+  <div class="meta">Research Proposal · July 2026 · draft v0.5</div>
   <div class="badges">
     <span class="badge">see in CLIP space</span>
     <span class="badge">predict in DINO/JEPA space</span>
@@ -102,6 +102,9 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
   <!-- prediction arrow -->
   <line x1="530" y1="254" x2="620" y2="254" stroke="#b5179e" stroke-width="3" marker-end="url(#f1m)"/>
   <text x="575" y="242" text-anchor="middle" font-size="11" font-weight="bold" fill="#b5179e">predicts</text>
+  <!-- caption arm -->
+  <path d="M 660 300 C 620 320, 480 322, 420 300" fill="none" stroke="#d97706" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#f1b)"/>
+  <text x="545" y="318" text-anchor="middle" font-size="10.5" fill="#d97706">caption arm (§3.5): narrate the predicted future in text — “the ball will bounce”</text>
 
   <!-- target box -->
   <rect x="620" y="210" width="250" height="90" rx="12" fill="#fdf2fb" stroke="#b5179e" stroke-width="2"/>
@@ -269,6 +272,83 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 <li><strong>A3↔A4:</strong> distributional objectives only earn their cost when Δ&gt;0 — at Δ=0 the target is deterministic and L2 suffices.</li>
 <li><strong>A5↔everything:</strong> frozen targets make A2 swappable offline (H2 is cheap), A4 stable (stationary loss), and training infra identical to a standard VLM. Cost: non-adaptable space — exactly what gates D0–D1 measure first.</li>
 </ul></div>
+</div>
+
+<h3>2.2 What does each visual objective actually learn?</h3>
+<p>Five training paradigms dominate visual representation learning. They differ not in <em>how much</em> they learn but in <strong>what decides which information is kept</strong> — and that selector is the deepest reason the target-space choice (A2) matters.</p>
+
+<!-- ============ VISUAL: five selectors ============ -->
+<div class="diagram">
+<svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">
+  <text x="450" y="24" text-anchor="middle" font-weight="bold" font-size="14" fill="#1a1a2e">Five objectives, five information selectors — what each keeps vs. discards</text>
+  <g font-size="10.5">
+    <!-- col 1 CLIP -->
+    <rect x="20" y="45" width="160" height="235" rx="12" fill="#eef1ff" stroke="#4361ee" stroke-width="2"/>
+    <text x="100" y="70" text-anchor="middle" font-weight="bold" font-size="12" fill="#4361ee">1 · contrastive</text>
+    <text x="100" y="86" text-anchor="middle" fill="#5c6270">CLIP · SigLIP</text>
+    <rect x="32" y="98" width="136" height="34" rx="6" fill="#fff"/>
+    <text x="100" y="112" text-anchor="middle" font-weight="bold" fill="#1a1a2e">selector: what</text><text x="100" y="126" text-anchor="middle" font-weight="bold" fill="#1a1a2e">captions mention</text>
+    <text x="100" y="152" text-anchor="middle" fill="#0d9488">✓ nameable semantics</text>
+    <text x="100" y="168" text-anchor="middle" fill="#0d9488">✓ open-vocab recognition</text>
+    <text x="100" y="192" text-anchor="middle" fill="#c1121f">✗ layout, counting, parts</text>
+    <text x="100" y="208" text-anchor="middle" fill="#c1121f">✗ relations (“bag of concepts”)</text>
+    <text x="100" y="240" text-anchor="middle" fill="#5c6270" font-style="italic">MMVP: CLIP-blind pairs</text>
+    <text x="100" y="256" text-anchor="middle" fill="#5c6270" font-style="italic">break VLMs</text>
+    <!-- col 2 LM cotrain -->
+    <rect x="198" y="45" width="160" height="235" rx="12" fill="#f4f0ff" stroke="#7048e8" stroke-width="2"/>
+    <text x="278" y="70" text-anchor="middle" font-weight="bold" font-size="12" fill="#7048e8">2 · LM co-training</text>
+    <text x="278" y="86" text-anchor="middle" fill="#5c6270">CoCa · LLaVA-style</text>
+    <rect x="210" y="98" width="136" height="34" rx="6" fill="#fff"/>
+    <text x="278" y="112" text-anchor="middle" font-weight="bold" fill="#1a1a2e">selector: what text</text><text x="278" y="126" text-anchor="middle" font-weight="bold" fill="#1a1a2e">verbalizes in order</text>
+    <text x="278" y="152" text-anchor="middle" fill="#0d9488">✓ composition, binding</text>
+    <text x="278" y="168" text-anchor="middle" fill="#0d9488">✓ instruction following</text>
+    <text x="278" y="192" text-anchor="middle" fill="#c1121f">✗ what text rarely says:</text>
+    <text x="278" y="208" text-anchor="middle" fill="#c1121f">geometry, dynamics</text>
+    <text x="278" y="240" text-anchor="middle" fill="#5c6270" font-style="italic">still text-bounded</text>
+    <!-- col 3 DINO -->
+    <rect x="376" y="45" width="160" height="235" rx="12" fill="#f0fbf8" stroke="#0d9488" stroke-width="2"/>
+    <text x="456" y="70" text-anchor="middle" font-weight="bold" font-size="12" fill="#0d9488">3 · geometric SSL</text>
+    <text x="456" y="86" text-anchor="middle" fill="#5c6270">DINO(v2) · iBOT</text>
+    <rect x="388" y="98" width="136" height="34" rx="6" fill="#fff"/>
+    <text x="456" y="112" text-anchor="middle" font-weight="bold" fill="#1a1a2e">selector: augmentation</text><text x="456" y="126" text-anchor="middle" font-weight="bold" fill="#1a1a2e">invariance, no text ceiling</text>
+    <text x="456" y="152" text-anchor="middle" fill="#0d9488">✓ dense correspondence</text>
+    <text x="456" y="168" text-anchor="middle" fill="#0d9488">✓ parts, depth, layout</text>
+    <text x="456" y="192" text-anchor="middle" fill="#c1121f">✗ names, grounding</text>
+    <text x="456" y="208" text-anchor="middle" fill="#c1121f">✗ dynamics</text>
+    <text x="456" y="240" text-anchor="middle" fill="#b5179e" font-weight="bold">→ our image target</text>
+    <!-- col 4 JEPA -->
+    <rect x="554" y="45" width="160" height="235" rx="12" fill="#fdf2fb" stroke="#b5179e" stroke-width="2"/>
+    <text x="634" y="70" text-anchor="middle" font-weight="bold" font-size="12" fill="#b5179e">4 · latent prediction</text>
+    <text x="634" y="86" text-anchor="middle" fill="#5c6270">I-JEPA · V-JEPA</text>
+    <rect x="566" y="98" width="136" height="34" rx="6" fill="#fff"/>
+    <text x="634" y="112" text-anchor="middle" font-weight="bold" fill="#1a1a2e">selector:</text><text x="634" y="126" text-anchor="middle" font-weight="bold" fill="#1a1a2e">predictability</text>
+    <text x="634" y="152" text-anchor="middle" fill="#0d9488">✓ dynamics, physics</text>
+    <text x="634" y="168" text-anchor="middle" fill="#0d9488">✓ noise dropped as unpredictable</text>
+    <text x="634" y="192" text-anchor="middle" fill="#c1121f">✗ exact appearance</text>
+    <text x="634" y="208" text-anchor="middle" fill="#c1121f">✗ text alignment</text>
+    <text x="634" y="240" text-anchor="middle" fill="#b5179e" font-weight="bold">→ our video target</text>
+    <!-- col 5 diffusion -->
+    <rect x="732" y="45" width="155" height="235" rx="12" fill="#fff8ed" stroke="#d97706" stroke-width="2"/>
+    <text x="809" y="70" text-anchor="middle" font-weight="bold" font-size="12" fill="#d97706">5 · diffusion / pixel</text>
+    <text x="809" y="86" text-anchor="middle" fill="#5c6270">Transfusion · MAR</text>
+    <rect x="744" y="98" width="131" height="34" rx="6" fill="#fff"/>
+    <text x="809" y="112" text-anchor="middle" font-weight="bold" fill="#1a1a2e">selector: pixel</text><text x="809" y="126" text-anchor="middle" font-weight="bold" fill="#1a1a2e">likelihood (everything)</text>
+    <text x="809" y="152" text-anchor="middle" fill="#0d9488">✓ full appearance dist.</text>
+    <text x="809" y="168" text-anchor="middle" fill="#0d9488">✓ native generation</text>
+    <text x="809" y="192" text-anchor="middle" fill="#c1121f">✗ capacity ∝ pixel entropy,</text>
+    <text x="809" y="208" text-anchor="middle" fill="#c1121f">not semantic value</text>
+    <text x="809" y="240" text-anchor="middle" fill="#5c6270" font-style="italic">REPA: needs DINO</text>
+    <text x="809" y="256" text-anchor="middle" fill="#5c6270" font-style="italic">alignment to converge fast</text>
+  </g>
+  <text x="450" y="312" text-anchor="middle" font-size="11.5" fill="#1a1a2e" font-weight="bold">LatentFusion keeps selectors 1+2 (input tower + text CE), adds 3+4 (targets), and drops 5 from training (offline decoder only)</text>
+</svg>
+</div>
+
+<div class="grid2">
+<div class="card"><h4>The selector is the objective's identity</h4>
+<p class="muted">(1)/(2) are <strong>text-bounded</strong> — they cannot learn what language doesn't say. (3) is <strong>augmentation-bounded</strong> — invariances are hand-chosen. (4) is <strong>predictability-bounded</strong> — it keeps exactly the world-model-relevant bits and drops noise <em>because it is unpredictable</em>. (5) is <strong>unbounded</strong> — and therefore unfocused: capacity is allocated by pixel entropy, not by usefulness.</p></div>
+<div class="card"><h4>This predicts H2's outcome pattern</h4>
+<p class="muted">Gains should appear exactly on benchmarks probing the <em>selector gap</em> between input and target space — spatial for DINO targets, temporal for JEPA targets — and nowhere else. Empirical anchors: MMVP failures are (1)-signatures; DINOv2 dense-probe dominance is a (3)-signature; V-JEPA 2-AC planning is a (4)-signature; REPA shows (5) does not subsume (3) even with more compute. If gains appear off-pattern, the complementarity theory is wrong in an interesting way.</p></div>
 </div>
 
 <h2>3. Method</h2>
@@ -459,7 +539,20 @@ loss = L_text + lam * L_reg</pre>
 <tr><td>Precedent</td><td>Emu2, MetaMorph</td><td>CPC/CLIP-style</td><td>SEED / LaViT</td><td>MAR, RCG</td></tr>
 </table>
 
-<h3>3.5 Optional: latent-to-pixel decoder</h3>
+<h3>3.5 Text-side prediction: narrated rollouts (captioning arm)</h3>
+<p>Prediction can also run in the <strong>reverse direction</strong>: from predicted future latents back into language. Add a caption objective conditioned on the <em>predicted</em> latent \(\hat z\) (not the ground-truth image):</p>
+\[
+\mathcal{L}_{\text{cap}} = -\sum_t \log p\big(w_t \mid w_{<t}, \hat z\big)
+\]
+<p>with \(w\) a caption of the future frame (video ASR/alt-text, or synthetic). This is the <strong>CoCa lesson</strong> — contrastive and captioning teach complementary things — imported into the predictive setting. It buys three things:</p>
+<div class="grid2">
+<div class="card"><h4>Grounding pressure</h4><p class="muted">\(\hat z\) must stay <em>decodable into language</em>, blocking degenerate solutions that satisfy the latent loss in regions of the frozen space carrying no usable semantics.</p></div>
+<div class="card"><h4>A narrated world model</h4><p class="muted">Latent rollout → caption yields human-readable imagined futures (“the ball will bounce off the table”) — free interpretability for H3, and a natural VLA interface: describe the predicted consequence of an action before executing it.</p></div>
+<div class="card"><h4>A text-metric for latent quality</h4><p class="muted">Caption quality from \(\hat z\) vs. from the true \(z\) directly measures how much semantics prediction preserves — cheaper than training probe heads.</p></div>
+<div class="card"><h4>Risks</h4><p class="muted">Future-caption data is noisier (ASR misalignment); the model may shortcut — inferring the caption from surrounding <em>text</em> context rather than \(\hat z\). Mitigation: gradient-stop text context into the caption head; context-ablated caption eval.</p></div>
+</div>
+
+<h3>3.6 Optional: latent-to-pixel decoder</h3>
 <p>A diffusion decoder trained separately to invert the target encoders (RCG-style), for visualization/generation only; out of the main loop by design.</p>
 
 <h2>4. Hypotheses &amp; experiments</h2>
@@ -530,13 +623,14 @@ loss = L_text + lam * L_reg</pre>
 <tr><td>Latent geometry unfriendly to flow head</td><td>Medium</td><td>per-dim whitening per target space (RCG/Emu2 recipe)</td></tr>
 <tr><td>Codebook quality bottlenecks (c)/(c′)</td><td>Medium</td><td>FSQ over k-means; residual VQ; sweep codebook size</td></tr>
 <tr><td>Loss balancing (\(\lambda_k\)) unstable</td><td>Low</td><td>small-scale grid; μP-style transfer upward</td></tr>
+<tr><td>Caption arm shortcuts via text context instead of \(\hat z\)</td><td>Medium</td><td>gradient-stop text context into caption head; context-ablated caption eval</td></tr>
 <tr><td>Two target spaces complicate the pipeline</td><td>Low</td><td>targets precomputed offline; separate heads, shared trunk</td></tr>
 </table>
 <p class="muted"><em>Resolved by design vs. v0.1:</em> OCR/fine-detail weakness — the input tower is now CLIP/CoCa, so frozen-SSL blind spots affect only the auxiliary targets, not what the model sees.</p>
 
 <h2>6. What this is not</h2>
 <ul>
-  <li><strong>Not an image generator.</strong> Native synthesis is deliberately traded away; §3.5 recovers it approximately if needed.</li>
+  <li><strong>Not an image generator.</strong> Native synthesis is deliberately traded away; §3.6 recovers it approximately if needed.</li>
   <li><strong>Not joint JEPA training.</strong> No EMA/stop-grad anywhere; stability bought with frozen targets, at the cost of non-adaptable target spaces (probed in week 1, mapped in H2).</li>
 </ul>
 
@@ -563,7 +657,7 @@ loss = L_text + lam * L_reg</pre>
 </div>
 
 <h2>References (non-exhaustive)</h2>
-<p class="muted">I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022)</p>
+<p class="muted">I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022) · CLIP (Radford et al. 2021) · CoCa (Yu et al. 2022) · SigLIP (Zhai et al. 2023) · iBOT (Zhou et al. 2022) · MMVP / Eyes Wide Shut (Tong et al. 2024)</p>
 
 </div>
 </body>

@@ -1,6 +1,6 @@
 # LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces
 
-**Research Proposal** · July 2026 · Status: draft v0.4
+**Research Proposal** · July 2026 · Status: draft v0.5
 
 > **Figure 1 (see HTML version):** a language model reads interleaved text + CLIP-encoded visuals and, at every visual span, predicts the *frozen* DINOv2/V-JEPA latents of the *next* visual content — text keeps its ordinary cross-entropy; no pixels are ever generated; no collapse is possible because targets are frozen.
 
@@ -62,6 +62,25 @@ Cross-correlations with prior work — each neighbor validates one axis-setting 
 - **A5 interaction:** joint/EMA targets (V-JEPA proper) could adapt to the task but reintroduce collapse machinery and non-stationary targets inside LLM training; frozen is the only setting where targets ship like labels. The cost — a non-adaptable space — is exactly what the week-1 probes and H2 measure.
 
 The unexplored cell is precisely (A1=text-aligned, A2=dense/video-SSL, A3=Δ>0, A4=distribution-aware, A5=frozen).
+
+### 2.2 What does each visual objective actually learn? (why the target space is the real decision)
+
+Five training paradigms dominate visual representation learning. They differ not in *how much* they learn but in **what decides which information is kept** — and that selector is the deepest reason target-space choice (A2) matters:
+
+| # | Paradigm | Exemplars | What selects the kept information | What is learned | What is systematically discarded |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Contrastive image–text** | CLIP, SigLIP | what captions *mention* | global, nameable semantics; open-vocab recognition | spatial layout, counting, relations, part structure — the "bag-of-concepts" failure (MMVP / *Eyes Wide Shut*) |
+| 2 | **Co-training with an LM** (captioning / AR text) | CoCa, LLaVA-style SFT | what captions *sequentially verbalize* | more compositional/relational than (1) — word order forces binding; instruction-following | anything text rarely describes: texture statistics, precise geometry, dynamics |
+| 3 | **Geometric / self-distillation SSL** | DINO, DINOv2, iBOT | augmentation-invariance on the image itself — no text ceiling | dense correspondences, object parts, depth/layout cues; emergent segmentation | names & cross-modal grounding; temporal dynamics |
+| 4 | **Latent feature prediction** | I-JEPA, V-JEPA | **predictability** — keep what makes masked/future content predictable | dynamics, physical regularity, persistent structure; noise/texture dropped *because unpredictable* | high-frequency detail, exact appearance; text alignment |
+| 5 | **Diffusion / pixel-generative** | Transfusion branch, MAR, Emu-gen | pixel likelihood — *everything*, weighted by pixel variance | full appearance distribution; usable features mid-network (cf. REPA needing DINO to speed it up) | nothing — which is the problem: capacity spent ∝ pixel entropy, not semantic value |
+
+Readings of this table that shape the proposal:
+
+- **The selector, not the architecture, is the objective's identity.** (1)/(2) are *text-bounded* (can't learn what language doesn't say), (3) is *augmentation-bounded* (invariances are hand-chosen), (4) is *predictability-bounded* (keeps exactly the world-model-relevant bits), (5) is *unbounded* (and therefore unfocused).
+- **Empirical anchors:** MMVP/"Eyes Wide Shut" shows CLIP-blind pairs breaking VLMs — a (1)-failure; DINOv2's dense-probe dominance is a (3)-signature; V-JEPA 2-AC planning is a (4)-signature; REPA — a *generative* model learning faster when aligned to DINO — shows (5) does not subsume (3) even with more compute.
+- **Why LatentFusion combines (2)+(3)+(4) and skips (5):** input tower & text CE give us (1)/(2)'s names and verbalization; DINO targets add (3)'s geometry; JEPA targets add (4)'s dynamics; each patched blind spot corresponds to a *different selector*. (5) is omitted from training (kept only as an offline decoder) because its selector — pixel entropy — is precisely the one we argue is wasteful.
+- **This also predicts H2's outcome pattern:** gains should appear exactly on benchmarks probing the *selector gap* between input and target space (spatial for DINO, temporal for JEPA), and nowhere else. If gains appear elsewhere, the complementarity theory is wrong in an interesting way.
 
 ## 3. Method
 
@@ -128,7 +147,23 @@ Ordered by strength against regression-to-the-mean:
 | Infra friendliness | high | high | **highest (c′)** | low |
 | Precedent | Emu2, MetaMorph | CPC/CLIP-style | SEED/LaViT | MAR, RCG |
 
-### 3.5 Optional: latent-to-pixel decoder
+### 3.5 Text-side prediction: narrated rollouts (captioning arm)
+
+The prediction can also run in the **reverse direction**: from predicted future latents back into language. Add a caption objective conditioned on the *predicted* latent \(\hat z\) (not the ground-truth image):
+
+\[
+\mathcal{L}_{\text{cap}} = -\sum_t \log p\big(w_t \mid w_{<t}, \hat z\big)
+\]
+
+where \(w\) is a caption/description of the future frame (from video ASR/alt-text, or synthetically captioned). This is the CoCa lesson — contrastive and captioning losses teach complementary things — imported into the predictive setting, and it buys three things:
+
+1. **Grounding pressure.** The predicted latent must remain *decodable into language*, blocking degenerate solutions where \(\hat z\) drifts into regions of the frozen space that satisfy the latent loss but carry no usable semantics.
+2. **A narrated world model.** Latent rollout → caption gives human-readable imagined futures ("the ball will bounce off the table") — free interpretability for H3's rollout evals, and a natural VLA interface (describe the predicted consequence of an action before executing it).
+3. **A text-metric for latent quality.** Caption quality of \(\hat z\) vs. caption quality of the true \(z\) is a direct, scalable measure of how much semantic content prediction preserves — cheaper than training probe heads.
+
+**Risks:** future-caption data is noisier (ASR misalignment); and the model may shortcut — inferring the caption from surrounding *text* context rather than from \(\hat z\). Mitigation: gradient-stop the text context into the caption head, or evaluate with context-ablated captioning.
+
+### 3.6 Optional: latent-to-pixel decoder
 
 A diffusion decoder trained separately to invert the target encoders (RCG-style), used for visualization and optional generation only; kept out of the main training loop by design.
 
@@ -167,13 +202,14 @@ Each gate is an order of magnitude cheaper than the next; each has an explicit k
 | Latent geometry unfriendly to flow head | Medium | per-dim whitening per target space (RCG/Emu2 recipe) |
 | Codebook quality bottlenecks (c)/(c′) | Medium | FSQ over k-means; residual VQ; sweep codebook size |
 | Loss balancing (\(\lambda_k\)) unstable across objectives | Low | small-scale grid; μP-style transfer upward |
+| Caption arm shortcuts via text context instead of \(\hat z\) | Medium | gradient-stop text context into caption head; context-ablated caption eval |
 | Two target spaces complicate the pipeline | Low | targets precomputed offline; separate heads, shared trunk |
 
 *(Resolved by design vs. v0.1: OCR/fine-detail weakness — the input tower is now CLIP/CoCa, so frozen-SSL blind spots affect only the auxiliary targets, not what the model sees.)*
 
 ## 6. What this is not
 
-- **Not an image generator.** Native synthesis is deliberately traded away; §3.5 recovers it approximately if needed.
+- **Not an image generator.** Native synthesis is deliberately traded away; §3.6 recovers it approximately if needed.
 - **Not joint JEPA training.** No EMA/stop-grad anywhere; stability is bought with frozen targets, at the cost of non-adaptable target spaces (probed in week 1, mapped in H2).
 
 ## 7. Timeline (single researcher + modest compute)
@@ -188,4 +224,4 @@ Each gate is an order of magnitude cheaper than the next; each has an explicit k
 
 ## References (non-exhaustive)
 
-I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022)
+I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022) · CLIP (Radford et al. 2021) · CoCa (Yu et al. 2022) · SigLIP (Zhai et al. 2023) · iBOT (Zhou et al. 2022) · MMVP / Eyes Wide Shut (Tong et al. 2024)
