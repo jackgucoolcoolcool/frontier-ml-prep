@@ -1,6 +1,8 @@
 # LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces
 
-**Research Proposal** · July 2026 · Status: draft v0.3
+**Research Proposal** · July 2026 · Status: draft v0.4
+
+> **Figure 1 (see HTML version):** a language model reads interleaved text + CLIP-encoded visuals and, at every visual span, predicts the *frozen* DINOv2/V-JEPA latents of the *next* visual content — text keeps its ordinary cross-entropy; no pixels are ever generated; no collapse is possible because targets are frozen.
 
 ---
 
@@ -36,6 +38,30 @@ Three converging threads, none of which occupies our slot:
 | **LatentFusion (ours)** | regression / NCE / discrete-CE / flow | **frozen DINOv2 + V-JEPA** | ✅ | ✅ |
 
 **The open slot:** nobody predicts *future* content in a *complementary, dynamics-oriented* frozen space from a *language-conditioned* model with a distribution-aware loss. DINO-WM has no language; MetaMorph/ROSS have no future; Emu has no complementary space.
+
+### 2.1 Design-space analysis: five axes
+
+Every method above is a point in a five-dimensional design space. Making the axes explicit shows both where prior work clusters and why our coordinates are chosen rather than arbitrary:
+
+| Axis | Range | Ours | Why |
+| --- | --- | --- | --- |
+| **A1 — Input space** | pixels · VQ codes · text-aligned feats | CLIP/CoCa | keep OCR/VQA; blind spots patched by A2, not A1 |
+| **A2 — Target space** | pixels · VAE · text-aligned · dense-SSL · video-SSL | DINOv2 + V-JEPA | maximally complementary to A1 |
+| **A3 — Temporal offset** | reconstruct (Δ=0) · predict (Δ>0) | Δ>0 (next span / t+k) | Δ=0 degenerates to feature translation |
+| **A4 — Objective** | point (L2) → ranking (NCE) → categorical (CE) → continuous (flow) | ablation axis | distributionality only matters when Δ>0 makes futures multimodal |
+| **A5 — Target trainability** | frozen · EMA · jointly trained | frozen | collapse impossible; stationary loss; targets precomputable |
+
+Cross-correlations with prior work — each neighbor validates one axis-setting while leaving ours open:
+
+- **REPA ⇒ A2:** DINOv2 targets carry useful dense signal even for a *generative* DiT — evidence the target space works, in a different host model.
+- **ROSS & MetaMorph ⇒ A3 baseline:** even Δ=0 reconstruction/regression of visual features already improves VLM understanding; our claim is that Δ>0 adds world-modeling on top. (These two are also our built-in ablation arm: set Δ=0 and we *reproduce* them.)
+- **DINO-WM & V-JEPA 2-AC ⇒ A2×A3:** frozen SSL spaces support Δ>0 dynamics well enough to *plan* — but with no language conditioning (A1 has no text).
+- **MAR & RCG ⇒ A4:** continuous distributional heads work in low-dim latent spaces; Emu2's blurriness shows what happens when A4=point while futures are multimodal.
+- **Chameleon/Transfusion ⇒ A3 with the wrong A2:** they do predict future visual content, but in pixel space — paying for texture. We keep their A3 and move A2.
+- **SEED/LaViT ⇒ A4=categorical is trainable at LLM scale;** Janus ⇒ decoupling spaces per role (our A1≠A2) beats forcing one space to do everything.
+- **A5 interaction:** joint/EMA targets (V-JEPA proper) could adapt to the task but reintroduce collapse machinery and non-stationary targets inside LLM training; frozen is the only setting where targets ship like labels. The cost — a non-adaptable space — is exactly what the week-1 probes and H2 measure.
+
+The unexplored cell is precisely (A1=text-aligned, A2=dense/video-SSL, A3=Δ>0, A4=distribution-aware, A5=frozen).
 
 ## 3. Method
 
@@ -116,10 +142,21 @@ A diffusion decoder trained separately to invert the target encoders (RCG-style)
 
 **H4 (efficiency).** At matched FLOPs, better spatial+temporal-understanding scaling than a Transfusion-style pixel-diffusion baseline (0.3B/1B/3B ladder; loss-vs-compute and benchmark-vs-compute curves; objective (c′) gives the cleanest scaling ordinate).
 
-**De-risking probe (week 1):** linear-probe frozen DINOv2 and V-JEPA 2 features on all target evals *before* Stage-2 training; weak probes ⇒ revise target spaces first.
+### 4.1 De-risking ladder — staged go/no-go gates
 
-### Minimal viable experiment
-Existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets, objectives (a) and (c′), on interleaved image-text data. Single-node; targets precomputed. Baseline: same run, prediction loss off. Video/JEPA arm second.
+Each gate is an order of magnitude cheaper than the next; each has an explicit kill/pivot criterion so no compute is spent past a dead assumption.
+
+| Gate | Cost | Experiment | Green light | Kill / pivot |
+| --- | --- | --- | --- | --- |
+| **D0 — Target-space probes** | hours, 1 GPU | linear-probe frozen DINOv2 + V-JEPA 2 features on *our* eval suites | probes beat CLIP features on spatial/temporal tasks | pivot target space (A2) before anything else |
+| **D1 — Predictability check** | ~1 day | small transformer predicts next-frame JEPA/DINO latents from context latents only (no LLM, DINO-WM-style) | prediction ≫ copy-last-frame baseline in retrieval@k | futures unpredictable in this space ⇒ reconsider Δ or space |
+| **D2 — Translation control** | ~1 day | CLIP→DINO Δ=0 regression probe | measures the "translation floor" all later runs must beat | — (this is a measuring stick, not a gate) |
+| **D3 — Frozen-LLM MVE** | days, single node | frozen 7B LLM, train only projector + heads, objectives (a)+(c′) | latent loss learns above D2 floor; no text-CE regression | if signal only equals D2: Δ>0 targets aren't being used ⇒ fix data interleaving |
+| **D4 — Unfrozen MVE + H1** | ~1 week | unfreeze LLM, full MVE vs. no-prediction-loss baseline | H1 moves ≥1 spatial/temporal benchmark outside noise; OCR unchanged | if OCR regresses: rebalance λ; if nothing moves: stop or reframe as world-model-only (H3 path) |
+| **D5 — Objectives + H2/H3** | weeks | (b)/(d) heads, target-space swap, rollout evals | per-axis map matches predictions | publish the map either way — negative H2 is still a result |
+| **D6 — Scaling ladder (H4)** | largest | 0.3B/1B/3B vs. pixel-diffusion baseline | favorable slope | claims restricted to measured regime |
+
+**Minimal viable experiment (D3/D4):** existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets, objectives (a) and (c′), on interleaved image-text data. Single-node; targets precomputed. Baseline: same run, prediction loss off. Video/JEPA arm second.
 
 ## 5. Risks & mitigations
 

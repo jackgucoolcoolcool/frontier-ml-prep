@@ -47,7 +47,7 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 
 <header class="hero">
   <h1>LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces</h1>
-  <div class="meta">Research Proposal · July 2026 · draft v0.3</div>
+  <div class="meta">Research Proposal · July 2026 · draft v0.4</div>
   <div class="badges">
     <span class="badge">see in CLIP space</span>
     <span class="badge">predict in DINO/JEPA space</span>
@@ -60,6 +60,78 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 <p>Current unified multimodal models couple language modeling with <em>pixel-level</em> generative objectives — discrete VQ tokens (Chameleon) or diffusion over image latents (Transfusion). Both spend capacity on high-frequency detail irrelevant for reasoning, and neither exploits the strong <em>predictive</em> representations learned by self-supervised vision models. <strong>LatentFusion</strong> is a language model that <strong>consumes</strong> images through a standard text-aligned vision tower (CLIP/CoCa) but is <strong>trained to predict</strong> upcoming visual content in frozen self-supervised latent spaces — <strong>DINOv2 for image spans</strong> (dense semantics, geometry) and <strong>video-JEPA for video spans</strong> (dynamics, physics). Input and target spaces are deliberately decoupled: the model <em>sees</em> in a text-aligned space and <em>predicts</em> in spaces encoding exactly what text alignment lacks. Targets are frozen and precomputed, so collapse is impossible by construction. We study a spectrum of objectives — dense regression, InfoNCE, discretized-latent cross-entropy (including an extended-vocabulary variant that is <em>literally</em> standard LLM training), and a latent flow head — as progressively stronger treatments of regression-to-the-mean. Hypothesis: stronger spatial, temporal, and world-model capability per FLOP than pixel-generative training, trading away native synthesis (recoverable via a separately trained decoder).</p>
 
 <div class="pitch"><strong>One-line pitch:</strong> a language model that sees in CLIP space and learns to predict in DINO/JEPA space acquires the dense-spatial and temporal world knowledge that text-aligned VLMs structurally lack — without pixel-level generative cost.</div>
+
+<!-- ============ FIGURE 1: main idea ============ -->
+<div class="diagram" style="border-width:2px; border-color:#b5179e;">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">
+  <defs>
+    <marker id="f1b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4361ee"/></marker>
+    <marker id="f1m" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b5179e"/></marker>
+    <marker id="f1t" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0d9488"/></marker>
+  </defs>
+  <text x="450" y="26" text-anchor="middle" font-weight="bold" font-size="16" fill="#1a1a2e">LatentFusion — see in CLIP space, predict the future in frozen DINO/JEPA space</text>
+
+  <!-- timeline strip: interleaved data -->
+  <text x="38" y="70" font-size="11" fill="#5c6270">interleaved</text>
+  <text x="38" y="84" font-size="11" fill="#5c6270">data stream</text>
+  <g font-size="11.5">
+    <rect x="120" y="52" width="120" height="44" rx="8" fill="#eef1ff" stroke="#4361ee"/><text x="180" y="79" text-anchor="middle">“the ball rolls…”</text>
+    <rect x="252" y="52" width="90" height="44" rx="8" fill="#dbe4ff" stroke="#4361ee" stroke-width="2"/><text x="297" y="73" text-anchor="middle" font-weight="bold" fill="#1a1a2e">image t</text><text x="297" y="88" text-anchor="middle" font-size="10" fill="#5c6270">🖼️ current</text>
+    <rect x="354" y="52" width="130" height="44" rx="8" fill="#eef1ff" stroke="#4361ee"/><text x="419" y="79" text-anchor="middle">“…off the table and”</text>
+    <rect x="496" y="52" width="100" height="44" rx="8" fill="#fdf2fb" stroke="#b5179e" stroke-width="2" stroke-dasharray="6 4"/><text x="546" y="73" text-anchor="middle" font-weight="bold" fill="#b5179e">image t+1</text><text x="546" y="88" text-anchor="middle" font-size="10" fill="#5c6270">❓ upcoming</text>
+    <rect x="608" y="52" width="110" height="44" rx="8" fill="#eef1ff" stroke="#4361ee"/><text x="663" y="79" text-anchor="middle">“bounces once”</text>
+  </g>
+  <text x="790" y="79" font-size="12" fill="#5c6270">→ time</text>
+
+  <!-- current image goes into CLIP -->
+  <line x1="297" y1="96" x2="297" y2="140" stroke="#4361ee" stroke-width="2.5" marker-end="url(#f1b)"/>
+  <rect x="212" y="140" width="170" height="46" rx="10" fill="#eef1ff" stroke="#4361ee" stroke-width="2"/>
+  <text x="297" y="160" text-anchor="middle" font-size="12" font-weight="bold" fill="#4361ee">CLIP/CoCa tower (INPUT)</text>
+  <text x="297" y="177" text-anchor="middle" font-size="10.5" fill="#5c6270">text-aligned · OCR/VQA kept</text>
+
+  <!-- text into LLM -->
+  <line x1="180" y1="96" x2="150" y2="222" stroke="#4361ee" stroke-width="1.8" marker-end="url(#f1b)"/>
+  <line x1="419" y1="96" x2="440" y2="222" stroke="#4361ee" stroke-width="1.8" marker-end="url(#f1b)"/>
+  <line x1="297" y1="186" x2="297" y2="222" stroke="#4361ee" stroke-width="2.5" marker-end="url(#f1b)"/>
+
+  <!-- LLM -->
+  <rect x="90" y="222" width="440" height="64" rx="12" fill="#1a1a2e"/>
+  <text x="310" y="248" text-anchor="middle" fill="#fff" font-weight="bold" font-size="14">Causal Transformer LM</text>
+  <text x="310" y="270" text-anchor="middle" fill="#aab4d4" font-size="11.5">standard next-token training · text loss unchanged (CE)</text>
+
+  <!-- prediction arrow -->
+  <line x1="530" y1="254" x2="620" y2="254" stroke="#b5179e" stroke-width="3" marker-end="url(#f1m)"/>
+  <text x="575" y="242" text-anchor="middle" font-size="11" font-weight="bold" fill="#b5179e">predicts</text>
+
+  <!-- target box -->
+  <rect x="620" y="210" width="250" height="90" rx="12" fill="#fdf2fb" stroke="#b5179e" stroke-width="2"/>
+  <text x="745" y="234" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#b5179e">❄️ frozen latents of image t+1</text>
+  <text x="745" y="256" text-anchor="middle" font-size="11.5" fill="#1a1a2e">DINOv2 (images) · V-JEPA (video)</text>
+  <text x="745" y="276" text-anchor="middle" font-size="10.5" fill="#5c6270">semantics + dynamics — not pixels</text>
+  <text x="745" y="292" text-anchor="middle" font-size="10.5" fill="#5c6270">precomputed offline, shipped like labels</text>
+
+  <!-- upcoming image encodes to target -->
+  <line x1="546" y1="96" x2="700" y2="206" stroke="#0d9488" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#f1t)"/>
+  <text x="660" y="140" font-size="10.5" fill="#0d9488">frozen SSL encoder (offline)</text>
+
+  <!-- three guarantees -->
+  <g font-size="11.5">
+    <rect x="90" y="330" width="245" height="72" rx="10" fill="#f0fbf8" stroke="#0d9488"/>
+    <text x="212" y="354" text-anchor="middle" font-weight="bold" fill="#0d9488">no pixel-generative cost</text>
+    <text x="212" y="374" text-anchor="middle" fill="#5c6270" font-size="10.5">no texture modeling; latent loss only —</text>
+    <text x="212" y="390" text-anchor="middle" fill="#5c6270" font-size="10.5">capacity goes to semantics &amp; dynamics</text>
+    <rect x="350" y="330" width="245" height="72" rx="10" fill="#eef1ff" stroke="#4361ee"/>
+    <text x="472" y="354" text-anchor="middle" font-weight="bold" fill="#4361ee">no collapse, by construction</text>
+    <text x="472" y="374" text-anchor="middle" fill="#5c6270" font-size="10.5">targets frozen &amp; stationary —</text>
+    <text x="472" y="390" text-anchor="middle" fill="#5c6270" font-size="10.5">no EMA, no stop-grad machinery</text>
+    <rect x="610" y="330" width="260" height="72" rx="10" fill="#fdf2fb" stroke="#b5179e"/>
+    <text x="740" y="354" text-anchor="middle" font-weight="bold" fill="#b5179e">complementary spaces</text>
+    <text x="740" y="374" text-anchor="middle" fill="#5c6270" font-size="10.5">input keeps OCR/VQA; targets inject</text>
+    <text x="740" y="390" text-anchor="middle" fill="#5c6270" font-size="10.5">geometry (DINO) + physics (JEPA)</text>
+  </g>
+</svg>
+<div class="cap"><strong>Figure 1.</strong> The main idea. A causal LM reads interleaved text and CLIP-encoded visuals; at every visual span it is trained to predict the <em>frozen</em> DINOv2/V-JEPA latents of the <em>upcoming</em> visual content (Δ&gt;0). Text keeps ordinary cross-entropy; no pixels are generated; targets are precomputed and frozen, so representation collapse is impossible.</div>
+</div>
 
 <h2>1. Motivation</h2>
 <ol>
@@ -139,6 +211,65 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 <tr><td>SEED, LaViT, VILA-U, Janus</td><td>discrete semantic tokens</td><td>quantized CLIP-ish</td><td>✅</td><td>partially</td></tr>
 <tr class="ours"><td>LatentFusion (ours)</td><td>regression / NCE / discrete-CE / flow</td><td>frozen DINOv2 + V-JEPA</td><td>✅</td><td>✅</td></tr>
 </table>
+
+<h3>2.1 Design-space analysis: five axes</h3>
+<p>Every method above is a point in a five-dimensional design space. Making the axes explicit shows where prior work clusters — and why our coordinates are chosen, not arbitrary.</p>
+
+<!-- ============ VISUAL: five-axis design space ============ -->
+<div class="diagram">
+<svg viewBox="0 0 900 330" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">
+  <text x="450" y="24" text-anchor="middle" font-weight="bold" font-size="14" fill="#1a1a2e">Five design axes — ours in magenta, validating neighbors annotated</text>
+  <g font-size="11">
+    <!-- A1 -->
+    <text x="20" y="70" font-weight="bold" fill="#1a1a2e" font-size="12">A1 input</text>
+    <line x1="130" y1="66" x2="860" y2="66" stroke="#e3e6f0" stroke-width="2"/>
+    <circle cx="220" cy="66" r="6" fill="#5c6270"/><text x="220" y="50" text-anchor="middle" fill="#5c6270">pixels/VQ (Chameleon)</text>
+    <circle cx="700" cy="66" r="9" fill="#b5179e"/><text x="700" y="50" text-anchor="middle" font-weight="bold" fill="#b5179e">text-aligned CLIP/CoCa ✓</text>
+    <text x="700" y="86" text-anchor="middle" fill="#5c6270" font-size="10">keeps OCR/VQA — blind spots patched by A2, not A1</text>
+    <!-- A2 -->
+    <text x="20" y="130" font-weight="bold" fill="#1a1a2e" font-size="12">A2 target</text>
+    <line x1="130" y1="126" x2="860" y2="126" stroke="#e3e6f0" stroke-width="2"/>
+    <circle cx="200" cy="126" r="6" fill="#5c6270"/><text x="200" y="110" text-anchor="middle" fill="#5c6270">pixels/VAE (Transfusion)</text>
+    <circle cx="430" cy="126" r="6" fill="#5c6270"/><text x="430" y="110" text-anchor="middle" fill="#5c6270">text-aligned (Emu2, MetaMorph)</text>
+    <circle cx="720" cy="126" r="9" fill="#b5179e"/><text x="720" y="110" text-anchor="middle" font-weight="bold" fill="#b5179e">dense/video-SSL ✓</text>
+    <text x="720" y="146" text-anchor="middle" fill="#0d9488" font-size="10">REPA: DINO targets help even a generative DiT</text>
+    <!-- A3 -->
+    <text x="20" y="190" font-weight="bold" fill="#1a1a2e" font-size="12">A3 offset Δ</text>
+    <line x1="130" y1="186" x2="860" y2="186" stroke="#e3e6f0" stroke-width="2"/>
+    <circle cx="280" cy="186" r="6" fill="#5c6270"/><text x="280" y="170" text-anchor="middle" fill="#5c6270">Δ=0 reconstruct (ROSS, MetaMorph)</text>
+    <circle cx="660" cy="186" r="9" fill="#b5179e"/><text x="660" y="170" text-anchor="middle" font-weight="bold" fill="#b5179e">Δ&gt;0 predict future ✓</text>
+    <text x="660" y="206" text-anchor="middle" fill="#0d9488" font-size="10">DINO-WM / V-JEPA 2-AC: Δ&gt;0 in SSL space supports planning</text>
+    <!-- A4 -->
+    <text x="20" y="250" font-weight="bold" fill="#1a1a2e" font-size="12">A4 objective</text>
+    <line x1="130" y1="246" x2="860" y2="246" stroke="#e3e6f0" stroke-width="2"/>
+    <circle cx="220" cy="246" r="6" fill="#5c6270"/><text x="220" y="230" text-anchor="middle" fill="#5c6270">point L2 (Emu2)</text>
+    <rect x="390" y="238" width="330" height="16" rx="8" fill="#fdf2fb" stroke="#b5179e"/><text x="555" y="230" text-anchor="middle" font-weight="bold" fill="#b5179e">NCE → discrete-CE → flow (our ablation axis)</text>
+    <text x="555" y="268" text-anchor="middle" fill="#0d9488" font-size="10">MAR/RCG: distributional heads work in low-dim latents · matters only when Δ&gt;0 makes futures multimodal</text>
+    <!-- A5 -->
+    <text x="20" y="310" font-weight="bold" fill="#1a1a2e" font-size="12">A5 targets</text>
+    <line x1="130" y1="306" x2="860" y2="306" stroke="#e3e6f0" stroke-width="2"/>
+    <circle cx="250" cy="306" r="6" fill="#5c6270"/><text x="250" y="290" text-anchor="middle" fill="#5c6270">joint/EMA (V-JEPA proper)</text>
+    <circle cx="680" cy="306" r="9" fill="#b5179e"/><text x="680" y="290" text-anchor="middle" font-weight="bold" fill="#b5179e">frozen ✓ — collapse impossible, targets ship like labels</text>
+  </g>
+</svg>
+<div class="cap">The unexplored cell: (A1 = text-aligned, A2 = dense/video-SSL, A3 = Δ&gt;0, A4 = distribution-aware, A5 = frozen).</div>
+</div>
+
+<div class="grid2">
+<div class="card"><h4>What each neighbor proves — and leaves open</h4>
+<ul class="muted" style="margin:6px 0; padding-left:18px;">
+<li><strong>REPA ⇒ A2:</strong> DINO targets carry dense signal even in a generative host.</li>
+<li><strong>ROSS/MetaMorph ⇒ A3 floor:</strong> even Δ=0 helps understanding; our Δ&gt;0 claim builds on top — and setting Δ=0 <em>reproduces them</em> as a built-in ablation.</li>
+<li><strong>DINO-WM / V-JEPA 2-AC ⇒ A2×A3:</strong> frozen SSL spaces are predictable enough to plan in — minus language.</li>
+<li><strong>MAR/RCG ⇒ A4:</strong> low-dim latent distributional heads work; Emu2's blur shows point-estimates failing on multimodal futures.</li>
+</ul></div>
+<div class="card"><h4>Axis interactions (why coordinates cohere)</h4>
+<ul class="muted" style="margin:6px 0; padding-left:18px;">
+<li><strong>A1↔A2 (Janus-style decoupling):</strong> complementarity only exists because input ≠ target; SigLIP targets from a CLIP input ≈ no new information.</li>
+<li><strong>A3↔A4:</strong> distributional objectives only earn their cost when Δ&gt;0 — at Δ=0 the target is deterministic and L2 suffices.</li>
+<li><strong>A5↔everything:</strong> frozen targets make A2 swappable offline (H2 is cheap), A4 stable (stationary loss), and training infra identical to a standard VLM. Cost: non-adaptable space — exactly what gates D0–D1 measure first.</li>
+</ul></div>
+</div>
 
 <h2>3. Method</h2>
 <h3>3.1 Architecture: decoupled input and target spaces</h3>
@@ -338,8 +469,58 @@ loss = L_text + lam * L_reg</pre>
 <div class="card"><h4>H3 — Objective</h4><p>(b)/(c)/(d) ≥ (a) wherever futures are genuinely multimodal (video continuation, next-image-in-document); (a) stays competitive for understanding. <span class="muted">Latent rollout metrics (feature PSNR, retrieval@k), planning success à la V-JEPA 2-AC / DINO-WM.</span></p></div>
 <div class="card"><h4>H4 — Efficiency</h4><p>At matched FLOPs, better spatial+temporal scaling than a Transfusion-style pixel-diffusion baseline (0.3B/1B/3B ladder; objective (c′) gives the cleanest scaling ordinate).</p></div>
 </div>
-<p><strong>De-risking probe (week 1):</strong> linear-probe frozen DINOv2 + V-JEPA 2 features on all target evals <em>before</em> Stage-2 training; weak probes ⇒ revise target spaces first.</p>
-<p><strong>Minimal viable experiment:</strong> existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets, objectives (a) + (c′), interleaved image-text data, targets precomputed. Baseline: same run, prediction loss off. Video/JEPA arm second.</p>
+<h3>4.1 De-risking ladder — staged go/no-go gates</h3>
+<p>Each gate is an order of magnitude cheaper than the next; each has an explicit kill/pivot criterion so no compute is spent past a dead assumption.</p>
+
+<!-- ============ VISUAL: de-risk ladder ============ -->
+<div class="diagram">
+<svg viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">
+  <defs><marker id="dr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0d9488"/></marker></defs>
+  <text x="450" y="24" text-anchor="middle" font-weight="bold" font-size="14" fill="#1a1a2e">De-risking ladder: cost grows ~10× per step, every step gated</text>
+  <!-- staircase -->
+  <g font-size="10.5">
+    <rect x="40"  y="250" width="115" height="44" rx="8" fill="#f0fbf8" stroke="#0d9488" stroke-width="2"/>
+    <text x="97" y="268" text-anchor="middle" font-weight="bold" fill="#0d9488">D0 · hours</text><text x="97" y="284" text-anchor="middle" fill="#1a1a2e">linear probes</text>
+    <rect x="163" y="212" width="115" height="44" rx="8" fill="#f0fbf8" stroke="#0d9488" stroke-width="2"/>
+    <text x="220" y="230" text-anchor="middle" font-weight="bold" fill="#0d9488">D1 · ~1 day</text><text x="220" y="246" text-anchor="middle" fill="#1a1a2e">predictability check</text>
+    <rect x="286" y="174" width="115" height="44" rx="8" fill="#fff8ed" stroke="#d97706" stroke-width="2"/>
+    <text x="343" y="192" text-anchor="middle" font-weight="bold" fill="#d97706">D2 · ~1 day</text><text x="343" y="208" text-anchor="middle" fill="#1a1a2e">translation floor</text>
+    <rect x="409" y="136" width="115" height="44" rx="8" fill="#eef1ff" stroke="#4361ee" stroke-width="2"/>
+    <text x="466" y="154" text-anchor="middle" font-weight="bold" fill="#4361ee">D3 · days</text><text x="466" y="170" text-anchor="middle" fill="#1a1a2e">frozen-LLM MVE</text>
+    <rect x="532" y="98" width="115" height="44" rx="8" fill="#eef1ff" stroke="#4361ee" stroke-width="2"/>
+    <text x="589" y="116" text-anchor="middle" font-weight="bold" fill="#4361ee">D4 · ~1 wk</text><text x="589" y="132" text-anchor="middle" fill="#1a1a2e">unfrozen MVE + H1</text>
+    <rect x="655" y="60" width="115" height="44" rx="8" fill="#fdf2fb" stroke="#b5179e" stroke-width="2"/>
+    <text x="712" y="78" text-anchor="middle" font-weight="bold" fill="#b5179e">D5 · weeks</text><text x="712" y="94" text-anchor="middle" fill="#1a1a2e">objectives, H2/H3</text>
+    <rect x="778" y="34" width="110" height="44" rx="8" fill="#fdf2fb" stroke="#b5179e" stroke-width="2"/>
+    <text x="833" y="52" text-anchor="middle" font-weight="bold" fill="#b5179e">D6 · largest</text><text x="833" y="68" text-anchor="middle" fill="#1a1a2e">scaling (H4)</text>
+    <!-- arrows -->
+    <line x1="155" y1="262" x2="170" y2="245" stroke="#0d9488" stroke-width="2" marker-end="url(#dr)"/>
+    <line x1="278" y1="224" x2="293" y2="207" stroke="#0d9488" stroke-width="2" marker-end="url(#dr)"/>
+    <line x1="401" y1="186" x2="416" y2="169" stroke="#0d9488" stroke-width="2" marker-end="url(#dr)"/>
+    <line x1="524" y1="148" x2="539" y2="131" stroke="#0d9488" stroke-width="2" marker-end="url(#dr)"/>
+    <line x1="647" y1="110" x2="662" y2="93" stroke="#0d9488" stroke-width="2" marker-end="url(#dr)"/>
+    <line x1="770" y1="72" x2="785" y2="63" stroke="#0d9488" stroke-width="2" marker-end="url(#dr)"/>
+    <!-- kill notes -->
+    <text x="97" y="308" text-anchor="middle" fill="#c1121f" font-size="9.5">weak ⇒ pivot A2</text>
+    <text x="220" y="270" text-anchor="middle" fill="#c1121f" font-size="9.5" transform="translate(0,38)">unpredictable ⇒ rethink Δ</text>
+    <text x="466" y="196" text-anchor="middle" fill="#c1121f" font-size="9.5">≤ D2 floor ⇒ fix data</text>
+    <text x="589" y="158" text-anchor="middle" fill="#c1121f" font-size="9.5">H1 flat ⇒ stop / reframe</text>
+  </g>
+</svg>
+</div>
+
+<table>
+<tr><th>Gate</th><th>Cost</th><th>Experiment</th><th>Green light</th><th>Kill / pivot</th></tr>
+<tr><td><strong>D0 — Target-space probes</strong></td><td>hours, 1 GPU</td><td>linear-probe frozen DINOv2 + V-JEPA 2 features on <em>our</em> eval suites</td><td>probes beat CLIP features on spatial/temporal tasks</td><td>pivot target space (A2) before anything else</td></tr>
+<tr><td><strong>D1 — Predictability check</strong></td><td>~1 day</td><td>small transformer predicts next-frame latents from context latents only (no LLM, DINO-WM-style)</td><td>prediction ≫ copy-last-frame in retrieval@k</td><td>futures unpredictable in this space ⇒ reconsider Δ or space</td></tr>
+<tr><td><strong>D2 — Translation control</strong></td><td>~1 day</td><td>CLIP→DINO Δ=0 regression probe</td><td>establishes the "translation floor" all later runs must beat</td><td>— measuring stick, not a gate</td></tr>
+<tr><td><strong>D3 — Frozen-LLM MVE</strong></td><td>days, 1 node</td><td>frozen 7B LLM; train projector + heads only; objectives (a)+(c′)</td><td>latent loss learns above D2 floor; no text-CE regression</td><td>signal ≈ D2 floor ⇒ Δ&gt;0 targets unused ⇒ fix interleaving</td></tr>
+<tr><td><strong>D4 — Unfrozen MVE + H1</strong></td><td>~1 week</td><td>unfreeze LLM; full MVE vs. no-prediction-loss baseline</td><td>≥1 spatial/temporal benchmark moves outside noise; OCR unchanged</td><td>OCR regresses ⇒ rebalance λ; nothing moves ⇒ stop or reframe world-model-only (H3 path)</td></tr>
+<tr><td><strong>D5 — Objectives + H2/H3</strong></td><td>weeks</td><td>(b)/(d) heads; target-space swap; rollout evals</td><td>per-axis map matches predictions</td><td>publish the map either way — negative H2 is still a result</td></tr>
+<tr><td><strong>D6 — Scaling ladder (H4)</strong></td><td>largest</td><td>0.3B/1B/3B vs. pixel-diffusion baseline</td><td>favorable slope</td><td>claims restricted to measured regime</td></tr>
+</table>
+
+<p><strong>Minimal viable experiment (D3/D4):</strong> existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets, objectives (a) + (c′), interleaved image-text data, targets precomputed. Baseline: same run, prediction loss off. Video/JEPA arm second.</p>
 
 <h2>5. Risks &amp; mitigations</h2>
 <table>
