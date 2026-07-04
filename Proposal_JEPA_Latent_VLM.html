@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LatentFusion: Multimodal LMs that Predict in a Frozen Video-JEPA Space</title>
+<title>LatentFusion: Multimodal LMs that Predict in Frozen Self-Supervised Latent Spaces</title>
 <script>
 MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[','\\]'], ['$$','$$']] } };
 </script>
@@ -38,49 +38,50 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 <div class="wrap">
 
 <header class="hero">
-  <h1>LatentFusion: Multimodal Language Models that Predict in a Frozen Video-JEPA Space</h1>
-  <div class="meta">Research Proposal · July 2026 · draft v0.1</div>
+  <h1>LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces</h1>
+  <div class="meta">Research Proposal · July 2026 · draft v0.2</div>
 </header>
 
 <h2>Abstract</h2>
-<p>Current unified multimodal models couple language modeling with <em>pixel-level</em> generative objectives — discrete VQ tokens (Chameleon) or diffusion over image latents (Transfusion). Both spend capacity on high-frequency visual detail irrelevant for reasoning, and neither exploits the strong <em>predictive</em> representations learned by self-supervised video models. We propose <strong>LatentFusion</strong>: (1) pretrain a JEPA-style encoder on large-scale video and <strong>freeze it</strong>; (2) train a language model on interleaved image/video–text data where visual spans are represented — and <em>predicted</em> — as frozen JEPA latents, via dense regression, a lightweight latent diffusion/flow head (MAR-style), or both. We hypothesize this yields stronger temporal, physical, and world-model capability per FLOP than pixel-generative training, trading away native image synthesis (recoverable via a separately trained decoder). The frozen-target design eliminates representation collapse by construction.</p>
+<p>Current unified multimodal models couple language modeling with <em>pixel-level</em> generative objectives — discrete VQ tokens (Chameleon) or diffusion over image latents (Transfusion). Both spend capacity on high-frequency visual detail irrelevant for reasoning, and neither exploits the strong <em>predictive</em> representations learned by self-supervised vision models. We propose <strong>LatentFusion</strong>: a language model that <strong>consumes</strong> images through a standard text-aligned vision tower (CLIP/CoCa) but is <strong>trained to predict</strong> upcoming visual content in frozen self-supervised latent spaces — <strong>DINOv2 for image spans</strong> (dense semantics, geometry) and <strong>video-JEPA for video spans</strong> (dynamics, physics). Input and target spaces are deliberately decoupled: the model <em>sees</em> in a text-aligned space and <em>predicts</em> in spaces encoding exactly what text alignment lacks. Targets are frozen and precomputed, so collapse is impossible by construction. We study four objectives — dense regression, contrastive (InfoNCE), discretized-latent cross-entropy, and a lightweight latent flow head — as progressively stronger treatments of regression-to-the-mean. Hypothesis: stronger spatial, temporal, and world-model capability per FLOP than pixel-generative training, trading away native synthesis (recoverable via a separately trained decoder).</p>
 
-<div class="pitch"><strong>One-line pitch:</strong> a language model trained to autoregressively predict the future in a frozen video-JEPA space learns a textual world model — temporal and physical understanding that pixel-generative and contrastive-encoder VLMs structurally lack.</div>
+<div class="pitch"><strong>One-line pitch:</strong> a language model that sees in CLIP space and learns to predict in DINO/JEPA space acquires the dense-spatial and temporal world knowledge that text-aligned VLMs structurally lack — without pixel-level generative cost.</div>
 
 <h2>1. Motivation</h2>
 <ol>
   <li><strong>Pixel objectives overpay for detail.</strong> JEPA-family results (I-JEPA, V-JEPA, V-JEPA 2) show latent-space prediction yields better representations at a fraction of the compute — but with no language interface.</li>
-  <li><strong>Video-SSL features encode dynamics that text-aligned encoders miss.</strong> CLIP/SigLIP encoders are trained on static image–text alignment; they carry little motion or physical intuition. V-JEPA 2 latents support zero-shot planning (V-JEPA 2-AC). No current VLM <em>predicts</em> in such a space.</li>
-  <li><strong>Freezing removes JEPA's hardest engineering problem.</strong> Joint latent-prediction training needs EMA targets and stop-gradients to avoid collapse. With a frozen Stage-1 encoder, Stage 2 is a stationary-target regression problem: collapse is impossible and training stays as simple as standard VLM training.</li>
+  <li><strong>Text-aligned encoders are blind to what SSL encoders see.</strong> CLIP/CoCa features carry little dense spatial structure (DINOv2's strength: parts, layout, geometry) or motion/physical dynamics (V-JEPA's strength). A prediction objective in those spaces injects exactly the missing information — while the input tower keeps OCR/VQA/grounding intact.</li>
+  <li><strong>Frozen targets remove JEPA's hardest engineering problem.</strong> No EMA targets or stop-gradients: frozen, precomputed targets make training a stationary-target problem — collapse is impossible, and the loop stays as simple as standard VLM training.</li>
 </ol>
 
 <div class="diagram">
-<svg viewBox="0 0 820 300" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">
-  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4361ee"/></marker></defs>
-  <!-- Stage 1 -->
-  <rect x="20" y="20" width="230" height="120" rx="10" fill="#eef1ff" stroke="#4361ee"/>
-  <text x="135" y="45" text-anchor="middle" font-weight="bold" fill="#1a1a2e" font-size="14">Stage 1: Video-JEPA pretraining</text>
-  <text x="135" y="70" text-anchor="middle" font-size="12" fill="#5c6270">encoder f, EMA target, block masking</text>
-  <rect x="70" y="85" width="130" height="34" rx="6" fill="#4361ee"/>
-  <text x="135" y="107" text-anchor="middle" fill="#fff" font-size="12">then FREEZE f ❄️</text>
-  <!-- latents -->
-  <line x1="250" y1="80" x2="320" y2="80" stroke="#4361ee" stroke-width="2" marker-end="url(#ar)"/>
-  <text x="285" y="68" text-anchor="middle" font-size="11" fill="#5c6270">z = f(x)</text>
-  <!-- Stage 2 -->
-  <rect x="320" y="20" width="480" height="200" rx="10" fill="#fff" stroke="#b5179e"/>
-  <text x="560" y="45" text-anchor="middle" font-weight="bold" fill="#b5179e" font-size="14">Stage 2: Interleaved LLM training</text>
-  <text x="560" y="72" text-anchor="middle" font-family="monospace" font-size="12" fill="#1a1a2e">[text] [BOI] z₁ … z_N [EOI] [text] …</text>
-  <rect x="360" y="90" width="400" height="36" rx="6" fill="#1a1a2e"/>
-  <text x="560" y="113" text-anchor="middle" fill="#fff" font-size="12">Transformer LM (text: cross-entropy)</text>
-  <rect x="360" y="150" width="180" height="50" rx="6" fill="#eef1ff" stroke="#4361ee"/>
-  <text x="450" y="170" text-anchor="middle" font-size="12" fill="#1a1a2e">(a) regression head</text>
-  <text x="450" y="188" text-anchor="middle" font-size="11" fill="#5c6270">‖ẑ − z‖² dense signal</text>
-  <rect x="580" y="150" width="180" height="50" rx="6" fill="#fff3fb" stroke="#b5179e"/>
-  <text x="670" y="170" text-anchor="middle" font-size="12" fill="#1a1a2e">(b) latent flow head</text>
-  <text x="670" y="188" text-anchor="middle" font-size="11" fill="#5c6270">p(z | context), sampleable</text>
-  <!-- Stage 3 -->
-  <rect x="320" y="240" width="480" height="44" rx="10" fill="#f8f9fe" stroke="#e3e6f0" stroke-dasharray="5 4"/>
-  <text x="560" y="267" text-anchor="middle" font-size="12" fill="#5c6270">Stage 3 (optional): latent→pixel diffusion decoder, trained separately (RCG-style)</text>
+<svg viewBox="0 0 840 340" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4361ee"/></marker>
+  <marker id="ar2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b5179e"/></marker></defs>
+  <!-- input tower -->
+  <rect x="20" y="30" width="200" height="70" rx="10" fill="#eef1ff" stroke="#4361ee"/>
+  <text x="120" y="58" text-anchor="middle" font-weight="bold" font-size="13" fill="#1a1a2e">INPUT: CLIP/CoCa tower</text>
+  <text x="120" y="80" text-anchor="middle" font-size="11" fill="#5c6270">pretrained · text-aligned · OCR/VQA</text>
+  <line x1="220" y1="65" x2="290" y2="65" stroke="#4361ee" stroke-width="2" marker-end="url(#ar)"/>
+  <!-- LLM -->
+  <rect x="290" y="20" width="330" height="90" rx="10" fill="#1a1a2e"/>
+  <text x="455" y="55" text-anchor="middle" fill="#fff" font-weight="bold" font-size="13">Transformer LM</text>
+  <text x="455" y="78" text-anchor="middle" fill="#aab4d4" font-family="monospace" font-size="11">[text][BOI] v₁…v_N [EOI][text]…</text>
+  <text x="455" y="96" text-anchor="middle" fill="#aab4d4" font-size="11">text: cross-entropy</text>
+  <!-- heads -->
+  <line x1="455" y1="110" x2="380" y2="160" stroke="#b5179e" stroke-width="2" marker-end="url(#ar2)"/>
+  <line x1="455" y1="110" x2="560" y2="160" stroke="#b5179e" stroke-width="2" marker-end="url(#ar2)"/>
+  <rect x="270" y="160" width="220" height="70" rx="10" fill="#fff3fb" stroke="#b5179e"/>
+  <text x="380" y="185" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a1a2e">head A → DINOv2 targets ❄️</text>
+  <text x="380" y="205" text-anchor="middle" font-size="11" fill="#5c6270">image spans · dense semantics</text>
+  <rect x="510" y="160" width="220" height="70" rx="10" fill="#fff3fb" stroke="#b5179e"/>
+  <text x="620" y="185" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a1a2e">head B → V-JEPA targets ❄️</text>
+  <text x="620" y="205" text-anchor="middle" font-size="11" fill="#5c6270">video spans · dynamics</text>
+  <!-- future note -->
+  <rect x="270" y="255" width="460" height="40" rx="8" fill="#eef1ff" stroke="#4361ee" stroke-dasharray="5 4"/>
+  <text x="500" y="280" text-anchor="middle" font-size="12" fill="#1a1a2e">targets = latents of <tspan font-weight="bold">future</tspan> content (t+k), not the current frame</text>
+  <!-- objectives note -->
+  <text x="500" y="325" text-anchor="middle" font-size="11" fill="#5c6270">objectives per head: regression · InfoNCE · discretized-CE · latent flow (ablation axis)</text>
 </svg>
 </div>
 
@@ -89,81 +90,91 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 <tr><th>Work</th><th>Visual objective</th><th>Target space</th><th>Gap we fill</th></tr>
 <tr><td>Chameleon</td><td>AR over VQ tokens</td><td>discrete pixels</td><td>pixel-level, lossy quantization</td></tr>
 <tr><td>Transfusion</td><td>diffusion head</td><td>VAE pixel latents</td><td>still pixel-generative</td></tr>
-<tr><td>Emu / Emu2</td><td>AR regression</td><td>frozen CLIP/EVA feats</td><td>regression-to-mean; static image space</td></tr>
-<tr><td>MetaMorph</td><td>aux. regression</td><td>frozen SigLIP feats</td><td>text-aligned static space; no distributional head</td></tr>
+<tr><td>Emu / Emu2</td><td>AR regression</td><td>frozen CLIP/EVA feats</td><td>regression-to-mean; target ≈ input space</td></tr>
+<tr><td>MetaMorph</td><td>aux. regression</td><td>frozen SigLIP feats</td><td>predicts the same text-aligned space it consumes</td></tr>
 <tr><td>RCG</td><td>diffusion</td><td>frozen SSL (image) reps</td><td>unconditional gen, no LLM</td></tr>
 <tr><td>MAR</td><td>per-token diffusion head</td><td>VAE latents</td><td>pixels, not semantic latents</td></tr>
+<tr><td>DINO-WM</td><td>latent dynamics model</td><td>frozen DINOv2</td><td>world model works in DINO space — no language interface</td></tr>
 <tr><td>V-JEPA 2 / 2-AC</td><td>latent prediction</td><td>video-JEPA</td><td>no language interface</td></tr>
-<tr class="ours"><td>LatentFusion (ours)</td><td>regression and/or latent diffusion</td><td>frozen video-JEPA</td><td>language-conditioned prediction in a dynamics-rich space</td></tr>
+<tr class="ours"><td>LatentFusion (ours)</td><td>regression / contrastive / discrete-CE / latent flow</td><td>frozen DINOv2 (image) + video-JEPA (video)</td><td>language-conditioned prediction in spaces complementary to the input tower</td></tr>
 </table>
 
 <h2>3. Method</h2>
-<h3>Stage 1 — Frozen video-JEPA encoder</h3>
-<p>Pretrain (or reuse: V-JEPA 2 ViT-g) a spatiotemporal encoder \(f\) with the standard JEPA objective. After pretraining, online and target encoders coincide; <strong>freeze \(f\) permanently</strong> and precompute latents \(z = f(x) \in \mathbb{R}^{N\times d}\) offline — Stage 2 never runs the vision tower.</p>
+<h3>3.1 Architecture: decoupled input and target spaces</h3>
+<ul>
+  <li><strong>Input tower:</strong> pretrained CLIP/CoCa encoder (existing heavily-trained checkpoint; optionally fine-tuned), projected into the LLM — preserves OCR, documents, VQA, grounding.</li>
+  <li><strong>Target spaces (frozen, precomputed offline):</strong> <strong>image spans → DINOv2</strong> (dense semantics, parts, geometry; precedent: DINO-WM, RCG) · <strong>video spans → V-JEPA 2</strong> (motion, physics; precedent: V-JEPA 2-AC).</li>
+  <li><strong>Separate lightweight heads</strong> per target space (shared trunk), each with its own per-dimension whitening — never mix target spaces in one head.</li>
+</ul>
+<p><strong>Design principle — complementarity:</strong> predicting SigLIP targets from a CLIP input is nearly redundant; predicting DINO/JEPA targets injects what the input space lacks.</p>
 
-<h3>Stage 2 — Interleaved LLM training</h3>
-<p>Text positions get next-token cross-entropy. Visual spans are predicted from prior context via:</p>
-<div class="card"><h4>(a) Dense regression head</h4>
-\[ \mathcal{L}_{\text{reg}} = \tfrac{1}{N}\sum_i \big\| \hat z_i - z_i \big\|_2^2 \quad (\text{or } 1-\cos(\hat z_i, z_i)) \]
-<p class="muted">Simplest; strong dense gradient into the LLM (MetaMorph: improves understanding); regression-to-the-mean under genuine uncertainty.</p></div>
-<div class="card"><h4>(b) Latent diffusion / flow-matching head (MAR-style)</h4>
-\[ \mathcal{L}_{\text{flow}} = \mathbb{E}_{t,\epsilon}\big\| v_\theta(z_i^t, t, c_i) - (z_i - \epsilon) \big\|_2^2 \]
-<p class="muted">LLM emits conditioning vector \(c_i\); small MLP models the full conditional \(p(z\mid\text{context})\). Needs per-dim latent normalization (cf. Emu2, RCG); adds sampling cost.</p></div>
-<div class="card"><h4>(c) Both</h4>
-\[ \mathcal{L} = \mathcal{L}_{\text{CE}} + \lambda_r\,\mathcal{L}_{\text{reg}} + \lambda_f\,\mathcal{L}_{\text{flow}} \]
-<p class="muted">Regression as dense auxiliary signal + flow head for distributional prediction. The (a)/(b)/(c) comparison is a headline experiment.</p></div>
+<h3>3.2 What to predict: future, not same-frame</h3>
+<p>Targets are the latents of <strong>upcoming visual content</strong> — the next image in the interleaved sequence, or frames \(t+k\) given frames \(\le t\). Same-frame targets degenerate into CLIP→DINO feature translation (a distillation signal, kept only as a small auxiliary term). The primary loss is anticipatory: <em>given what you see and read, predict what comes next.</em></p>
 
-<h3>Regression vs. latent-diffusion head</h3>
+<h3>3.3 Prediction objectives (ablation axis)</h3>
+<div class="card"><h4>(a) Dense regression</h4>
+\[ \mathcal{L}_{\text{reg}} = \tfrac{1}{N}\sum_i \|\hat z_i - z_i\|_2^2 \]
+<p class="muted">Simplest; dense gradient (MetaMorph: improves understanding); collapses multimodal futures to their mean. Optional VICReg-style variance regularizer on predictions.</p></div>
+<div class="card"><h4>(b) Contrastive (InfoNCE)</h4>
+\[ \mathcal{L}_{\text{nce}} = -\log \frac{\exp(\text{sim}(\hat z_i, z_i)/\tau)}{\sum_j \exp(\text{sim}(\hat z_i, z_j)/\tau)} \]
+<p class="muted">Rank the true future above in-batch negatives — no mean-collapse, negligible cost, most JEPA-native (energy-based) fix.</p></div>
+<div class="card"><h4>(c) Discretized-latent cross-entropy</h4>
+<p>Quantize the frozen target space once (k-means or FSQ); predict codes with softmax CE. A categorical distribution natively represents multimodal futures — AR-over-tokens without VQ-on-pixels lossiness. Most scaling-friendly (clean per-token loss).</p></div>
+<div class="card"><h4>(d) Latent flow-matching head (MAR-style)</h4>
+\[ \mathcal{L}_{\text{flow}} = \mathbb{E}_{t,\epsilon}\| v_\theta(z_i^t, t, c_i) - (z_i - \epsilon) \|_2^2 \]
+<p class="muted">LLM emits conditioning \(c_i\); small MLP models the full continuous conditional. Sampleable rollouts; iterative inference (cheap: low-dim); needs schedules + whitening. The upper-bound treatment.</p></div>
+
 <table>
-<tr><th></th><th>Regression (a)</th><th>Latent diffusion/flow (b)</th></tr>
-<tr><td>Conditional distribution</td><td>mean only ("blurry" in feature space)</td><td>full distribution, sampleable</td></tr>
-<tr><td>Gradient to LLM</td><td>dense, strong for understanding</td><td>indirect (conditioning vector)</td></tr>
-<tr><td>Inference</td><td>single pass</td><td>iterative sampling (cheap: low-dim)</td></tr>
-<tr><td>Complexity</td><td>one L2 term</td><td>schedules, normalization, CFG</td></tr>
-<tr><td>World-model rollouts</td><td>deterministic point rollouts</td><td>diverse imagined futures</td></tr>
-<tr><td>Precedent</td><td>Emu2, MetaMorph</td><td>MAR, RCG</td></tr>
+<tr><th></th><th>(a) regression</th><th>(b) contrastive</th><th>(c) discrete-CE</th><th>(d) latent flow</th></tr>
+<tr><td>Multimodal futures</td><td>mean-collapse</td><td>ranking, no collapse</td><td>full categorical</td><td>full continuous</td></tr>
+<tr><td>Gradient to LLM</td><td>dense, strong</td><td>moderate</td><td>dense</td><td>indirect (cond. vector)</td></tr>
+<tr><td>Inference</td><td>single pass</td><td>single pass</td><td>single pass</td><td>iterative sampling</td></tr>
+<tr><td>Extra machinery</td><td>none</td><td>negatives, τ</td><td>codebook build</td><td>schedules, whitening, CFG</td></tr>
+<tr><td>Sampleable rollouts</td><td>no (point)</td><td>no</td><td>yes</td><td>yes (richest)</td></tr>
+<tr><td>Precedent</td><td>Emu2, MetaMorph</td><td>CPC/CLIP-style</td><td>VQ-AR models</td><td>MAR, RCG</td></tr>
 </table>
 
-<h3>Optional Stage 3 — Latent-to-pixel decoder</h3>
-<p>A diffusion decoder trained separately to invert \(f\) (RCG-style), for visualization/generation only; kept out of the main loop by design.</p>
+<h3>3.4 Optional: latent-to-pixel decoder</h3>
+<p>A diffusion decoder trained separately to invert the target encoders (RCG-style), for visualization/generation only; out of the main loop by design.</p>
 
 <h2>4. Hypotheses &amp; experiments</h2>
-<div class="card"><h4>H1 — Understanding</h4><p>Latent prediction on frozen JEPA targets improves temporal/physical benchmarks over an identical no-prediction-loss baseline (MetaMorph-style ablation). <span class="muted">Perception Test, TempCompass, physical reasoning.</span></p></div>
-<div class="card"><h4>H2 — Target space matters (main scientific risk)</h4><p>Video-JEPA targets beat SigLIP targets on temporal/embodied tasks and lose on OCR/documents. Mitigation arm: dual input streams (SigLIP + JEPA in, JEPA-only targets).</p></div>
-<div class="card"><h4>H3 — Distributional head</h4><p>Flow ≥ regression for rollout/planning quality; regression ≥ flow for understanding; combined is Pareto-best. <span class="muted">Latent rollout metrics (feature PSNR, retrieval@k of true future), planning success à la V-JEPA 2-AC.</span></p></div>
-<div class="card"><h4>H4 — Efficiency</h4><p>At matched FLOPs, better temporal-understanding scaling than a Transfusion-style pixel-diffusion baseline (0.3B/1B/3B ladder; loss-vs-compute and benchmark-vs-compute curves).</p></div>
-<p><strong>De-risking probe (week 1):</strong> linear-probe frozen V-JEPA 2 features on all target evals <em>before</em> Stage 2; weak probes ⇒ revise the target space first.</p>
-<p><strong>Minimal viable experiment:</strong> frozen V-JEPA 2 ViT-L + open 7B LLM + regression head on an interleaved video-text mix; latents precomputed; baseline = same data, prediction loss off.</p>
+<div class="card"><h4>H1 — Understanding</h4><p>Latent prediction on frozen SSL targets improves an otherwise-identical baseline: spatial suites for DINO targets; temporal/physical suites (Perception Test, TempCompass) for JEPA targets. Because the input tower is CLIP/CoCa, OCR/DocVQA should be <em>unchanged</em> — a regression test, not a trade-off.</p></div>
+<div class="card"><h4>H2 — Target space matters (headline ablation)</h4><p>Swap targets among SigLIP / DINOv2 / V-JEPA, all else fixed. Prediction: SigLIP ≈ no gain (redundant with input); DINOv2 wins spatial; V-JEPA wins temporal/embodied. The per-benchmark-family map is publishable on its own.</p></div>
+<div class="card"><h4>H3 — Objective</h4><p>(b)/(c)/(d) ≥ (a) wherever futures are genuinely multimodal (video continuation, next-image-in-document); (a) stays competitive for understanding. <span class="muted">Latent rollout metrics (feature PSNR, retrieval@k), planning success à la V-JEPA 2-AC / DINO-WM.</span></p></div>
+<div class="card"><h4>H4 — Efficiency</h4><p>At matched FLOPs, better spatial+temporal scaling than a Transfusion-style pixel-diffusion baseline (0.3B/1B/3B ladder; objective (c) gives the cleanest scaling ordinate).</p></div>
+<p><strong>De-risking probe (week 1):</strong> linear-probe frozen DINOv2 + V-JEPA 2 features on all target evals <em>before</em> Stage-2 training; weak probes ⇒ revise target spaces first.</p>
+<p><strong>Minimal viable experiment:</strong> existing CLIP/CoCa tower + open 7B LLM + frozen DINOv2 targets with regression head, interleaved image-text data, targets precomputed. Baseline: same run, prediction loss off. Video/JEPA arm second.</p>
 
 <h2>5. Risks &amp; mitigations</h2>
 <table>
 <tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr>
-<tr><td>JEPA space weak on OCR/fine detail (frozen ⇒ can't adapt)</td><td class="risk-high">High — main risk</td><td>early linear probes; dual-encoder input; scope claims to temporal/embodied</td></tr>
-<tr><td>Regression-to-mean makes loss uninformative</td><td>Medium</td><td>flow head; report per-dim prediction variance</td></tr>
-<tr><td>Latent geometry unfriendly to diffusion</td><td>Medium</td><td>per-dim whitening (RCG/Emu2 recipe)</td></tr>
-<tr><td>"Loss went down" without downstream gains</td><td>Medium</td><td>H1 ablation is the primary claim, not the loss curve</td></tr>
-<tr><td>Loss-balancing (\(\lambda_r,\lambda_f\)) instability</td><td>Low</td><td>small-scale grid; μP-style transfer upward</td></tr>
-<tr><td>Tube vs. per-frame tokenization vs. text interleaving</td><td>Low</td><td>start per-frame; ablate tubes</td></tr>
+<tr><td>Same-frame prediction degenerates to feature translation</td><td class="risk-high">High — main design risk</td><td>temporal targets only (§3.2); translation as small aux term; translation-only control run</td></tr>
+<tr><td>Prediction losses don't move downstream benchmarks</td><td>Medium</td><td>H1 ablation is the primary claim, not loss curves</td></tr>
+<tr><td>Latent geometry unfriendly to flow head</td><td>Medium</td><td>per-dim whitening per target space (RCG/Emu2 recipe)</td></tr>
+<tr><td>Codebook quality bottlenecks objective (c)</td><td>Medium</td><td>FSQ over k-means; sweep codebook size</td></tr>
+<tr><td>Loss balancing (\(\lambda_k\)) unstable</td><td>Low</td><td>small-scale grid; μP-style transfer upward</td></tr>
+<tr><td>Two target spaces complicate the pipeline</td><td>Low</td><td>targets precomputed offline; separate heads, shared trunk</td></tr>
 </table>
+<p class="muted"><em>Resolved by design vs. v0.1:</em> OCR/fine-detail weakness — the input tower is now CLIP/CoCa, so frozen-SSL blind spots affect only the auxiliary targets, not what the model sees.</p>
 
 <h2>6. What this is not</h2>
 <ul>
-  <li><strong>Not an image generator.</strong> Native synthesis is deliberately traded away; Stage 3 recovers it approximately if needed.</li>
-  <li><strong>Not joint JEPA training.</strong> No EMA/stop-grad in Stage 2; stability is bought with the frozen encoder, at the cost of a non-adaptable target space (tested in H2).</li>
+  <li><strong>Not an image generator.</strong> Native synthesis is deliberately traded away; §3.4 recovers it approximately if needed.</li>
+  <li><strong>Not joint JEPA training.</strong> No EMA/stop-grad anywhere; stability bought with frozen targets, at the cost of non-adaptable target spaces (probed in week 1, mapped in H2).</li>
 </ul>
 
 <h2>7. Timeline</h2>
 <table>
 <tr><th>Weeks</th><th>Milestone</th></tr>
-<tr><td>1–2</td><td>Linear probes of V-JEPA 2 features on target evals (go/no-go)</td></tr>
-<tr><td>3–6</td><td>MVE: regression head, H1 ablation</td></tr>
-<tr><td>7–10</td><td>Flow head, H3; latent normalization study</td></tr>
-<tr><td>11–14</td><td>Target-space swap (H2), dual-encoder arm</td></tr>
+<tr><td>1–2</td><td>Linear probes of DINOv2 + V-JEPA 2 features on target evals (go/no-go)</td></tr>
+<tr><td>3–6</td><td>MVE: DINO targets, regression head, H1 ablation + translation-only control</td></tr>
+<tr><td>7–10</td><td>Objectives (b)/(c)/(d) on images; whitening + codebook studies</td></tr>
+<tr><td>11–14</td><td>Video/V-JEPA arm; target-space swap (H2)</td></tr>
 <tr><td>15–18</td><td>Scaling ladder (H4), write-up</td></tr>
 </table>
 
 <h2>References (non-exhaustive)</h2>
-<p class="muted">I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023)</p>
+<p class="muted">I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022)</p>
 
 </div>
 </body>
