@@ -1,0 +1,607 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Self-Improving VLMs — Map, Data Engine, and the MM Web-Scraper Project</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
+<style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .layout{display:flex;max-width:1240px;margin:0 auto;}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+  nav.toc a:hover{color:var(--text);background:var(--panel);}
+  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
+  main{flex:1;min-width:0;padding:40px 48px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
+  header.hero h1{margin:0 0 10px;font-size:30px;}
+  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
+  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;scroll-margin-top:20px;}
+  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
+  ul,ol{padding-left:24px;} li{margin:6px 0;}
+  ul ul,ol ul{margin:6px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
+  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
+  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
+  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
+  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .qa .q:hover{background:var(--panel-2);}
+  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
+  .qa.open .q .chev{transform:rotate(90deg);}
+  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
+  .qa.open .a{display:block;}
+  .qa .a code{background:#0d1612;}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+  figure{margin:26px 0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 14px 8px;}
+  figcaption{color:var(--muted);font-size:13.5px;padding:8px 6px 6px;}
+  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
+</style></head><body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2><a href="#top">Overview</a>
+<a href="#s1">§1.0 The loop: Generate→Verify→Update</a>
+<a href="#s11">§1.1 Vision stage</a>
+<a href="#s12">§1.2 Pretraining stage</a>
+<a href="#s13">§1.3 Post-training stage</a>
+<a href="#s14">§1.4 Agent / Data / Model levers</a>
+<a href="#s15">§1.5 Failure modes</a>
+<a href="#s16">§1.6 Deep insights</a>
+<a href="#s2">§2 Data-side zoom: six verbs</a>
+<a href="#s3">§3 Project: MM web scraper</a>
+<a href="#s33">§3.3 Ten real problems</a>
+<a href="#s35">§3.5 Delivery notes</a>
+<a href="#s36">§3.6 Render-vs-extraction critic</a>
+<a href="#s37">§3.7 Field notes (doers only)</a>
+<a href="#s4">Self-test drills</a></nav>
+<main>
+<header class="hero" id="top"><h1>Self-Improving VLMs — The Full Map, the Data-Side Zoom, and the MM Web-Scraper Project</h1>
+<p style="margin:4px 0;color:var(--muted)"><strong>Why this doc:</strong> two of the highest-probability frontier-lab conversations in one arc: <em>&quot;how do multimodal models improve themselves?&quot;</em> (research taste) and <em>&quot;walk me through a data-engine project&quot;</em> (project deep dive). Part I is the open brainstorm across vision / pretraining / post-training × agent / data / model. Part II zooms into the data side. Part III is a fully-worked mock project — a <strong>self-improving multimodal web scraper</strong> in a Gemini-scale setting — with the ten problems such a project actually hits.</p>
+<p style="margin:4px 0;color:var(--muted)"><strong>Honesty note:</strong> Part III is a <em>hypothetical composite</em> for mock-interview practice and &quot;design this system&quot; answers. Use it to rehearse narration and pushback handling — not as literal work history.</p>
+<p style="margin:4px 0;color:var(--muted)">Companion: <code>Self_Improving_VLMs.md</code>. Cross-links: Day3 (data/eval), Post_Training_and_RL_Deep_Dive (RLVR, reward hacking), VLM_VLA_Unified_Omni (encoder families).</p></header>
+
+<h2 class="section" id="s1">§1.0 — One mental model: Generate → Verify → Update</h2>
+<p>Every self-improvement scheme is one loop with three slots:</p>
+$$\text{Generate}(\pi_\theta)\;\to\;\text{Verify}(V)\;\to\;\text{Update}(\theta'\leftarrow\theta)$$
+<ul>
+<li><strong>Generate:</strong> the model (or an agent built from it) produces something — captions, rationales, trajectories, crawl decisions, judgments, synthetic images.</li>
+<li><strong>Verify:</strong> something decides what survives — programmatic checker, cross-modal consistency, judge model, environment reward, human audit, downstream-loss delta.</li>
+<li><strong>Update:</strong> survivors change the model — pretraining data, SFT data, preference pairs, RL reward, distillation targets, or a changed <em>data-acquisition policy</em>.</li>
+</ul>
+<div class="callout keyidea"><strong>Key idea:</strong> the whole design space is <em>what you generate, who verifies it, and where the update lands</em>. The binding constraint is <strong>verifier quality</strong> — self-improvement is exactly as trustworthy as its weakest verifier. The loop works because of the <strong>generator–verifier gap</strong>: checking is usually easier than producing, and the loop mines that gap. A closed loop with no external verifier only <em>redistributes</em> competence; tools, environments, fresh web data and humans are the entropy sources.</div>
+<p>Three timescales for closing the loop: <strong>inference-time</strong> (self-consistency, critique-and-revise, best-of-n — no weight update), <strong>post-training-time</strong> (rejection sampling, iterative DPO, RLVR — days), <strong>pretraining-time</strong> (this model curates/relabels/synthesizes the corpus for the <em>next generation</em> — months, biggest compounding; Part III lives here).</p>
+
+<figure><svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Helvetica,sans-serif">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6ea8fe"/></marker>
+  <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7ee0c0"/></marker></defs>
+  <!-- three main boxes -->
+  <rect x="40" y="60" width="220" height="90" rx="12" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="150" y="88" fill="#eaf0f7" font-size="16" font-weight="700" text-anchor="middle">GENERATE</text>
+  <text x="150" y="110" fill="#8b97a7" font-size="12" text-anchor="middle">captions · rationales · trajectories</text>
+  <text x="150" y="128" fill="#8b97a7" font-size="12" text-anchor="middle">crawl choices · judgments · images</text>
+  <rect x="330" y="60" width="220" height="90" rx="12" fill="#1c2530" stroke="#ffb454"/>
+  <text x="440" y="88" fill="#eaf0f7" font-size="16" font-weight="700" text-anchor="middle">VERIFY</text>
+  <text x="440" y="110" fill="#8b97a7" font-size="12" text-anchor="middle">program &gt; consistency &gt; judge</text>
+  <text x="440" y="128" fill="#8b97a7" font-size="12" text-anchor="middle">env reward · human audit · loss Δ</text>
+  <rect x="620" y="60" width="220" height="90" rx="12" fill="#1c2530" stroke="#7ee0c0"/>
+  <text x="730" y="88" fill="#eaf0f7" font-size="16" font-weight="700" text-anchor="middle">UPDATE</text>
+  <text x="730" y="110" fill="#8b97a7" font-size="12" text-anchor="middle">pretrain / SFT / DPO / RL reward</text>
+  <text x="730" y="128" fill="#8b97a7" font-size="12" text-anchor="middle">distill targets · acquisition policy</text>
+  <line x1="260" y1="105" x2="328" y2="105" stroke="#6ea8fe" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="550" y1="105" x2="618" y2="105" stroke="#6ea8fe" stroke-width="2" marker-end="url(#ar)"/>
+  <!-- feedback arc -->
+  <path d="M 730 152 C 730 230, 150 230, 150 152" fill="none" stroke="#7ee0c0" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#ar2)"/>
+  <text x="440" y="222" fill="#7ee0c0" font-size="13" text-anchor="middle">new θ generates better data → flywheel compounds across model generations</text>
+  <!-- timescales -->
+  <rect x="40" y="255" width="250" height="52" rx="9" fill="#161b22" stroke="#2a3340"/>
+  <text x="165" y="276" fill="#eaf0f7" font-size="12.5" font-weight="600" text-anchor="middle">Inference-time (per query)</text>
+  <text x="165" y="294" fill="#8b97a7" font-size="11.5" text-anchor="middle">self-consistency · critique+revise · best-of-n</text>
+  <rect x="315" y="255" width="250" height="52" rx="9" fill="#161b22" stroke="#2a3340"/>
+  <text x="440" y="276" fill="#eaf0f7" font-size="12.5" font-weight="600" text-anchor="middle">Post-training (days)</text>
+  <text x="440" y="294" fill="#8b97a7" font-size="11.5" text-anchor="middle">STaR/ReST · iterative DPO · RLVR · RLAIF</text>
+  <rect x="590" y="255" width="250" height="52" rx="9" fill="#161b22" stroke="#2a3340"/>
+  <text x="715" y="276" fill="#eaf0f7" font-size="12.5" font-weight="600" text-anchor="middle">Pretraining (generations)</text>
+  <text x="715" y="294" fill="#8b97a7" font-size="11.5" text-anchor="middle">filter · recaption · synthesize · acquire</text>
+</svg><figcaption><strong>Fig. 1 — The universal self-improvement loop</strong> and its three timescales. Verifier quality is the binding constraint; the dashed arc is where compounding happens.</figcaption></figure>
+
+<figure><svg viewBox="0 0 880 270" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Helvetica,sans-serif">
+  <defs><marker id="p1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7ee0c0"/></marker>
+  <marker id="p2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ffb454"/></marker></defs>
+  <!-- pyramid layers (top = strongest trust) -->
+  <polygon points="310,22 570,22 600,66 280,66" fill="#16241f" stroke="#7ee0c0"/>
+  <text x="440" y="41" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">1 · Programmatic</text>
+  <text x="440" y="58" fill="#8b97a7" font-size="11" text-anchor="middle">render-and-compare · OCR exact-match · code exec · simulator state</text>
+  <polygon points="278,76 602,76 632,120 248,120" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="440" y="95" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">2 · Cross-modal consistency</text>
+  <text x="440" y="112" fill="#8b97a7" font-size="11" text-anchor="middle">caption↔image retrieval cycle · detector confirms objects/counts</text>
+  <polygon points="246,130 634,130 664,174 216,174" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="440" y="149" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">3 · Model judge</text>
+  <text x="440" y="166" fill="#8b97a7" font-size="11" text-anchor="middle">RLAIF · self-reward · atomic-claim checking — inherits generator biases</text>
+  <polygon points="214,184 666,184 696,228 184,228" fill="#161b22" stroke="#ffb454"/>
+  <text x="440" y="203" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">4 · Heuristics</text>
+  <text x="440" y="220" fill="#8b97a7" font-size="11" text-anchor="middle">CLIP score · length · aesthetics — cheap, gameable, style-biased</text>
+  <!-- side annotations -->
+  <line x1="110" y1="215" x2="110" y2="45" stroke="#7ee0c0" stroke-width="2" marker-end="url(#p1)"/>
+  <text x="110" y="240" fill="#7ee0c0" font-size="12" text-anchor="middle">trust / hack-resistance</text>
+  <line x1="770" y1="45" x2="770" y2="215" stroke="#ffb454" stroke-width="2" marker-end="url(#p2)"/>
+  <text x="770" y="240" fill="#ffb454" font-size="12" text-anchor="middle">coverage / cheapness</text>
+</svg><figcaption><strong>Fig. 1b — The verifier hierarchy.</strong> Push every task as high as it can go; a loop's trustworthiness equals the level of its <em>weakest</em> load-bearing verifier. Rendered-with-source synthetic data is high-leverage precisely because it lives at level 1.</figcaption></figure>
+
+<h2 class="section" id="s11">§1.1 — Vision stage (encoder &amp; perception)</h2>
+<ul>
+<li><strong>SSL objectives are self-improvement in miniature.</strong> DINO/v2/v3: an EMA teacher (the model's own slow average) generates targets for the student — Generate = teacher features, Verify = architectural anti-collapse (centering/sharpening), Update = distillation. JEPA predicts its own latents; MAE reconstructs its own masked input. No labels ever enter.</li>
+<li><strong>Model-in-the-loop annotation engines.</strong> SAM's data engine is the canonical cite: assisted-manual → semi-auto → fully-auto rounds, model retrained each round → 1.1B masks. Same pattern for grounding boxes, OCR pseudo-labels, depth/pose from specialist teachers.</li>
+<li><strong>Recaptioning flywheels.</strong> Alt-text is garbage → current VLM rewrites captions → next model trains on them (DALL·E&nbsp;3 recaptioner, VeCLIP, CapsFusion). Learned lesson: <strong>fuse</strong> synthetic + raw captions — pure synthetic loses alt-text's proper nouns/world knowledge and collapses caption style.</li>
+<li><strong>Synthetic imagery with programmatic ground truth.</strong> Rendered charts/tables/documents/UIs/geometry: the rendering program <em>is</em> the label — infinite, perfectly verifiable supervision. T2I models fill tail concepts; cycle-consistency (caption the generated image vs the prompt) filters junk.</li>
+<li><strong>Encoder consolidation by distillation.</strong> Agglomerative distillation of CLIP+DINO+SAM into one backbone (AM-RADIO); distilling your own larger encoder down (DINOv3 pipeline). The family digests its own zoo.</li>
+</ul>
+
+<h2 class="section" id="s12">§1.2 — Pretraining stage</h2>
+<ul>
+<li><strong>Model-based filtering.</strong> Data Filtering Networks / DataComp: train a model whose job is picking data for the next model. DFN's counterintuitive result: the best <em>filter</em> comes from a small verified-clean training set, not the biggest model — filtering ability ≠ general capability.</li>
+<li><strong>Learnability / influence scoring.</strong> RHO-loss (keep points the current model gets wrong but a clean reference gets right — drops both the already-known and the unlearnable), MATES, TRAK/datamodel influence approximations.</li>
+<li><strong>Mixture &amp; curriculum optimization.</strong> DoReMi (proxy + group-DRO domain weights), RegMix (regress small-run mixtures → extrapolate), and the scaling-law lens: fit per-domain loss curves at small scale, optimize the mix at target scale — the optimal image:text:interleaved ratio is itself a scaling-law object (Apple-NMM-style analysis). Quality annealing: hold the best curated data for the final LR-decay phase.</li>
+<li><strong>Generational self-distillation.</strong> Checkpoint N filters/relabels/synthesizes the corpus for checkpoint N+1; weak-to-strong results say the loop doesn't obviously cap at teacher level.</li>
+<li><strong>Synthetic interleaved documents:</strong> model-authored textbook-style pages around real images, OCR-enriched docs, chart-with-derivation pages.</li>
+</ul>
+<div class="callout keyidea"><strong>The two curation equations to write on a whiteboard.</strong> RHO-loss selection — keep points that are <em>not yet learned</em> (high current loss) but <em>learnable</em> (low loss for a clean reference model):
+$$x^\star \;=\; \arg\max_{x\in B}\;\big[\,\ell_\theta(x)\;-\;\ell_{\text{ref}}(x)\,\big]$$
+High $\ell_\theta$, low $\ell_{\text{ref}}$ → worth learning. High both → unlearnable noise, dropped. Low $\ell_\theta$ → already known, dropped. DoReMi domain weights — a group-DRO minimax on <em>excess</em> loss with a proxy model, then reused for the big run:
+$$\alpha^\star \;=\; \arg\max_{\alpha\in\Delta}\;\min_\theta\;\sum_d \alpha_d\,\big[\ell_{\theta,d}-\ell_{\text{ref},d}\big]$$
+Both share one idea: <strong>a reference model turns raw loss into "learnability,"</strong> separating hard-but-valuable from hard-because-garbage.
+<br><br><strong>The mixture as a scaling-law object.</strong> Fit per-domain loss curves at small scale,
+$$L_d(N, D_d) \;=\; E_d + A_d\,N^{-\alpha_d} + B_d\,D_d^{-\beta_d},$$
+then allocate the token budget so marginal returns equalize across domains: $\partial L/\partial D_d = \lambda\ \ \forall d$. Because the exponents $\beta_d$ (and irreducible terms $E_d$) <em>differ per domain</em>, the optimal mixture is <strong>scale-dependent</strong> — which is exactly why per-category value curves cross in Fig. 6 and why P1's proxy rankings can't be trusted blindly.</div>
+
+<h2 class="section" id="s13">§1.3 — Post-training stage</h2>
+<ul>
+<li><strong>Rejection-sampling / self-training (the workhorse):</strong> STaR / ReST / ReST<sup>EM</sup> — sample k, keep verified-correct, fine-tune, iterate; plus STaR's <em>rationalization</em> trick (show the answer, ask for the reasoning) when nothing verifies.</li>
+<li><strong>RLVR — the strongest current loop</strong> because the verifier is programmatic: visual math, chart/table QA checked against source data, OCR exact-match, counting vs detector, <strong>screenshot-to-code with render-and-compare</strong> (render the generated code, pixel/DOM-diff vs target — a purely visual verifier), GUI-agent tasks with environment-state success checks.</li>
+<li><strong>RLAIF / self-rewarding:</strong> model judges outputs → preference pairs → iterative DPO (Self-Rewarding LMs); constitutional critique-and-revise manufactures its own SFT data; RLAIF-V splits captions into atomic claims and verifies each.</li>
+<li><strong>Hallucination-targeted loops:</strong> construct (hallucinated, corrected) pairs → DPO (POVID, HA-DPO); reward = fraction of caption atoms confirmed by detector/OCR.</li>
+<li><strong>Self-consistency as pseudo-label</strong> when no verifier exists: majority vote across samples becomes the target.</li>
+<li><strong>Agentic post-training:</strong> web/GUI/tool rollouts in environments; keep successes → SFT → RL on environment reward. The environment is a free verifier.</li>
+</ul>
+<div class="callout keyidea"><strong>The three post-training loop equations.</strong> ReST<sup>EM</sup> is EM on the verifier: E-step samples and keeps verified outputs, M-step fits them —
+$$\theta_{t+1} \;=\; \arg\max_\theta\; \mathbb{E}_{x\sim\mathcal{D},\;y\sim\pi_{\theta_t}(\cdot\mid x)}\Big[\,\mathbb{1}[V(x,y)=1]\;\log \pi_\theta(y\mid x)\Big]$$
+Iterative DPO on self-generated preference pairs $(y_w,y_l)$ (from a judge, a verifier, or hallucination-vs-corrected construction):
+$$\mathcal{L}_{\text{DPO}} \;=\; -\log\sigma\!\Big(\beta\log\tfrac{\pi_\theta(y_w\mid x)}{\pi_{\text{ref}}(y_w\mid x)} \;-\; \beta\log\tfrac{\pi_\theta(y_l\mid x)}{\pi_{\text{ref}}(y_l\mid x)}\Big)$$
+RLVR — maximize programmatic reward with a KL leash (the leash is what P4/P9-style collapse and hacking look like when it's <em>missing</em>):
+$$\max_\theta\;\mathbb{E}_{y\sim\pi_\theta}\big[R_{\text{verify}}(x,y)\big] \;-\; \beta\,\mathrm{KL}\big(\pi_\theta \,\Vert\, \pi_{\text{ref}}\big)$$
+Rejection sampling amortizes search into weights: train on best-of-$n$, deploy at $n{=}1$.
+<br><br><strong>How RLVR actually runs: GRPO.</strong> Sample a group of $G$ rollouts per prompt, score with the programmatic verifier, and use the <em>group-relative</em> advantage — no value network needed:
+$$A_i \;=\; \frac{r_i - \mathrm{mean}(r_{1:G})}{\mathrm{std}(r_{1:G})}, \qquad \mathcal{L}_{\text{GRPO}} \;=\; -\frac{1}{G}\sum_{i=1}^{G} \min\!\big(\rho_i A_i,\; \mathrm{clip}(\rho_i, 1\!-\!\epsilon, 1\!+\!\epsilon)\,A_i\big) \;+\; \beta\,\mathrm{KL}$$
+($\rho_i$ = importance ratio vs the old policy.) Two doer notes: groups where <em>all</em> rollouts pass or all fail contribute zero gradient — so task-difficulty curation (keeping pass-rate near 50%) is itself a data-engine problem; and the std-normalization makes reward <em>scale</em> irrelevant but reward <em>blind spots</em> fatal — GRPO amplifies whatever the verifier can't see.</div>
+
+<h2 class="section" id="s14">§1.4 — The three levers, cross-cutting</h2>
+<table><thead><tr><th>Lever</th><th>Roles</th><th>Canonical examples</th></tr></thead><tbody>
+<tr><td><strong>Agent</strong> (model <em>acting</em>)</td><td>collector · annotator · verifier/judge · red-teamer · <strong>curriculum designer</strong> (proposes its own tasks at its frontier) · tool-user (tools inject external truth)</td><td>web-scraper agent (Part III), SAM engine, Voyager / self-instruct task proposal, Absolute-Zero-style propose-and-solve</td></tr>
+<tr><td><strong>Data</strong></td><td>filter · relabel · synthesize · acquire · mix/schedule · dedup · recycle deployment exhaust</td><td>all of Part II</td></tr>
+<tr><td><strong>Model</strong></td><td>EMA/self-distillation teachers · distill best-of-n into the policy (amortize search into weights) · weight averaging/soups · MoE upcycling · weak-to-strong across generations · <strong>deployment flywheel</strong> (thumbs/regenerations/edits → preference data)</td><td>DINO EMA teacher, model soups, upcycled MoE, W2S</td></tr>
+</tbody></table>
+
+<h2 class="section" id="s15">§1.5 — Why the loop fails (know these cold)</h2>
+<table><thead><tr><th>Failure</th><th>Mechanism</th><th>Mitigation</th></tr></thead><tbody>
+<tr><td><strong>Model collapse</strong></td><td>recursive training on own outputs → tails vanish, variance shrinks (Shumailov et al.)</td><td><strong>real-data anchor ratio</strong>; accumulate don't replace; tail/diversity metrics</td></tr>
+<tr><td><strong>Self-preference bias</strong></td><td>judge prefers its own style; scores drift from quality</td><td>judge ensembles, human golden sets, style-controlled eval</td></tr>
+<tr><td><strong>Reward hacking</strong></td><td>generator exploits verifier blind spots (Goodhart)</td><td>verifier hierarchy (program &gt; consistency &gt; judge), refresh verifiers, KL limits</td></tr>
+<tr><td><strong>Diversity narrowing</strong></td><td>selection pressure homogenizes data/behavior</td><td>entropy/coverage monitors, exploration budgets, cluster caps</td></tr>
+<tr><td><strong>Contamination</strong></td><td>self-collected data swallows the evals</td><td>decontamination service, canaries, fresh holdouts</td></tr>
+<tr><td><strong>Capability ceiling</strong></td><td>closed loop adds no information — only redistributes competence</td><td>tools, environments, fresh web data, humans as entropy sources</td></tr>
+</tbody></table>
+
+<h2 class="section" id="s16">§1.6 — Deep insights: the theory under the plumbing</h2>
+<ol>
+<li><strong>Selection vs. gradient — the two arms are not equal.</strong> Filtering, best-of-n, rejection sampling are <em>selection operators</em>: they reweight the support of the current distribution but cannot create new modes. And selection is KL-bounded:
+$$\mathrm{KL}\big(\pi_{\text{BoN}}\,\Vert\,\pi_{\text{base}}\big)\;\le\;\log n-\tfrac{n-1}{n}\;\;\text{nats}\;\;(\approx 2.5\text{ at }n{=}32;\text{ doubling }n\text{ buys only }\ln 2\approx 0.69\text{ more})$$
+The escape hatch is <strong>iterate-and-distill</strong> (ReST<sup>EM</sup>, iterative DPO): each round distills the selected distribution <em>into the weights, re-centering the reference</em>, then selects again — the KL budget compounds across rounds, and gradient updates generalize selected behaviors into compositions selection alone can't reach. This is the deep reason &quot;amplify → distill → repeat&quot; is the master recipe and one-shot best-of-1024 is not.</li>
+<li><strong>Entropy accounting.</strong> Every loop converts diversity into capability. Income: fresh web data, tools, environments, humans. Expense: every selection step. Income &lt; expense → collapse (model collapse is the bankruptcy case). The anchor ratio works because it lower-bounds income. Doer corollary: track corpus/policy entropy like a KPI, not as a post-mortem.</li>
+<li><strong>Verifier decay is dynamical, not an event.</strong> Under optimization pressure every <em>learned</em> verifier slides down the Fig 1b hierarchy toward &quot;heuristic&quot; — Goodhart is a rate, not a threshold. Consequence: <strong>refresh cadence beats initial quality</strong>; a mediocre judge refreshed every cycle outlives a brilliant frozen one. (P2/P9/P15 are the same theorem observed three times.)</li>
+<li><strong>Elicitation vs. creation.</strong> Post-training self-improvement mostly <em>surfaces</em> what pretraining latently contains; the pass@k vs pass@1 gap is the elicitable headroom. Doer rule: <strong>measure pass@1024 before green-lighting an RL loop</strong> — flat pass@k means no reward will help; go fix the pretraining data instead. Corollary: data-side loops raise the ceiling; post-training loops raise the floor toward it.</li>
+<li><strong>Captions are the label space.</strong> Recaptioning isn't &quot;cleaning&quot; — it decides <em>which visual features become linearly accessible</em>: dense spatial captions teach layout, entity-rich alt-text teaches world-knowledge grounding, OCR-injection teaches reading. &quot;What you caption is what you get&quot;: the mixture over caption <em>styles</em> is a first-class hyperparameter, not a footnote.</li>
+<li><strong>Data outlives architecture.</strong> A corpus improvement pays into every future model generation and survives architecture migrations; a post-training trick pays once. That asymmetry — not fashion — is why data engines get the senior headcount, and why the slowest loop (pretraining-timescale) has the highest NPV.</li>
+<li><strong>The binding rate is eval latency.</strong> The cycle time of Generate → Verify → Update is dominated by &quot;how long until you can <em>trust</em> a measurement,&quot; not by generation. Halving eval latency doubles the improvement rate of the whole engine — which is why probe suites and scaling ladders (P1) are the crown jewels, and why the org that measures fastest wins.</li>
+</ol>
+
+<figure><svg viewBox="0 0 880 310" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Helvetica,sans-serif">
+  <defs><marker id="k1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6ea8fe"/></marker>
+  <marker id="k2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7ee0c0"/></marker></defs>
+  <!-- axis -->
+  <line x1="80" y1="255" x2="820" y2="255" stroke="#2a3340" stroke-width="2"/>
+  <g fill="#8b97a7" font-size="11" text-anchor="middle">
+    <text x="80" y="275">0</text><text x="265" y="275">2.5</text><text x="450" y="275">5</text><text x="635" y="275">7.5</text><text x="820" y="275">10</text>
+    <text x="450" y="298">cumulative KL from π₀ (nats)</text>
+  </g>
+  <line x1="265" y1="250" x2="265" y2="260" stroke="#2a3340" stroke-width="2"/><line x1="450" y1="250" x2="450" y2="260" stroke="#2a3340" stroke-width="2"/><line x1="635" y1="250" x2="635" y2="260" stroke="#2a3340" stroke-width="2"/>
+  <!-- one-shot row -->
+  <text x="80" y="42" fill="#eaf0f7" font-size="12.5" font-weight="700">one-shot best-of-n (selection only)</text>
+  <circle cx="80" cy="85" r="6" fill="#6ea8fe"/>
+  <text x="80" y="112" fill="#8b97a7" font-size="11" text-anchor="middle">π₀</text>
+  <line x1="92" y1="85" x2="252" y2="85" stroke="#6ea8fe" stroke-width="2" marker-end="url(#k1)"/>
+  <rect x="260" y="62" width="6" height="46" rx="2" fill="#ffb454"/>
+  <text x="176" y="70" fill="#ffb454" font-size="11" text-anchor="middle">n=32 ceiling ≈ 2.5 nats</text>
+  <rect x="516" y="62" width="4" height="46" rx="2" fill="#ffb454" opacity="0.45"/>
+  <text x="520" y="70" fill="#ffb454" font-size="11" text-anchor="middle" opacity="0.7">even n=1024 ≈ 5.9</text>
+  <!-- iterate row -->
+  <text x="80" y="152" fill="#eaf0f7" font-size="12.5" font-weight="700">iterate-and-distill (ReST-EM rounds)</text>
+  <circle cx="80" cy="195" r="6" fill="#7ee0c0"/><circle cx="265" cy="195" r="6" fill="#7ee0c0"/><circle cx="450" cy="195" r="6" fill="#7ee0c0"/><circle cx="635" cy="195" r="6" fill="#7ee0c0"/>
+  <g fill="#8b97a7" font-size="11" text-anchor="middle">
+    <text x="80" y="220">π₀</text><text x="265" y="220">π₁</text><text x="450" y="220">π₂</text><text x="635" y="220">π₃</text>
+    <text x="172" y="182">select ≤2.5</text><text x="357" y="182">select ≤2.5</text><text x="542" y="182">select ≤2.5</text>
+  </g>
+  <line x1="92" y1="195" x2="250" y2="195" stroke="#7ee0c0" stroke-width="2" marker-end="url(#k2)"/>
+  <line x1="277" y1="195" x2="435" y2="195" stroke="#7ee0c0" stroke-width="2" marker-end="url(#k2)"/>
+  <line x1="462" y1="195" x2="620" y2="195" stroke="#7ee0c0" stroke-width="2" marker-end="url(#k2)"/>
+  <line x1="647" y1="195" x2="790" y2="195" stroke="#7ee0c0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#k2)"/>
+  <text x="718" y="182" fill="#7ee0c0" font-size="11" text-anchor="middle">rounds compound…</text>
+  <text x="450" y="240" fill="#7ee0c0" font-size="11" text-anchor="middle">each distill bakes the selected distribution into weights → the next round's KL budget starts fresh</text>
+</svg><figcaption><strong>Fig. 4 — Why iterate-and-distill escapes the selection bound.</strong> One-shot best-of-n hits a hard, logarithmically-growing ceiling; distilling between selection rounds re-centers the reference, so the budget compounds. The cost: each round spends diversity (insight 2).</figcaption></figure>
+
+<figure><svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Helvetica,sans-serif">
+  <!-- axes -->
+  <line x1="90" y1="40" x2="90" y2="260" stroke="#2a3340" stroke-width="2"/>
+  <line x1="90" y1="260" x2="820" y2="260" stroke="#2a3340" stroke-width="2"/>
+  <text x="90" y="28" fill="#8b97a7" font-size="11.5">effective clusters  e^H  of weekly intake</text>
+  <g fill="#8b97a7" font-size="11" text-anchor="middle">
+    <text x="90" y="280">0</text><text x="211" y="280">1</text><text x="333" y="280">2</text><text x="455" y="280">3</text><text x="576" y="280">4</text><text x="698" y="280">5</text><text x="820" y="280">6</text>
+    <text x="455" y="305">acquisition-policy iteration</text>
+  </g>
+  <g fill="#8b97a7" font-size="11" text-anchor="end">
+    <text x="82" y="54">100</text><text x="82" y="139">70</text><text x="82" y="239">35</text>
+  </g>
+  <!-- alarm line -->
+  <line x1="90" y1="135" x2="820" y2="135" stroke="#ffb454" stroke-width="1.5" stroke-dasharray="7 5" opacity="0.6"/>
+  <text x="814" y="128" fill="#ffb454" font-size="11" text-anchor="end" opacity="0.85">P4 alarm threshold</text>
+  <!-- collapse curve -->
+  <polyline points="90,50 211,101 333,156 455,193 576,216 698,230 820,236" fill="none" stroke="#ffb454" stroke-width="2.5"/>
+  <g fill="#ffb454"><circle cx="90" cy="50" r="3.5"/><circle cx="211" cy="101" r="3.5"/><circle cx="333" cy="156" r="3.5"/><circle cx="455" cy="193" r="3.5"/><circle cx="576" cy="216" r="3.5"/><circle cx="698" cy="230" r="3.5"/><circle cx="820" cy="236" r="3.5"/></g>
+  <!-- guarded curve -->
+  <polyline points="90,50 211,79 333,87 455,90 576,93 698,93 820,96" fill="none" stroke="#7ee0c0" stroke-width="2.5"/>
+  <g fill="#7ee0c0"><circle cx="90" cy="50" r="3.5"/><circle cx="211" cy="79" r="3.5"/><circle cx="333" cy="87" r="3.5"/><circle cx="455" cy="90" r="3.5"/><circle cx="576" cy="93" r="3.5"/><circle cx="698" cy="93" r="3.5"/><circle cx="820" cy="96" r="3.5"/></g>
+  <!-- legend -->
+  <rect x="555" y="44" width="256" height="46" rx="8" fill="#161b22" stroke="#2a3340"/>
+  <line x1="567" y1="60" x2="597" y2="60" stroke="#ffb454" stroke-width="2.5"/>
+  <text x="605" y="64" fill="#d7dee8" font-size="11.5">pure exploit (no guards)</text>
+  <line x1="567" y1="79" x2="597" y2="79" stroke="#7ee0c0" stroke-width="2.5"/>
+  <text x="605" y="83" fill="#d7dee8" font-size="11.5">15% exploration + cluster caps</text>
+  <!-- annotation -->
+  <text x="345" y="185" fill="#ffb454" font-size="11">silent: every individual page still scores well</text>
+</svg><figcaption><strong>Fig. 5 — Entropy accounting made visible (P4 / insight 2).</strong> Diversity of intake under selection pressure, measured as effective clusters $e^{H}$ where $H = -\sum_k p_k \log p_k$ over embedding clusters. The collapse curve triggers no per-item alarm — only the portfolio metric sees it.</figcaption></figure>
+
+<hr>
+<h2 class="section" id="s2">§2 — Data-side self-improvement: six verbs</h2>
+<p><strong>Definition:</strong> the model improves the <em>corpus</em> (and the corpus-building policy) rather than its own weights directly. Ordered by how much the model creates vs. selects:</p>
+<table><thead><tr><th>Verb</th><th>What</th><th>Key mechanisms</th><th>Sharp edge</th></tr></thead><tbody>
+<tr><td><strong>1. FILTER</strong></td><td>score &amp; select</td><td>distilled quality scorers (DFN pattern: big model labels ~1M → train 100M scorer → run on 10B), CLIP-align, learnability (RHO), safety gates</td><td>a filter is a model with a ceiling; its <em>systematic</em> false-negatives silently delete whole capability categories</td></tr>
+<tr><td><strong>2. RELABEL</strong></td><td>enrich what you keep</td><td>dense recaptioning, OCR injection, grounding, table→markdown, chart→data; <strong>caption fusion</strong> not replacement</td><td>synthetic captions are style-collapsed and entity-poor; alt-text carries proper nouns — fuse (CapsFusion)</td></tr>
+<tr><td><strong>3. SYNTHESIZE</strong></td><td>create what the web lacks</td><td>QA/CoT via STaR-style verification; <strong>rendered-with-source data</strong> (charts/docs/UIs — the program is the label: infinite verifiable supervision); T2I for tail concepts + cycle-consistency filter; hard negatives via minimal caption edits</td><td>fluent systematic errors are learned <em>preferentially</em></td></tr>
+<tr><td><strong>4. ACQUIRE</strong></td><td>actively collect</td><td>eval-gap → targeted crawls; ensemble-disagreement seeking; a bandit/RL problem over the web (action = crawl/render choice, reward = realized data value)</td><td>Part III entirely</td></tr>
+<tr><td><strong>5. MIX &amp; SCHEDULE</strong></td><td>weights + curriculum</td><td>DoReMi / RegMix / scaling-law extrapolation; short→dense caption curriculum; quality annealing in LR decay</td><td>optimal mixtures are scale-dependent</td></tr>
+<tr><td><strong>6. RECYCLE</strong></td><td>deployment exhaust</td><td>thumbs/regenerations/edits → preference pairs; failure mining</td><td>consent/privacy; heavy selection bias</td></tr>
+</tbody></table>
+<div class="callout keyidea"><strong>Cross-cutting machinery:</strong> dedup (MinHash + SemDeDup — also a quality and memorization intervention), decontamination against every reported eval, the <strong>anchor ratio</strong> (cap the model-touched fraction; real data is the entropy source), and the value model
+$$\text{value}(x)\;\approx\;\underbrace{q(x)}_{\text{quality}}\times\underbrace{\ell(x)}_{\text{learnability}}\times\underbrace{d(x\,|\,\mathcal{D})}_{\text{marginal diversity}}\times\underbrace{v(x)}_{\text{verifiability}}$$
+Selection on any single factor fails: quality-only → homogeneous; learnability-only → noise-seeking; diversity-only → junk. <strong>The meta-loop:</strong> eval diagnostics → acquisition/synthesis targets → curation → proxy-pretrain validation → mixture update. Data-side self-improvement = making this loop <em>fast and trustworthy</em>.</div>
+<div class="callout keyidea"><strong>Three more whiteboard tools.</strong>
+<br><br><strong>1 — Targeted acquisition is importance resampling (DSIR).</strong> "Crawl what fixes the eval gap" formalized: estimate target and raw densities with cheap features (hashed n-grams / embedding bins) and resample the pool with
+$$w(x) \;\propto\; \frac{\hat p_{\text{target}}(x)}{\hat p_{\text{raw}}(x)}$$
+where $\hat p_{\text{target}}$ is fit on exemplars of the weak capability (e.g., infographic-style pages). Eval-gap-driven crawling is DSIR with the target density defined by your failure analysis.
+<br><br><strong>2 — Cycle-consistency as a one-line label filter.</strong> Within a batch of $B$ images, keep synthetic caption $c_i$ only if it retrieves its own image:
+$$\mathbb{1}\Big[\arg\max_{j\in[B]} \mathrm{sim}(c_i, x_j) = i\Big]$$
+Catches captions that describe <em>an image like this</em> rather than <em>this image</em> — the signature failure of a recaptioner running on autopilot. Raise $B$ to raise strictness.
+<br><br><strong>3 — Diversity accounting.</strong> Cluster the intake embedding space; track $H = -\sum_k p_k \log p_k$ and report <strong>effective clusters $e^{H}$</strong> (the perplexity of the cluster distribution — same math as vocabulary perplexity). This is the y-axis of Fig. 5 and the metric behind the P4 alarm; entropy in nats, naturally.</div>
+
+<hr>
+<h2 class="section" id="s3">§3 — Project: Self-Improving Multimodal Web Scraper (Gemini-setting mock)</h2>
+<div class="callout watch"><strong>Framing:</strong> hypothetical composite for mock-interview practice / &quot;design a data engine&quot; answers — rehearse the narration and the pushback, don't claim it as work history.</div>
+<h3>§3.1 Elevator pitch (STAR, 45s)</h3>
+<p><strong>Situation:</strong> pretraining wanted more <em>high-value</em> multimodal web data — interleaved image-text docs, charts, documents, UI screenshots — but bulk-crawl + static heuristic filters waste most crawl/render/storage cost on boilerplate and freeze one notion of quality. <strong>Task:</strong> a closed-loop data engine — a VLM-guided scraper deciding <em>where to crawl, what to render/extract, how to label</em>, and updating its own acquisition policy and quality scorer from measured downstream data value. <strong>Action:</strong> five subsystems, three shipped policy iterations. <strong>Result</strong> (illustrative, memorize as practice numbers): ~4× useful-tokens-per-crawl-dollar vs baseline; at matched token budget on proxy pretrains: +6 ChartQA, +4 DocVQA, +3 InfographicVQA, neutral text-only; distilled scorer retired two legacy heuristic filters.</p>
+
+<h3>§3.2 System design</h3>
+<figure><svg viewBox="0 0 880 470" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Helvetica,sans-serif">
+  <defs><marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6ea8fe"/></marker>
+  <marker id="b2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7ee0c0"/></marker></defs>
+  <!-- pipeline row -->
+  <rect x="20" y="40" width="155" height="96" rx="10" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="97" y="64" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">1 · Acquisition policy</text>
+  <text x="97" y="84" fill="#8b97a7" font-size="11" text-anchor="middle">prioritized crawl frontier</text>
+  <text x="97" y="100" fill="#8b97a7" font-size="11" text-anchor="middle">contextual bandit + 15%</text>
+  <text x="97" y="116" fill="#8b97a7" font-size="11" text-anchor="middle">exploration budget</text>
+  <rect x="195" y="40" width="155" height="96" rx="10" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="272" y="64" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">2 · Render &amp; extract</text>
+  <text x="272" y="84" fill="#8b97a7" font-size="11" text-anchor="middle">tiered: static parse →</text>
+  <text x="272" y="100" fill="#8b97a7" font-size="11" text-anchor="middle">full render (screenshot+DOM)</text>
+  <text x="272" y="116" fill="#8b97a7" font-size="11" text-anchor="middle">interleaved doc builder</text>
+  <rect x="370" y="40" width="155" height="96" rx="10" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="447" y="64" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">3 · Labeling arm</text>
+  <text x="447" y="84" fill="#8b97a7" font-size="11" text-anchor="middle">fused recaptions (alt+synth)</text>
+  <text x="447" y="100" fill="#8b97a7" font-size="11" text-anchor="middle">OCR cross-check · grounding</text>
+  <text x="447" y="116" fill="#8b97a7" font-size="11" text-anchor="middle">QA synthesis for post-train</text>
+  <rect x="545" y="40" width="155" height="96" rx="10" fill="#1c2530" stroke="#ffb454"/>
+  <text x="622" y="64" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">4 · Value scoring</text>
+  <text x="622" y="84" fill="#8b97a7" font-size="11" text-anchor="middle">distilled scorer (DFN-style)</text>
+  <text x="622" y="100" fill="#8b97a7" font-size="11" text-anchor="middle">+ learnability + diversity</text>
+  <text x="622" y="116" fill="#8b97a7" font-size="11" text-anchor="middle">kept as separate signals</text>
+  <rect x="720" y="40" width="140" height="96" rx="10" fill="#1c2530" stroke="#7ee0c0"/>
+  <text x="790" y="64" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">Corpus</text>
+  <text x="790" y="84" fill="#8b97a7" font-size="11" text-anchor="middle">dedup · decontam</text>
+  <text x="790" y="100" fill="#8b97a7" font-size="11" text-anchor="middle">safety/licensing</text>
+  <text x="790" y="116" fill="#8b97a7" font-size="11" text-anchor="middle">anchor ratio</text>
+  <line x1="175" y1="88" x2="193" y2="88" stroke="#6ea8fe" stroke-width="2" marker-end="url(#b1)"/>
+  <line x1="350" y1="88" x2="368" y2="88" stroke="#6ea8fe" stroke-width="2" marker-end="url(#b1)"/>
+  <line x1="525" y1="88" x2="543" y2="88" stroke="#6ea8fe" stroke-width="2" marker-end="url(#b1)"/>
+  <line x1="700" y1="88" x2="718" y2="88" stroke="#6ea8fe" stroke-width="2" marker-end="url(#b1)"/>
+  <!-- feedback loop -->
+  <rect x="270" y="205" width="340" height="80" rx="10" fill="#16241f" stroke="#7ee0c0"/>
+  <text x="440" y="230" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">5 · Feedback loop (weekly)</text>
+  <text x="440" y="250" fill="#8b97a7" font-size="11.5" text-anchor="middle">proxy pretrains (~1B, fixed seeds) → per-capability evals</text>
+  <text x="440" y="268" fill="#8b97a7" font-size="11.5" text-anchor="middle">scaling-ladder rank-transfer check</text>
+  <path d="M 790 136 C 790 245, 615 245, 612 245" fill="none" stroke="#7ee0c0" stroke-width="2" marker-end="url(#b2)"/>
+  <path d="M 268 245 C 97 245, 97 200, 97 138" fill="none" stroke="#7ee0c0" stroke-width="2" marker-end="url(#b2)"/>
+  <text x="150" y="185" fill="#7ee0c0" font-size="11.5">update policy</text>
+  <path d="M 440 205 C 440 175, 560 160, 618 140" fill="none" stroke="#7ee0c0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#b2)"/>
+  <text x="530" y="178" fill="#7ee0c0" font-size="11.5">refresh scorer</text>
+  <!-- eval gap campaigns -->
+  <rect x="270" y="330" width="340" height="58" rx="10" fill="#161b22" stroke="#ffb454"/>
+  <text x="440" y="353" fill="#eaf0f7" font-size="13" font-weight="700" text-anchor="middle">Eval-gap report → targeted crawl campaigns</text>
+  <text x="440" y="372" fill="#8b97a7" font-size="11.5" text-anchor="middle">weak at InfographicVQA → infographic-rich domains up-weighted</text>
+  <line x1="440" y1="285" x2="440" y2="328" stroke="#ffb454" stroke-width="2" marker-end="url(#b1)"/>
+  <path d="M 268 359 C 97 359, 97 260, 97 138" fill="none" stroke="#ffb454" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#b1)"/>
+  <!-- problem tags -->
+  <text x="97" y="430" fill="#ffb454" font-size="11.5" text-anchor="middle">P4 collapse · P9 hacking</text>
+  <text x="272" y="430" fill="#ffb454" font-size="11.5" text-anchor="middle">P5 templates · P6 rendering</text>
+  <text x="447" y="430" fill="#ffb454" font-size="11.5" text-anchor="middle">P3 hallucination</text>
+  <text x="622" y="430" fill="#ffb454" font-size="11.5" text-anchor="middle">P2 style bias</text>
+  <text x="790" y="430" fill="#ffb454" font-size="11.5" text-anchor="middle">P7 contam · P8 safety</text>
+  <text x="440" y="452" fill="#ffb454" font-size="11.5" text-anchor="middle">P1 credit assignment · P10 attribution live in the feedback loop</text>
+</svg><figcaption><strong>Fig. 2 — The five-subsystem data engine.</strong> Green arrows = the self-improvement loop (realized data value updates the policy and scorer); orange = eval-gap-driven targeted acquisition. The P-tags map §3.3's problems onto the components they bit.</figcaption></figure>
+<div class="callout keyidea"><strong>The acquisition objective (one equation that encodes three problem-fixes).</strong> Each candidate URL/domain $u$ is prioritized as
+$$\text{priority}(u) \;=\; \underbrace{\hat V_\phi(u)}_{\text{multi-signal value}} \;+\; \lambda_{\text{div}}\,\underbrace{\Delta\mathrm{cov}(u \mid \mathcal{B})}_{\text{submodular diversity bonus}} \;+\; \lambda_{\text{expl}}\,\underbrace{\sqrt{\tfrac{\log t}{n_{d(u)}}}}_{\text{UCB exploration}}$$
+$$\text{subject to}\quad \mathrm{KL}\big(p_t \,\Vert\, p_{t-1}\big) \;\le\; \epsilon \;\;\text{(per-iteration intake-distribution shift cap)}$$
+$\hat V_\phi$ = distilled scorer + learnability + type priors (kept separate, combined here); the diversity bonus makes the objective a <em>set function</em> (fixes P4 collapse); the UCB term is the 15% exploration budget in disguise; the KL cap on the intake distribution rate-limits how fast the policy can chase scorer blind spots (fixes P9 hacking). Same structure as the RLVR objective above — that's not a coincidence, it's the same Goodhart problem.</div>
+<h4>Ops reality: tiered budgets (illustrative numbers to memorize)</h4>
+<table><thead><tr><th>Tier</th><th>Fraction of URLs</th><th>What happens</th><th>Unit cost (rel.)</th><th>Gate</th></tr></thead><tbody>
+<tr><td>T0 static parse</td><td>100%</td><td>HTML fetch, DOM stats, cheap fingerprint, template hash</td><td>1×</td><td>—</td></tr>
+<tr><td>T1 light render</td><td>~20%</td><td>headless render, screenshot, banner removal, layout check</td><td>~30×</td><td>T0 features → policy predicts value</td></tr>
+<tr><td>T2 full extract + label</td><td>~5%</td><td>interleaved doc build, fused recaption, OCR cross-check, grounding</td><td>~200×</td><td>T1 screenshot passes fidelity checks</td></tr>
+<tr><td>T3 big-judge audit</td><td>~0.5% sample</td><td>frontier-model quality judgment → scorer training data + drift monitoring</td><td>~2000×</td><td>stratified sample of T2 output</td></tr>
+</tbody></table>
+<p>The economics only work because each tier's model is trained/refreshed from the tier above it (T3 judgments → T2 scorer → T1 value predictor → T0 priors) — <strong>a distillation cascade down the cost curve</strong>. That cascade is the engine's actual product; the corpus is a by-product.</p>
+<p><strong>The self-improvement claim, precisely:</strong> the loop improves <em>the data engine</em> (policy + scorer + labeler) → better corpus → better model → better judgments powering the engine. Model-side training itself stays standard.</p>
+
+<h3 id="s33">§3.3 The ten real problems (the meat)</h3>
+<figure><svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Helvetica,sans-serif">
+  <!-- axes -->
+  <line x1="90" y1="40" x2="90" y2="260" stroke="#2a3340" stroke-width="2"/>
+  <line x1="90" y1="260" x2="820" y2="260" stroke="#2a3340" stroke-width="2"/>
+  <text x="90" y="28" fill="#8b97a7" font-size="11.5">marginal data value (Δeval per token, a.u.)</text>
+  <g fill="#8b97a7" font-size="11" text-anchor="middle">
+    <text x="130" y="280">150M</text><text x="290" y="280">400M</text><text x="450" y="280">1B</text><text x="610" y="280">3B</text><text x="770" y="280">30B+ (target)</text>
+    <text x="455" y="305">model scale (log axis)</text>
+  </g>
+  <!-- extrapolation region -->
+  <rect x="610" y="40" width="190" height="220" fill="#ffffff" opacity="0.025"/>
+  <text x="705" y="56" fill="#8b97a7" font-size="11" text-anchor="middle" opacity="0.8">extrapolation</text>
+  <!-- proxy line -->
+  <line x1="450" y1="40" x2="450" y2="260" stroke="#6ea8fe" stroke-width="1.5" stroke-dasharray="6 5" opacity="0.55"/>
+  <text x="450" y="52" fill="#6ea8fe" font-size="11" text-anchor="middle" opacity="0.9">your proxy lives here</text>
+  <!-- charts curve (blue) -->
+  <polyline points="130,130 290,122 450,118 610,115" fill="none" stroke="#6ea8fe" stroke-width="2.5"/>
+  <polyline points="610,115 770,114" fill="none" stroke="#6ea8fe" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <!-- captions curve (teal) -->
+  <polyline points="130,150 290,152 450,156 610,160" fill="none" stroke="#7ee0c0" stroke-width="2.5"/>
+  <polyline points="610,160 770,164" fill="none" stroke="#7ee0c0" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <!-- OCR curve (orange) -->
+  <polyline points="130,230 290,205 450,165 610,110" fill="none" stroke="#ffb454" stroke-width="2.5"/>
+  <polyline points="610,110 770,75" fill="none" stroke="#ffb454" stroke-width="2.5" stroke-dasharray="5 4"/>
+  <!-- crossing annotation -->
+  <circle cx="596" cy="114" r="5" fill="none" stroke="#ffb454" stroke-width="1.5"/>
+  <text x="592" y="90" fill="#ffb454" font-size="11" text-anchor="middle">curves cross → proxy rank ≠ target rank</text>
+  <!-- legend -->
+  <rect x="106" y="46" width="222" height="64" rx="8" fill="#161b22" stroke="#2a3340"/>
+  <line x1="118" y1="62" x2="148" y2="62" stroke="#6ea8fe" stroke-width="2.5"/><text x="156" y="66" fill="#d7dee8" font-size="11.5">charts / documents</text>
+  <line x1="118" y1="81" x2="148" y2="81" stroke="#7ee0c0" stroke-width="2.5"/><text x="156" y="85" fill="#d7dee8" font-size="11.5">natural-image captions</text>
+  <line x1="118" y1="100" x2="148" y2="100" stroke="#ffb454" stroke-width="2.5"/><text x="156" y="104" fill="#d7dee8" font-size="11.5">OCR-heavy pages</text>
+</svg><figcaption><strong>Fig. 6 — The P1 problem, drawn.</strong> Per-category marginal-value curves over model scale (illustrative). OCR-heavy data looks mediocre at the 1B proxy and dominant at target scale — because its scaling exponents differ (§1.2's $\beta_d$). A single-scale proxy measurement silently mis-ranks exactly the categories with the most headroom; the scaling ladder exists to catch the crossing.</figcaption></figure>
+<div class="qa"><div class="q"><span>P1 — Credit assignment: you can't wait for a frontier pretrain to know if data helped</span><span class="chev">▶</span></div><div class="a">True data value is defined by a run you can't afford per batch. Tried: (a) CLIP-score filtering — plateaued, stock-photo aesthetic bias, anti-selected documents/charts; (b) learnability-only (reference-model excess loss) — noise-seeking: garbled OCR pages look &quot;hard but learnable&quot;. Landed on a <strong>scaling ladder</strong>: proxy pretrains at 3 sizes, per-capability eval suites, trust a batch only if its <em>ranking</em> transfers across scales. Found rank corr ≈ 0.7 overall but much worse for OCR-heavy data (value only appears at scale) → dedicated OCR probe suite. <strong>Lesson:</strong> data value is scale-dependent; validate rank transfer, not one score — a scaling-law problem (fit per-category value curves, distrust curves that cross).</div></div>
+<div class="qa"><div class="q"><span>P2 — The distilled scorer learned style, not quality</span><span class="chev">▶</span></div><div class="a">Top decile filled with SEO listicles mimicking good-content structure. Diagnosis: judge self-preference/style bias, <em>amplified</em> by distillation. Fixes: human-audited <strong>golden set</strong> (refreshed monthly) as the scorer's acceptance test; adversarial probes (SEO farms, MT content, template mills); ensemble with judge-independent signals (OCR density, link-graph authority). <strong>Lesson:</strong> a distilled scorer inherits its teacher's biases compressed and amplified — you need ground truth that never touched the teacher.</div></div>
+<div class="qa"><div class="q"><span>P3 — Recaption hallucination poisoning</span><span class="chev">▶</span></div><div class="a">Recaptioner asserted wrong counts, misread scene text, invented attributes on a few % of images — at pretrain scale, a curriculum in <em>confident hallucination</em>. Fixes: verifier stack (OCR exact-match for quoted text, open-vocab detector for counted/named objects, batch cycle-consistency retrieval); uncertainty-aware phrasing for unverifiable claims; <strong>~40% raw alt-text kept via caption fusion</strong> as entity/entropy anchor. Post-fix, proxies improved on POPE/CHAIR-style evals instead of regressing. <strong>Lesson:</strong> synthetic label errors aren't random noise — they're systematically fluent, so learned preferentially.</div></div>
+<div class="qa"><div class="q"><span>P4 — Feedback-loop distribution collapse</span><span class="chev">▶</span></div><div class="a">By iteration 3, intake concentrated on scorer-favorite content types; embedding-cluster entropy of weekly intake fell ~20%; long-tail domains vanished. Nothing &quot;failed&quot; item-wise — the <em>portfolio</em> degraded. Fixes: fixed 15% exploration budget (stratified random + frontier domains), per-cluster caps, submodular-style marginal-diversity bonus, coverage dashboards with alarms as launch criteria. <strong>Lesson:</strong> data value is a <em>set function</em>; item-score optimization is the wrong objective. Same math as RLHF entropy collapse, same fix shape (explicit entropy/KL term).</div></div>
+<div class="qa"><div class="q"><span>P5 — Templated near-duplicates</span><span class="chev">▶</span></div><div class="a">E-commerce/news templates dominated; embedding dedup missed them (same template, different product) or, tightened, deleted legit similar content — <em>charts of different data look alike in embedding space</em>. Fix: two-stage — DOM-structure MinHash for template detection + per-domain caps, then embedding dedup only <em>within</em> a content type with type-specific thresholds (documents tight, charts loose). <strong>Lesson:</strong> one global similarity threshold is a category error in multimodal corpora.</div></div>
+<div class="qa"><div class="q"><span>P6 — Rendering fidelity and cost</span><span class="chev">▶</span></div><div class="a">Lazy-load images missing, cookie banners eating 30% of pixels, JS timeouts, anti-bot walls. Fixes: scroll-and-settle with network-idle detection; banner/overlay classifier + DOM removal pre-screenshot; tiered render budgets gated by predicted value; robots.txt + politeness as hard constraints (blocked-crawl signals become features, not fights). <strong>Lesson:</strong> the boring rendering layer sets data quality as much as any ML piece, and garbage screenshots are invisible in aggregate metrics — institutionalize weekly &quot;look at 100 random samples&quot; reviews.</div></div>
+<div class="qa"><div class="q"><span>P7 — Eval contamination, adversarially concentrated</span><span class="chev">▶</span></div><div class="a">A value-seeking policy <em>gravitates</em> toward benchmark-like content (bench figures circulate; bench-like pages score high on every value signal — that's why they became benchmarks). Decontam (n-gram + perceptual-hash + embedding match vs all eval suites, canaries) caught a small rate <strong>concentrated exactly in the highest-value categories</strong>. Fix: decontam as mandatory pipeline stage, quarantine logs, eval versioning, contamination rates reported next to every claimed win. <strong>Lesson:</strong> the better your engine, the more contamination-seeking it is.</div></div>
+<div class="qa"><div class="q"><span>P8 — Safety/licensing filters vs recall</span><span class="chev">▶</span></div><div class="a">CSAM/NSFW/PII at maximal recall (non-negotiable) collateral-damaged medical imagery, art, documents with incidental faces; license extraction added more recall loss. Fixes: tiered filtering with human-review lane for the gray zone; end-to-end provenance metadata (takedowns/audits executable later); explicit accounting of which capability categories the safety stack suppresses. <strong>Lesson:</strong> filters are part of the data distribution — &quot;mysteriously bad at X&quot; is often &quot;the filter ate X.&quot;</div></div>
+<div class="qa"><div class="q"><span>P9 — The acquisition policy reward-hacked the scorer</span><span class="chev">▶</span></div><div class="a">The bandit found a blind spot: equation-dense pages scored high (scorer associated math density with quality) but many were OCR-garbled forum scrapes — intake flooded with them. Classic Goodhart, isomorphic to RLHF reward hacking. Fixes: <strong>asynchronous adversarial cadence</strong> (scorer refreshed with fresh big-model judgments after every policy update — the policy optimizes a moving, repaired target); KL-style cap on per-iteration intake-distribution shift; human spot-checks of each new policy's top-decile picks before ingestion. <strong>Lesson:</strong> any learned value model under optimization pressure gets hacked; schedule verifier refresh against optimizer updates and rate-limit distribution shift.</div></div>
+<div class="qa"><div class="q"><span>P10 — Attribution: which change caused the win?</span><span class="chev">▶</span></div><div class="a">Mixture update + scorer refresh + new chart extractor shipped together; ChartQA +5; which to double down on? Post-hoc untangling ≈ impossible. Fixes: one-change-per-proxy-run discipline (proxies are cheap controlled experiments — fixed seeds and data order); interleaved A/B pretrains at matched token counts for headline claims; TRAK/datamodel influence approximations for triage only, never claims. <strong>Lesson:</strong> a data engine without experimental discipline produces unreproducible improvements — data changes deserve architecture-change rigor.</div></div>
+
+<h3>§3.4 Results framing &amp; next steps</h3>
+<ul>
+<li>Frame wins as <strong>data-efficiency at matched compute</strong>: &quot;+6 ChartQA at equal token budget&quot; beats &quot;10× more data.&quot;</li>
+<li>Next: unify with post-training (chart pages with source data = free RLVR tasks); promote the scorer into annealing-phase curation; extend to video; feed deployment eval-gaps directly into crawl campaigns.</li>
+</ul>
+
+<h3 id="s35">§3.5 Interview delivery notes</h3>
+<div class="callout practice"><strong>Versions:</strong> 30s = P1 + P4 + headline result. 2min = add P2/P3/P9. Deep dive = P1, P4, P9 are the research-taste trio (measurement, set-valued objectives, Goodhart); P5–P7 are engineering scar tissue; P8/P10 show judgment and rigor.<br><br>
+<strong>The one-theme summary:</strong> the loop optimizes proxies, and <em>every proxy breaks under optimization pressure</em> — the real job is the verifier hierarchy and refresh schedule that keeps proxies honest.<br><br>
+<strong>Literature anchors:</strong> SAM data engine · DFN/DataComp · RHO-loss · DoReMi/RegMix · CapsFusion · SemDeDup · STaR/ReST · Self-Rewarding LMs · model collapse (Shumailov) · weak-to-strong.<br><br>
+<strong>Expected pushback:</strong> <em>&quot;Doesn't this collapse?&quot;</em> → anchor ratio + exploration budget + entropy monitoring (P4). <em>&quot;How do you know the data helped?&quot;</em> → scaling ladder + rank-transfer + A/B discipline (P1/P10). <em>&quot;Why not just filter harder?&quot;</em> → filters have ceilings and systematic false-negatives (§2.1, P8).</div>
+
+<h3 id="s36">§3.6 Crawler self-improvement — the render-vs-extraction critic</h3>
+<div class="callout keyidea"><strong>The key idea: every page ships its own ground truth.</strong> The rendered screenshot is what a human sees; the extracted interleaved doc is what the model will eat. Any divergence is a pipeline bug — and detecting it requires <strong>no labels</strong>, because the page supplies both views. This is render-and-compare turned <em>inward</em>: instead of verifying model outputs against a rendering, you verify the pipeline's output against the rendering. Same Generate → Verify → Update loop, applied to infrastructure, with a level-2 (cross-modal consistency) verifier from Fig. 1b.</div>
+
+<figure><svg viewBox="0 0 880 540" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,Helvetica,sans-serif">
+  <defs><marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6ea8fe"/></marker>
+  <marker id="c2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7ee0c0"/></marker></defs>
+  <!-- DOM hint -->
+  <rect x="385" y="8" width="110" height="28" rx="7" fill="none" stroke="#8b97a7" stroke-dasharray="4 3"/>
+  <text x="440" y="27" fill="#8b97a7" font-size="12" text-anchor="middle">DOM (hint)</text>
+  <line x1="440" y1="36" x2="440" y2="56" stroke="#8b97a7" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#c1)"/>
+  <!-- two views -->
+  <rect x="30" y="50" width="240" height="100" rx="10" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="150" y="76" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">Rendered screenshot</text>
+  <text x="150" y="98" fill="#8b97a7" font-size="11.5" text-anchor="middle">what a human sees</text>
+  <text x="150" y="116" fill="#8b97a7" font-size="11.5" text-anchor="middle">full-page tiles, post scroll-and-settle</text>
+  <rect x="610" y="50" width="240" height="100" rx="10" fill="#1c2530" stroke="#6ea8fe"/>
+  <text x="730" y="76" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">Extracted interleaved doc</text>
+  <text x="730" y="98" fill="#8b97a7" font-size="11.5" text-anchor="middle">what the model eats</text>
+  <text x="730" y="116" fill="#8b97a7" font-size="11.5" text-anchor="middle">text blocks + images, reading order</text>
+  <!-- critic -->
+  <rect x="340" y="60" width="200" height="90" rx="10" fill="#16241f" stroke="#7ee0c0"/>
+  <text x="440" y="86" fill="#eaf0f7" font-size="14" font-weight="700" text-anchor="middle">VLM critic</text>
+  <text x="440" y="106" fill="#8b97a7" font-size="11" text-anchor="middle">structured discrepancy report</text>
+  <text x="440" y="122" fill="#8b97a7" font-size="11" text-anchor="middle">bbox ↔ doc-span localization</text>
+  <line x1="270" y1="100" x2="338" y2="100" stroke="#6ea8fe" stroke-width="2" marker-end="url(#c1)"/>
+  <line x1="610" y1="100" x2="542" y2="100" stroke="#6ea8fe" stroke-width="2" marker-end="url(#c1)"/>
+  <!-- taxonomy -->
+  <line x1="440" y1="150" x2="440" y2="200" stroke="#7ee0c0" stroke-width="2" marker-end="url(#c2)"/>
+  <rect x="25" y="205" width="130" height="54" rx="8" fill="#161b22" stroke="#ffb454"/>
+  <text x="90" y="227" fill="#eaf0f7" font-size="12" font-weight="700" text-anchor="middle">MISSING</text>
+  <text x="90" y="245" fill="#8b97a7" font-size="10" text-anchor="middle">lazy-load · JS text</text>
+  <rect x="165" y="205" width="130" height="54" rx="8" fill="#161b22" stroke="#ffb454"/>
+  <text x="230" y="227" fill="#eaf0f7" font-size="12" font-weight="700" text-anchor="middle">PHANTOM</text>
+  <text x="230" y="245" fill="#8b97a7" font-size="10" text-anchor="middle">boilerplate leak</text>
+  <rect x="305" y="205" width="130" height="54" rx="8" fill="#161b22" stroke="#ffb454"/>
+  <text x="370" y="227" fill="#eaf0f7" font-size="12" font-weight="700" text-anchor="middle">ORDER</text>
+  <text x="370" y="245" fill="#8b97a7" font-size="10" text-anchor="middle">multi-column · captions</text>
+  <rect x="445" y="205" width="130" height="54" rx="8" fill="#161b22" stroke="#ffb454"/>
+  <text x="510" y="227" fill="#eaf0f7" font-size="12" font-weight="700" text-anchor="middle">FIDELITY</text>
+  <text x="510" y="245" fill="#8b97a7" font-size="10" text-anchor="middle">tables · OCR · charts</text>
+  <rect x="585" y="205" width="130" height="54" rx="8" fill="#161b22" stroke="#ffb454"/>
+  <text x="650" y="227" fill="#eaf0f7" font-size="12" font-weight="700" text-anchor="middle">COVERAGE</text>
+  <text x="650" y="245" fill="#8b97a7" font-size="10" text-anchor="middle">infinite scroll · tabs</text>
+  <rect x="725" y="205" width="130" height="54" rx="8" fill="#161b22" stroke="#ffb454"/>
+  <text x="790" y="227" fill="#eaf0f7" font-size="12" font-weight="700" text-anchor="middle">SEMANTIC</text>
+  <text x="790" y="245" fill="#8b97a7" font-size="10" text-anchor="middle">alt-text drift</text>
+  <!-- stage attribution -->
+  <text x="440" y="290" fill="#6ea8fe" font-size="11.5" text-anchor="middle">Stage attribution: DOM-declared vs painted → rendering bug · DOM-text vs doc-text → extraction bug · screenshot vs captions → labeling bug</text>
+  <!-- loops -->
+  <line x1="230" y1="259" x2="230" y2="320" stroke="#7ee0c0" stroke-width="2" marker-end="url(#c2)"/>
+  <line x1="650" y1="259" x2="650" y2="320" stroke="#7ee0c0" stroke-width="2" marker-end="url(#c2)"/>
+  <rect x="40" y="325" width="380" height="130" rx="10" fill="#1c2530" stroke="#7ee0c0"/>
+  <text x="230" y="349" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">Loop A — improve the crawler</text>
+  <text x="230" y="371" fill="#8b97a7" font-size="11.5" text-anchor="middle">patch per-template adapters (code-gen + goldens)</text>
+  <text x="230" y="389" fill="#8b97a7" font-size="11.5" text-anchor="middle">distill critic corrections → screenshot-grounded extractor</text>
+  <text x="230" y="407" fill="#8b97a7" font-size="11.5" text-anchor="middle">render-policy bandit (critic score per render dollar)</text>
+  <text x="230" y="425" fill="#8b97a7" font-size="11.5" text-anchor="middle">extraction fixability → acquisition-policy feature</text>
+  <rect x="460" y="325" width="380" height="130" rx="10" fill="#1c2530" stroke="#7ee0c0"/>
+  <text x="650" y="349" fill="#eaf0f7" font-size="13.5" font-weight="700" text-anchor="middle">Loop B — improve the data</text>
+  <text x="650" y="371" fill="#8b97a7" font-size="11.5" text-anchor="middle">quarantine &amp; repair (severity-weighted)</text>
+  <text x="650" y="389" fill="#8b97a7" font-size="11.5" text-anchor="middle">blast-radius backfill via lineage metadata</text>
+  <text x="650" y="407" fill="#8b97a7" font-size="11.5" text-anchor="middle">confirmed failures → adversarial golden suite</text>
+  <text x="650" y="425" fill="#8b97a7" font-size="11.5" text-anchor="middle">taxonomy histogram = the pipeline&#x27;s eval</text>
+  <!-- guards -->
+  <text x="440" y="487" fill="#ffb454" font-size="11.5" text-anchor="middle">P11 guard: two renders under different policies must agree; a DOM-declared image that never painted is invisible to screenshot-vs-doc comparison</text>
+  <text x="440" y="516" fill="#7ee0c0" font-size="12" text-anchor="middle">flywheel: better VLM → sharper critic → better extractor → cleaner interleaved data → better VLM</text>
+</svg><figcaption><strong>Fig. 3 — The render-vs-extraction critic.</strong> The page supplies both views, so the comparison is label-free. Discrepancies route through stage attribution into two loops: fix the component (A) and fix the corpus (B).</figcaption></figure>
+
+<h4>The discrepancy taxonomy (structured critic output: code + severity + bbox ↔ doc-span)</h4>
+<table><thead><tr><th>Code</th><th>Failure</th><th>Typical cause</th></tr></thead><tbody>
+<tr><td><strong>MISSING</strong></td><td>visible in screenshot, absent from doc</td><td>lazy-load images, JS-rendered text, canvas-drawn charts</td></tr>
+<tr><td><strong>PHANTOM</strong></td><td>in doc, invisible on page</td><td>nav/boilerplate leakage, cookie banners, hidden SEO text</td></tr>
+<tr><td><strong>ORDER</strong></td><td>wrong reading order</td><td>multi-column layouts, caption attached to the wrong image</td></tr>
+<tr><td><strong>FIDELITY</strong></td><td>present but corrupted</td><td>mangled tables, OCR errors, wrong chart→data extraction</td></tr>
+<tr><td><strong>COVERAGE</strong></td><td>page truncated</td><td>infinite scroll, pagination, tabs/accordions</td></tr>
+<tr><td><strong>SEMANTIC</strong></td><td>image↔text misaligned</td><td>alt-text describes a different image, fused caption drifted</td></tr>
+</tbody></table>
+<p><strong>Stage attribution — which component is guilty?</strong> Three cheap diffs localize the fault before any fix is attempted: DOM-declared resources vs what actually painted (→ <strong>rendering</strong>); DOM text vs doc text (→ <strong>extraction</strong>); screenshot vs synthetic captions (→ <strong>labeling</strong>). Without this, every report starts a cross-team argument; with it, reports route themselves.</p>
+
+<h4>Loop A — improve the crawler (the component)</h4>
+<ol>
+<li><strong>Template-level rule patching.</strong> Cluster reports by DOM-template hash; a code-gen model writes/patches per-template extraction adapters; a golden regression set (screenshot, verified-extraction) gates every patch. Highest-frequency templates first — blast-radius-ordered triage.</li>
+<li><strong>Screenshot-grounded extractor.</strong> The critic doesn't just flag — it <em>proposes the corrected doc from the screenshot</em>. Distill those corrections into the extraction model. End state: extraction stops being DOM heuristics audited by a VLM and becomes <strong>a VLM that reads the page image with the DOM as a hint</strong>, trained almost entirely by cycle-consistency with its own pipeline.</li>
+<li><strong>Render-policy bandit.</strong> Rendering-attributed discrepancies become the reward for the render controller (scroll/settle, wait budgets, interaction probes), optimized per critic-score-per-render-dollar.</li>
+<li><strong>Acquisition feature.</strong> Per-domain <em>extraction fixability</em> feeds the crawl policy: don't keep buying pages you can't correctly extract.</li>
+</ol>
+<h4>Loop B — improve the data (the product)</h4>
+<ol>
+<li><strong>Quarantine &amp; repair.</strong> Severity-weighted: re-render with a better policy, re-extract with the patched adapter, or accept the critic's corrected doc directly (with the P15 caveat).</li>
+<li><strong>Blast-radius backfill.</strong> Every doc carries lineage (extractor version, template hash, render config). When a systematic bug surfaces, query the corpus for affected docs and reprocess retroactively. <strong>Lineage is what makes pipeline bugs reversible</strong> — without it, every bug is permanent corpus damage.</li>
+<li><strong>The taxonomy becomes the pipeline's eval.</strong> Confirmed failures graduate into an adversarial golden suite every extractor release must pass; the per-template/domain/version discrepancy histogram is the pipeline's dashboard.</li>
+</ol>
+
+<h4>The new problems this creates (P11–P15)</h4>
+<div class="qa"><div class="q"><span>P11 — The shared blind spot: screenshot and doc agree, and both are wrong</span><span class="chev">▶</span></div><div class="a">If the <em>render</em> is broken (lazy-load never fired), the missing content is absent from both views — the critic sees consistency, not truth. Guards: <strong>multi-render disagreement probes</strong> (two renders under different policies; divergence flags a rendering issue) and <strong>DOM-declared-resource checks</strong> (an <code>&lt;img&gt;</code> with a src that never painted is a smoking gun no screenshot comparison can see). <strong>Lesson:</strong> cross-modal consistency verifies <em>agreement</em>, not <em>ground truth</em> — you need at least one signal that bypasses the shared failure path.</div></div>
+<div class="qa"><div class="q"><span>P12 — Critic cost at corpus scale</span><span class="chev">▶</span></div><div class="a">Frontier-critic on every page and the economics die. Same answer as §3.2: a distillation cascade — the big critic runs on stratified samples and trains a cheap discrepancy <em>predictor</em> that runs on everything; sampling then biases toward predicted-error and new templates. The T3→T0 cost cascade gains a parallel critic column.</div></div>
+<div class="qa"><div class="q"><span>P13 — Critic false positives on interactive content</span><span class="chev">▶</span></div><div class="a">The critic flags "missing" content that is <em>reachable but not visible</em> — behind tabs, accordions, hover states. Fixes: a visible/reachable distinction in the taxonomy, and measuring critic <strong>precision on human-audited goldens before wiring it to automation</strong>. A noisy critic auto-patching extraction rules is a self-inflicted DDoS on your own pipeline.</div></div>
+<div class="qa"><div class="q"><span>P14 — Reading order is sometimes genuinely ambiguous</span><span class="chev">▶</span></div><div class="a">Card grids and dashboards have no canonical linear order. Don't force one: mark ambiguity explicitly and train downstream with order-tolerant objectives or layout tokens, rather than punishing the extractor for an unanswerable question. <strong>Lesson:</strong> a verifier must know which questions have no right answer, or it manufactures noise.</div></div>
+<div class="qa"><div class="q"><span>P15 — Goodhart, round three: the extractor inherits the critic's blind spots</span><span class="chev">▶</span></div><div class="a">An extractor distilled from critic corrections learns the critic's biases — the same shape as P2 (scorer style bias) and P9 (policy hacking the scorer). Same fix shape: refresh the critic from the newest frontier model each generation, and keep a human-audited golden set <em>that never touched any critic</em> as the acceptance test. By round three the pattern is the thesis: <em>every learned verifier under optimization pressure needs an unoptimized anchor.</em></div></div>
+
+<p><strong>Why this framing wins:</strong> it upgrades the scraper from "a bandit that picks URLs" to a <strong>self-verifying system in which the page itself is the supervisor</strong> — and it closes a second, deeper flywheel: better VLM → sharper critic → better extractor → cleaner interleaved data → better VLM. The data engine bootstraps its own perception.</p>
+
+<h3 id="s37">§3.7 Field notes — details only doers know</h3>
+<p style="color:var(--muted)"><em>The texture that separates "I read about data engines" from "I ran one." Grouped by where the scar tissue is.</em></p>
+
+<h4>Measurement discipline</h4>
+<ul>
+<li><strong>Paired seeds or it didn't happen.</strong> At 1B proxy scale, most public VLM benchmarks carry 1–3 points of seed noise. A &quot;+2 win&quot; that evaporated under paired-seed reruns once killed a quarter's roadmap. Every proxy A/B: same seed, same data order, only the candidate batch swapped. Error bars on everything, or the meeting is fiction.</li>
+<li><strong>Early-signal probes beat benchmarks at proxy scale.</strong> A 2k-item exact-match OCR probe, an entity-cloze set, and per-domain perplexity slices detect data effects ChartQA (noisy, 2.5k items) cannot see at 1B. Maintain an explicit probe→benchmark mapping validated on the scaling ladder — probes are the instrument panel; benchmarks are the quarterly report.</li>
+<li><strong>The insertion protocol changes the answer.</strong> The same candidate batch measured <em>mixed into</em> pretraining vs <em>inserted in the annealing slot</em> gives different — sometimes opposite-sign — value estimates. Standardize one protocol (we fixed a 20%-of-anneal insertion slot) or no two measurements are comparable.</li>
+</ul>
+
+<h4>The ledger</h4>
+<ul>
+<li><strong>The mixture you specify is not the mixture you train on.</strong> Dedup once deleted 80% of one domain, silently re-weighting the whole mixture downstream of the config file. Only post-filter token accounting — the <strong>data ledger</strong> — is truth. Recompute mixture weights after <em>every</em> pipeline change; diff the ledger, not the config.</li>
+<li><strong>Watch the score histogram, not just the evals.</strong> A thresholded scorer puts the most ambiguous pages exactly at the cut, so small scorer drift moves millions of pages across it. A silent scorer retrain once dropped intake volume 30% for a week before anyone noticed — downstream evals wouldn't have shown it for a month. Alarm on intake volume per content type and score-distribution drift: $D_{\mathrm{KS}} = \sup_s \lvert F_t(s) - F_{t-1}(s)\rvert$ vs last week's score CDF.</li>
+</ul>
+
+<h4>The render farm</h4>
+<ul>
+<li><strong>The p99 kills you, not the median.</strong> Median render 1.2s; p99 45s — JS-heavy pages, crypto-miner scripts pegging CPU, one SVG map page with 300k DOM nodes stalling extraction for minutes. Survival kit: recycle browser processes every N pages (headless Chrome leaks), hard DOM-node caps, a kill-list for known CPU traps, per-page compute budgets enforced by timeout tiers.</li>
+<li><strong>Keep canary pages.</strong> A per-domain set of known-stable pages, re-rendered daily, is the only reliable way to distinguish &quot;the site redesigned&quot; from &quot;our IP range got blocked.&quot; Without canaries both look like extraction-failure spikes and you debug the wrong layer for a day.</li>
+<li><strong>The web is nonstationary — as a monitoring requirement, not a philosophy.</strong> A major CMS platform update once shifted the template distribution of a double-digit share of the crawl overnight; extraction failures spiked while every service was &quot;healthy.&quot; Template-distribution drift alarms belong next to loss curves.</li>
+</ul>
+
+<h4>Data content traps</h4>
+<ul>
+<li><strong>Alt-text is secretly load-bearing for entities.</strong> A 100%-synthetic-caption slice improved VQA but cratered proper-noun retrieval (landmarks, products, people) — invisible in aggregate, caught only by the entity-cloze probe. The ~40% raw-caption fusion ratio wasn't taste; it came from a 0/20/40/60/80 sweep against that probe.</li>
+<li><strong>The axis-label trap.</strong> Chart→data extraction fails <em>silently</em> on log axes and truncated axes — extracted numbers are fluent and wrong, teaching wrong magnitudes at scale. Rule: only keep chart QA pairs whose numbers cross-check against the page text or an underlying data table. Fluent-and-wrong is worse than absent (same theorem as P3).</li>
+<li><strong>Paraphrase contamination rides the scrape date.</strong> One &quot;improvement&quot; traced to crawl recency: newer pages <em>discussed</em> a benchmark (paraphrased items, worked solutions in blog posts). N-gram decontam missed it entirely; embedding decontam caught half. Date-stratified ablations are part of the decontamination kit, not an optional extra.</li>
+</ul>
+
+<h4>Humans and constraints</h4>
+<ul>
+<li><strong>Reviewer-minutes are a budget line.</strong> Better safety filters surface <em>more</em> borderline cases, so the gray-zone human-review queue grows superlinearly as filters improve. Plan reviewer-minutes per million pages as a first-class resource or the pipeline stalls on its human lane while every machine dashboard shows green.</li>
+<li><strong>Politeness-aware optimization.</strong> Crawl-rate limits mean the bandit's best arms are drip-fed — a high-value domain at 1 req/s is worth less than its score implies. If the acquisition optimizer doesn't see politeness constraints inside the value estimate, it spends its budget standing in queues.</li>
+</ul>
+
+<hr>
+<h2 class="section" id="s4">Self-test drills</h2>
+<div class="qa"><div class="q"><span>State the universal self-improvement loop and its binding constraint.</span><span class="chev">▶</span></div><div class="a">Generate → Verify → Update, at three timescales (inference / post-training / pretraining). Binding constraint: verifier quality — the loop is exactly as trustworthy as its weakest verifier; it works by mining the generator–verifier gap. A closed loop with no external verifier only redistributes competence.</div></div>
+<div class="qa"><div class="q"><span>Rank the verifier hierarchy for multimodal data.</span><span class="chev">▶</span></div><div class="a">Programmatic (render-and-compare, OCR exact-match, executable checks) &gt; cross-modal consistency (caption retrieves its image, detector confirms objects) &gt; model judge (RLAIF, self-reward) &gt; heuristic (CLIP score, length). Push every task as high up the hierarchy as it can go; rendered-with-source synthetic data is highest-leverage precisely because supervision is programmatic and infinite.</div></div>
+<div class="qa"><div class="q"><span>Why does caption fusion beat caption replacement?</span><span class="chev">▶</span></div><div class="a">Synthetic captions are visually thorough but style-collapsed and entity-poor; alt-text is noisy but carries proper nouns and world knowledge. Replacing loses entities and narrows the text distribution (a mini model-collapse); fusing (CapsFusion) keeps both. Also serves as an entropy anchor against recaption hallucination (P3).</div></div>
+<div class="qa"><div class="q"><span>Your scraper's intake diversity is dropping across iterations. Name the failure and three fixes.</span><span class="chev">▶</span></div><div class="a">Feedback-loop distribution collapse (P4): selection pressure on item scores homogenizes the portfolio. Fixes: fixed exploration budget (ε/stratified), per-cluster intake caps or submodular diversity bonus (value is a set function), coverage/entropy dashboards with alarms. Same math as RLHF entropy collapse — add an explicit entropy/KL term.</div></div>
+<div class="qa"><div class="q"><span>How would you know a candidate data batch actually helps the frontier model, without training it?</span><span class="chev">▶</span></div><div class="a">You can't directly — build a scaling ladder: proxy pretrains at several sizes with fixed seeds/data order and per-capability probes; trust the batch only if its <em>ranking</em> transfers across scales; treat per-category value as a scaling-law object and distrust categories whose curves cross (OCR-heavy data pays off only at scale). Keep one-change-per-run discipline so attribution survives (P1 + P10).</div></div>
+<div class="qa"><div class="q"><span>When should you refuse to start an RL self-improvement loop?</span><span class="chev">▶</span></div><div class="a">When pass@k is flat: post-training loops mostly <em>elicit</em> latent pretraining capability, and the pass@k vs pass@1 gap is the elicitable headroom (§1.6). If pass@1024 shows nothing, no reward signal can select what isn't there — the fix is pretraining data (raise the ceiling), not RL (raise the floor toward the ceiling). Also refuse when there's no verifier above level-3 for the task and no plan for judge refresh: a frozen learned verifier under optimization pressure decays into a heuristic (Goodhart is a rate, not an event).</div></div>
+<div class="qa"><div class="q"><span>Why does iterate-and-distill beat one-shot best-of-n?</span><span class="chev">▶</span></div><div class="a">Best-of-n is a selection operator: KL-bounded at $\log n - \frac{n-1}{n}$ nats (~2.5 at n=32, +0.69 per doubling) and only reweights existing modes. Iterate-and-distill (ReST<sup>EM</sup>, iterative DPO) distills each round's selected distribution into the weights — <em>re-centering the reference</em> — so the KL budget compounds across rounds, and gradient generalization composes selected behaviors into new ones. Amplify → distill → repeat converts a bounded optimizer into an unbounded one; that's also why it needs the entropy accounting of §1.6 (each round spends diversity).</div></div>
+<div class="qa"><div class="q"><span>Your extractor and your screenshot agree perfectly. Are you done?</span><span class="chev">▶</span></div><div class="a">No — that's P11, the shared blind spot. Screenshot-vs-doc comparison verifies <em>agreement</em>, not ground truth: if the render itself failed (lazy-load never fired), both views are missing the same content and the critic sees consistency. You need at least one signal that bypasses the shared failure path: multi-render disagreement probes (two render policies must agree) and DOM-declared-resource checks (a declared <code>&lt;img&gt;</code> that never painted). General principle: any consistency-based verifier has a common-mode failure; audit for it explicitly (§3.6).</div></div>
+<div class="qa"><div class="q"><span>Argue both sides: can a model self-improve past its teacher?</span><span class="chev">▶</span></div><div class="a">For: the generator–verifier gap (verification easier than generation) lets a model curate a curriculum better than its own outputs; weak-to-strong shows student &gt; supervisor; tools/environments inject external truth, so the loop isn't informationally closed. Against: with only a self-judge, biases amplify (self-preference, style collapse) and the ceiling is the verifier, not the generator; model collapse under recursive synthetic training. Commit: yes, iff at least one verifier injects information the generator lacks (program, environment, fresh data, humans).</div></div>
+
+<hr>
+<p><em>Created 2026-07-04, expanded 2026-07-05 (§3.6 critic; §1.6 deep insights; §3.7 field notes). Companion: <code>Self_Improving_VLMs.md</code>. Figures: universal loop (Fig. 1), verifier hierarchy (Fig. 1b), five-subsystem data engine with problem map (Fig. 2), render-vs-extraction critic (Fig. 3), KL budget: selection vs iterate-and-distill (Fig. 4), entropy collapse dynamics (Fig. 5), scaling-ladder value crossing (Fig. 6). Equations: RHO / DoReMi / per-domain scaling laws (§1.2), ReST<sup>EM</sup> / DPO / RLVR / GRPO (§1.3), BoN KL bound (§1.6), data-value product + DSIR + cycle-consistency + effective clusters (§2), acquisition objective (§3.2), KS drift statistic (§3.7).</em></p>
+</main></div>
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<script>
+  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
+  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
+  const KEY=document.title.replace(/\W/g,'_');
+  document.querySelectorAll('.qa').forEach((qa,i)=>{const k=KEY+'_qa_'+i;if(localStorage.getItem(k)==='1')qa.classList.add('open');qa.querySelector('.q').addEventListener('click',()=>{qa.classList.toggle('open');localStorage.setItem(k,qa.classList.contains('open')?'1':'0');});});
+  const tl=[...document.querySelectorAll('nav.toc a')],secs=tl.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll',()=>{let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<=120)cur=s;}tl.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+(cur&&cur.id)));});
+</script>
+</body></html>

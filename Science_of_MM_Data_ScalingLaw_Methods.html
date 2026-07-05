@@ -1,0 +1,372 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How I Developed the Scaling Laws — Data, MM Data, Model Size &amp; Learning Rate</title><style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--pink:#f78fb3;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .layout{display:flex;max-width:1240px;margin:0 auto;}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+  nav.toc a:hover{color:var(--text);background:var(--panel);}
+  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
+  main{flex:1;min-width:0;padding:40px 48px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
+  header.hero h1{margin:0 0 10px;font-size:28px;}
+  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
+  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;}
+  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
+  ul,ol{padding-left:24px;} li{margin:6px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
+  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
+  .prob{background:rgba(247,143,179,.07);border-color:rgba(247,143,179,.35);}
+  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
+  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
+  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .qa .q:hover{background:var(--panel-2);}
+  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
+  .qa.open .q .chev{transform:rotate(90deg);}
+  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
+  .qa.open .a{display:block;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0;}
+  .card{border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--panel);}
+  .card h4{margin-top:0;}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+  figure{margin:22px 0;text-align:center;} figcaption{color:var(--muted);font-size:13px;margin-top:8px;}
+  svg{max-width:100%;height:auto;}
+  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}.grid2{grid-template-columns:1fr;}}
+</style></head><body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2>
+<a href="#top">Overview</a>
+<a href="#s1">§1 · The fitting stack (what "developing a law" means)</a>
+<a href="#s2">§2 · The base law: N &amp; D (three methods)</a>
+<a href="#s3">§3 · LR/batch laws &amp; why WSD changed everything</a>
+<a href="#s4">§4 · From tokens to data: repetition &amp; quality</a>
+<a href="#s5">§5 · The MM joint law (the centerpiece)</a>
+<a href="#s6">§6 · The run matrix I actually launched</a>
+<a href="#s7">§7 · Fitting code &amp; validation protocol</a>
+<a href="#s8">§8 · The confounds that nearly sank it</a>
+<a href="#s9">§9 · Final law &amp; how it was used</a>
+<a href="#s10">§10 · Speakable model &amp; number details</a>
+<a href="#s11">§11 · Future-looking agenda</a>
+<a href="#qa">Cross-exam Q&amp;A</a>
+</nav>
+<main>
+<header class="hero" id="top">
+<h1>How I Developed the Scaling Laws — Data (esp. MM), Model Size &amp; Learning Rate</h1>
+<p style="margin:4px 0;color:var(--muted)">The deepest layer of the MixOracle narrative (Project A in <em>Science_of_MM_Data_Projects.html</em>): the actual mechanics. Functional forms and why, the three fitting methods and which I trusted, the LR/batch laws you must nail <em>first</em> or every data law is confounded, the multimodal joint law, the run matrix, the fitting code, the validation protocol, and the confounds.</p>
+<p style="margin:4px 0;color:var(--muted)"><strong>Framing:</strong> first-person Gemini rehearsal narrative, technically faithful to Kaplan/Chinchilla/Muennighoff/μP/WSD/Apple-NMM public literature. This is the doc for when the interviewer says <em>"okay, but how exactly did you fit it?"</em></p>
+</header>
+
+<h2 class="section" id="s1">§1 · What "developing a scaling law" operationally means</h2>
+<p>A scaling law project is four artifacts, in dependency order. Skipping a layer is how people produce laws that don't extrapolate:</p>
+<ol>
+<li><strong>A tuning law</strong> — how optimal LR, batch size, and schedule move with N and D. Without this, every larger model in your sweep is differently mistuned, and "the scaling law" is partly a law of your mistuning.</li>
+<li><strong>A base compute law</strong> — L(N, D) on a fixed data distribution. This calibrates the machinery (fit quality, extrapolation error) on the easiest problem.</li>
+<li><strong>A data law</strong> — extend D from "token count" to "token count × composition × quality × repetition."</li>
+<li><strong>The MM joint law</strong> — per-modality token budgets and mixture weights as first-class variables, with interaction terms.</li>
+</ol>
+<div class="callout keyidea"><strong>The order is the method.</strong> I spent the first ~2 months on layers 1–2 with zero multimodal content. That felt slow to stakeholders; it's what made layers 3–4 fast and trustworthy. Every scaling-law disaster story I know is someone fitting layer 4 with layer 1 broken.</div>
+
+<h2 class="section" id="s2">§2 · The base law: L(N, D) and the three ways to fit it</h2>
+<h3>2.1 The functional form and what each piece means</h3>
+<pre><code>L(N, D) = E  +  A / N^α  +  B / D^β          (Chinchilla form)
+
+E : irreducible loss — entropy of the data distribution itself.
+    CRUCIAL in MM: E differs per modality stream (image-conditioned text
+    has lower entropy than free text; OCR tokens lower still).
+A/N^α : capacity-limited term — what a finite model can't represent.
+B/D^β : data-limited term — what finite data can't teach.
+Compute-optimal: minimize L s.t. C ≈ 6ND  →  N* ∝ C^a, D* ∝ C^b,
+    a = β/(α+β),  b = α/(α+β).   Chinchilla found a ≈ b ≈ 0.5.</code></pre>
+<h3>2.2 The three estimation methods — and which I trusted</h3>
+<table>
+<tr><th>Method</th><th>How</th><th>Pros</th><th>Cons / when it lies</th></tr>
+<tr><td><strong>M1 · Fixed-N training curves</strong></td><td>Train each N once, long; read L(D) along the curve</td><td>Cheapest — one run gives a whole D-slice</td><td>Intermediate points are off-schedule (LR not decayed for that budget) → systematically pessimistic mid-curve; Kaplan's undertrained-optima error came from exactly this</td></tr>
+<tr><td><strong>M2 · IsoFLOP profiles</strong></td><td>For each compute level C, train several (N, D=C/6N) pairs <em>each fully tuned to its budget</em>; fit the parabola in log N; the minimum is (N*, D*) at that C</td><td>Every point on-schedule; minima are model-free readings; robust</td><td>Expensive — every point is a separate full run</td></tr>
+<tr><td><strong>M3 · Parametric joint fit</strong></td><td>Fit E, A, B, α, β on all (N, D, L) runs at once</td><td>Uses everything; gives the full surface, not just optima</td><td>Fit is delicate (see §7); form misspecification hides in nice-looking R²</td></tr>
+</table>
+<p><strong>My protocol:</strong> M2 as ground truth at 4 compute levels; M3 fit on all runs; <em>consistency between M3's implied optima and M2's read-off minima was the acceptance test for the functional form.</em> First pass failed it — traced to the LR confound (§3) — which is precisely the kind of failure M3 alone would have absorbed silently into biased exponents.</p>
+<figure>
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="IsoFLOP parabolas">
+<style>.ax{stroke:#2a3340;stroke-width:1.5}.t3{fill:#8b97a7;font:12px -apple-system,sans-serif}.t4{fill:#d7dee8;font:12.5px -apple-system,sans-serif}.c1{stroke:#6ea8fe;fill:none;stroke-width:2}.c2{stroke:#7ee0c0;fill:none;stroke-width:2}.c3{stroke:#ffb454;fill:none;stroke-width:2}.mn{fill:#f78fb3}.fr{stroke:#f78fb3;stroke-width:1.5;stroke-dasharray:5 4;fill:none}</style>
+<line class="ax" x1="60" y1="260" x2="690" y2="260"/><line class="ax" x1="60" y1="20" x2="60" y2="260"/>
+<text class="t3" x="330" y="288">log N (params)</text><text class="t3" x="12" y="140" transform="rotate(-90 12 140)">val loss</text>
+<path class="c1" d="M100 90 Q 230 208 400 96"/><path class="c2" d="M170 110 Q 320 232 520 118"/><path class="c3" d="M250 130 Q 415 252 640 140"/>
+<circle class="mn" cx="243" cy="148" r="4.5"/><circle class="mn" cx="336" cy="172" r="4.5"/><circle class="mn" cx="424" cy="192" r="4.5"/>
+<path class="fr" d="M243 148 L 336 172 L 424 192"/>
+<text class="t4" x="105" y="70">C = 1e19</text><text class="t4" x="480" y="100">C = 1e20</text><text class="t4" x="600" y="122">C = 1e21</text>
+<text class="t3" x="440" y="215">compute-optimal frontier → N* ∝ C^a</text>
+</svg>
+<figcaption>M2: each iso-compute parabola's minimum is a model-free (N*, D*) reading; the frontier through minima gives the allocation exponents without trusting the parametric form.</figcaption>
+</figure>
+<div class="callout practice"><strong>Bookkeeping details that change exponents (interview gold):</strong> (1) count <em>non-embedding</em> N or the small-model end bends the fit — with a large multimodal vocab + image tokenizer, embedding params are a bigger fraction than in text-only, so this bites harder; (2) C≈6ND ignores attention FLOPs — at long context (video!) use the exact FLOP count or D is mismeasured; (3) evaluate L on a <em>fixed held-out set with a frozen tokenizer</em> across the entire sweep — any tokenizer change mid-project silently re-scales D and L at once.</div>
+
+<h2 class="section" id="s3">§3 · The LR &amp; batch laws — the layer everyone skips, and why WSD changed the economics</h2>
+<h3>3.1 Why this comes first</h3>
+<p>Optimal LR falls with model size; optimal batch rises with compute. If your sweep uses one LR recipe everywhere, big models are undertuned → their loss is inflated → <strong>α is biased low</strong> → the fitted law says "params help less than they do" → you allocate wrongly at the frontier. The tuning law isn't a hyperparameter chore; it's a <em>correctness precondition</em> of the scaling law.</p>
+<h3>3.2 What I used</h3>
+<ul>
+<li><strong>μP (maximal update parametrization) as the backbone.</strong> Reparametrize init scale, per-layer LR multipliers, and output scaling so the optimal <em>base</em> LR is approximately width-invariant. Tune once on a small proxy, transfer across width. I validated the transfer claim empirically — LR sweeps at 3 widths — rather than assuming it: μP held well for the text tower, but <strong>the vision patch-embedding path needed its own multiplier</strong> (its input statistics don't follow the width-scaling assumptions μP makes for hidden layers). One extra tuned constant; without it, larger models were consistently mistuned on image tokens and the image-loss exponent was biased.</li>
+<li><strong>Residual depth/LR fit.</strong> μP handles width; depth and D still shift the optimum mildly. Fit a small power law <code>η*(N, D) = η₀ · N^{-γ_N} · D^{γ_D}</code> on top of μP from cheap LR sweeps (γ's were small but nonzero — consistent with the "μP plus residual corrections" experience most labs report).</li>
+<li><strong>Batch size via critical-noise-scale logic:</strong> below the gradient-noise scale, batch is a free parallelism knob; above it, you pay in tokens. Measured the noise scale at 3 points; kept every sweep run comfortably below critical batch so batch never entered the law as a confound.</li>
+</ul>
+<h3>3.3 WSD: the schedule trick that made the whole run matrix affordable</h3>
+<pre><code>Cosine problem: LR schedule must END at the token budget for the loss to be
+"on-schedule". One cosine run of length D gives ONE valid (N,D,L) point —
+mid-curve readings are off-schedule and biased.
+
+WSD (Warmup–Stable–Decay):
+  warmup → long STABLE plateau at η_max → short DECAY (~10–20%) to ~0.
+  From ONE stable trunk, branch a cheap decay at D₁, D₂, D₃, ...
+  → one run yields MANY on-schedule (N, Dᵢ, L) points at ~15% extra cost each.</code></pre>
+<p>This is the single biggest lever on sweep economics: my run matrix (§6) would have been ~4× more expensive under cosine. It also composes perfectly with data work: <strong>the decay branch is exactly where the anneal/mid-training mixture goes</strong> — so the same branching infrastructure that gave me L(D) points also gave me the anneal-composition experiments of Project B (CapForge). One infra investment, two projects served.</p>
+<div class="callout watch"><strong>WSD caveat I hit:</strong> loss at the branch point (stable phase, high LR) is <em>not</em> comparable to decayed loss — the decay drop is large and itself mildly N-dependent. Only decayed-branch endpoints enter the fit; never mix trunk readings into the law.</div>
+
+<h2 class="section" id="s4">§4 · From "tokens" to "data": repetition and quality enter the law</h2>
+<h3>4.1 Repetition (data-constrained scaling, Muennighoff-style)</h3>
+<pre><code>Replace raw D with effective data:
+  D_eff = U · (1 − r^e) / (1 − r)        U = unique tokens, e = epochs
+  L(N, D) → L(N, D_eff)                  r ≈ decay per epoch (fit ≈ 0.5–0.7)
+Empirically: ~4 epochs is near-free, value ≈ 0 past ~15–40 epochs.
+MM twist: r is FAMILY-SPECIFIC. Dense captions tolerated more epochs than
+noisy alt-text (less to memorize per token ⇒ slower value decay); grounding
+data decayed fastest (format memorization). Fit r per family from paired
+1/2/4/8-epoch branch runs off the same WSD trunk.</code></pre>
+<h3>4.2 Quality as an effective-token multiplier</h3>
+<p>The cleanest way quality enters a law without exploding the parameter count: a per-tier multiplier <code>q_t</code> such that a token of tier t is worth <code>q_t</code> reference tokens: <code>D_eff = Σ_t q_t · D_t</code> (with repetition applied per tier). Fit q_t from tier-swap runs at fixed budget. Two honest findings: (1) q is <em>eval-dependent</em> — gold captions were worth ~3× on perception evals, ~1× on pure-text — so q_t is a vector, not a scalar, and the scalar-quality story you often hear is a lie of averaging; (2) q is <em>mildly N-dependent</em> (bigger models extract more from hard/dense data), which connects directly to the capacity-aware mixture-law finding in Project A.</p>
+
+<h2 class="section" id="s5">§5 · The multimodal joint law — the centerpiece</h2>
+<h3>5.1 Design decisions before any math</h3>
+<div class="grid2">
+<div class="card"><h4>Decision 1 · What is "loss" in MM?</h4><p>You cannot sum losses across modalities: image-conditioned-text, free-text, and (if trained generatively) image tokens have different entropy floors E. I kept a <strong>vector of per-stream validation losses</strong> — L_txt, L_img→txt, L_interleave, L_ocr, L_vid→txt — each on a frozen held-out set, and fit laws per stream. A single "MM loss" is a category error; this decision shaped everything downstream.</p></div>
+<div class="card"><h4>Decision 2 · What is "D" for an image?</h4><p>Images have no God-given token count — it's a <em>choice</em> (resolution/tiling policy). I fixed one canonical tokenization for the whole sweep and treated resolution policy as a separate, later experiment. Mixing resolution changes into the sweep would have made D_img meaningless. (The resolution law was its own follow-up: loss vs tokens-per-image has its own saturating curve per task family.)</p></div>
+</div>
+<h3>5.2 The functional form</h3>
+<pre><code>For each validation stream s, with per-family token budgets D_i and weights w:
+
+  L_s(N, D, w) = E_s + A_s/N^{α_s} + Σ_i  B_{s,i} / (q_i · D_eff,i)^{β_{s,i}}
+                 + Σ_{i≠j} γ_{s,ij} · f(w_i, w_j)          ← interaction terms
+
+Key empirical structure that made this fittable:
+• α_s differed by stream (image-conditioned streams had SMALLER α — vision
+  capability was more data-limited than capacity-limited in our regime).
+• Most cross-terms γ ≈ 0. Interference was SPARSE: a few (noisy-pairs × text)
+  and (video × interleaved) terms mattered; everything else dropped by
+  regularization. Sparsity is what kept the parameter count sane.
+• Transfer showed up as SHARED variance: text-math data measurably lowered
+  chart-stream loss — a positive cross-term, the quantified version of
+  "cross-modal transfer."</code></pre>
+<h3>5.3 Two structural findings the law surfaced (worth stating as results)</h3>
+<ul>
+<li><strong>Near-proportional N–D scaling held for the MM model</strong> (echoing Apple's NMM result that native multimodal follows LLM-like laws, params-and-tokens roughly in lockstep) — so the text-derived compute split was a fine prior, and the interesting deviations were all in the <em>composition</em> of D, not its total.</li>
+<li><strong>The compute-optimal mixture moves with scale.</strong> Because β and q vary by family and q grows with N for dense data, w* is a function of C: noisy web pairs' share should <em>fall</em> and dense/interleaved share <em>rise</em> along the compute frontier. A static mixture is optimal at exactly one scale — this became the headline chart of the project, and it is the formal justification for curriculum/anneal (early tokens cheap-and-broad, late tokens dense-and-hard follows from the same fitted surface).</li>
+</ul>
+
+<h2 class="section" id="s6">§6 · The run matrix I actually launched</h2>
+<table>
+<tr><th>Block</th><th>Runs</th><th>Design</th><th>Feeds</th></tr>
+<tr><td>T0 · LR/μP validation</td><td>~25 tiny</td><td>LR sweeps × 3 widths × {text-only, MM}; patch-embed multiplier search</td><td>§3 tuning law — precondition for everything</td></tr>
+<tr><td>T1 · Base law, fixed reference mixture</td><td>~30</td><td>6 sizes (150M→8B, ~½-decade spacing) × WSD trunks with 4–5 decay branches each; 3 seeds at the two smallest sizes to measure noise floor</td><td>§2 M3 fit; M2 isoFLOP check at 4 compute levels</td></tr>
+<tr><td>T2 · Repetition &amp; quality</td><td>~35 branches</td><td>Per-family 1/2/4/8-epoch branches; tier-swap branches at fixed budget</td><td>§4 r_i and q_i (vector) estimates</td></tr>
+<tr><td>T3 · Mixture sweep</td><td>~60 runs</td><td>LHS over w at 300M/1B/3B (the MixOracle sweep) + 15 trust-region refits near w*</td><td>§5 joint law; capacity-aware b-coefficients</td></tr>
+<tr><td>T4 · Holdout &amp; frontier</td><td>~10 + 1</td><td>Held-out mixtures never used in fitting, incl. 2 at 8B; final frontier run</td><td>§7 validation; the only runs allowed to say "it worked"</td></tr>
+</table>
+<div class="callout practice"><strong>Two matrix-design principles I'd defend under fire:</strong> (1) <em>spend on spread, not replication, except at the bottom</em> — seeds only at the smallest sizes, where noise is worst and runs are cheapest; the measured noise floor then sets the Huber δ and the CI width for everything above; (2) <em>every block shares the WSD-trunk infrastructure</em> — branches are the unit of experimentation, trunks are capital.</div>
+
+<h2 class="section" id="s7">§7 · Fitting code &amp; validation protocol (where laws are made or faked)</h2>
+<h3>7.1 The fit itself</h3>
+<pre><code># Chinchilla-style robust fit — the details that matter:
+# 1. Fit in LOG space: predict log L via log-sum-exp of the terms
+#    (heteroscedasticity: absolute loss errors shrink as loss falls).
+# 2. Huber loss (δ ≈ measured seed-noise floor from T1 3-seed runs)
+#    — a few divergent/lucky runs otherwise own the exponents.
+# 3. L-BFGS from a COARSE GRID of inits over (α, β, log A, log B, log E)
+#    — the landscape is multimodal; single-init fits find pretty wrong optima.
+# 4. Bootstrap over RUNS (not tokens) → CI on every exponent and on w*.
+#    Report w* as a REGION, not a point.
+loss(θ) = Σ_runs huber_δ( logsumexp_model(θ; N,D_eff,w) − log L_obs )
+# 5. For the MM law: group-lasso on cross-terms γ → sparse interference.</code></pre>
+<h3>7.2 Validation — the part I'd lead with in an interview</h3>
+<ol>
+<li><strong>Extrapolation holdout, not interpolation R².</strong> Fit on runs ≤1B; predict the 3B and 8B holdouts; report <em>prediction error in loss units and in "effective compute" units</em> ("our 8B prediction was off by the equivalent of 8% compute"). Interpolation R² of 0.99 is decoration; extrapolation error is the product.</li>
+<li><strong>Method cross-check:</strong> M3's implied frontier vs M2's read-off minima (§2.2). Disagreement = form misspecification, full stop.</li>
+<li><strong>Residual autopsy:</strong> plot residuals vs N, D, w, context length, <em>and launch date</em>. Two real catches: a residual trend vs launch date exposed the silent data-pipeline change (Project A, P4 — recipe pinning); a residual trend vs context length flagged that long-context-sensitive streams weren't proxying (the two frontier misses we correctly anticipated).</li>
+<li><strong>Decision-level validation:</strong> the law's job is choices, not curves — so the final test was <em>rank agreement on held-out mixture pairs</em>: does the law order T4 mixtures the way reality does? (It went 9/10.)</li>
+</ol>
+<h3>7.3 Bench notes — the measurement details only fitters know</h3>
+<ul>
+<li><strong>What number is "the loss" of a run?</strong> EMA over the final ~2% of decayed-branch steps, val computed in fp32 (bf16 val shows a quantization floor at 150M–300M), on the frozen battery, excluding the first 3% of each val shard (cache-warm artifacts in our harness). Each clause exists because omitting it once produced a visibly worse fit.</li>
+<li><strong>Warmup exclusion &amp; short-run bias.</strong> Points with D &lt; ~20× warmup tokens were dropped: warmup is a fixed token tax, so short runs are systematically pessimistic and bend β upward. Cheap runs are exactly the ones a budget-pressed sweep over-produces — the bias is anti-correlated with your incentives, which is why it must be a hard rule, not a judgment call.</li>
+<li><strong>Realized-token bookkeeping in the fit.</strong> D and per-family D_i come from dataloader-logged, loss-masked gradient-token counts, never from the recipe's nominal weights (nominal-vs-realized diverged up to 2.3× — see the Projects doc trench section). The fitter ingests run manifests, not config files.</li>
+<li><strong>Curvature honesty.</strong> Residuals-vs-log-C showed mild systematic curvature at the smallest scales (consistent with broken-power-law behavior others report). Rather than upgrade to a 7-parameter broken form (unidentifiable on 160 runs), we down-weighted the sub-300M points for frontier extrapolation and documented the choice. Knowing when <em>not</em> to add parameters is most of applied curve fitting.</li>
+<li><strong>The two-run tyranny check.</strong> After every fit: recompute with each run left out (jackknife); any coefficient that moves &gt;1σ under single-run deletion is flagged as "owned by one run" and the sweep gets a confirmatory point there. Twice this caught exponents that were artifacts of a single lucky 3B run.</li>
+</ul>
+
+<h2 class="section" id="s8">§8 · The confounds that nearly sank it (the honest war stories)</h2>
+<div class="qa"><div class="q">C1 · Optimal LR shifted with the mixture — tuning and data laws are coupled <span class="chev">▶</span></div><div class="a"><p><strong>Symptom.</strong> Image-heavy mixtures had measurably different optimal LR than text-heavy ones at the same N (different gradient-noise statistics per stream). My clean separation "tune first, then sweep data" was leaky: mixtures far from the reference were mildly mistuned, and the mixing-law coefficients absorbed the mistuning — the fitted "value of image data" partly measured "how mistuned image-heavy runs were."</p><p><strong>Fix.</strong> Measured ∂η*/∂w with cheap LR re-sweeps at 6 extreme mixture corners; found a simple correction (η* shifted with the image-token fraction). Re-ran the worst-affected sweep arms with corrected LR (~10 runs), refit — coefficient shifts up to 20% on the most affected families. This is my go-to war story for <em>why the LR law is part of the data law</em>.</p></div></div>
+<div class="qa"><div class="q">C2 · Loss told a different story than evals — which does the law predict? <span class="chev">▶</span></div><div class="a"><p><strong>Symptom.</strong> Per-stream loss was beautifully smooth and law-like; several capability evals (counting, OCR-exact-match) moved in jumps. Fitting laws directly on eval scores was noisy and form-less; fitting on loss risked optimizing something nobody ships.</p><p><strong>Fix.</strong> Two-stage mapping: laws live in loss space (smooth, cheap, extrapolable); a per-eval <strong>sigmoidal loss→eval link function</strong>, fit once across all runs, converts predictions. The link is far more stable than eval-vs-(N,D,w) directly because loss is a sufficient statistic for most of the variation. Emergence-looking evals were mostly sharp-but-fixed links over smooth loss — so predicting loss + link anticipated most "jumps." The two that stayed unpredictable were flagged as genuine risk, not hidden.</p></div></div>
+<div class="qa"><div class="q">C3 · Per-stream losses weren't comparable across mixtures — a subtle leakage <span class="chev">▶</span></div><div class="a"><p><strong>Symptom.</strong> Early on, validation sets were drawn per-source; when mixture weights changed which sources existed, each arm was being validated on a subtly different distribution — laws fit on self-graded homework.</p><p><strong>Fix.</strong> Froze a <em>mixture-independent</em> validation battery (fixed sets per stream, frozen tokenizer, frozen image tokenization) before block T1, versioned like code. Trivial in hindsight; the single most common silent killer of data-law projects, because the bug produces <em>smoother, prettier</em> curves, not uglier ones.</p></div></div>
+<div class="qa"><div class="q">C4 · The exponent identifiability trap: α and β trade off against E <span class="chev">▶</span></div><div class="a"><p><strong>Symptom.</strong> Bootstrap revealed huge covariance between E_s and β_s on streams where our sweep didn't reach low loss (video): the fit could explain the same data with "high floor, fast decay" or "low floor, slow decay" — wildly different frontier implications, identical fit quality.</p><p><strong>Fix.</strong> Honesty over false precision: for those streams I reported the CI region and refused a point allocation, and bought identifiability where it was cheap — a few extra-long branches on small N to pin the D→∞ behavior. Where identifiability couldn't be bought, the law says "insufficient evidence" and the allocation fell back to conservative priors. A law that knows what it doesn't know is the difference between science and curve-fitting theater.</p></div></div>
+
+<h2 class="section" id="s9">§9 · The final law, and how it was actually used</h2>
+<pre><code>DELIVERED ARTIFACT (schematically):
+  η*(N, w)              — μP base + patch-embed multiplier + mixture correction
+  L_s(N, D, w)          — per-stream law with sparse interference terms
+  D_eff = Σ q_i(N)·U_i·(1−r_i^e)/(1−r_i)   — quality & repetition, per family
+  Eval_e ≈ σ_e(L_s(...))                    — fitted loss→eval links
+  w*(C) ± CI            — compute-dependent optimal mixture REGION
+USED FOR:
+  · the frontier recipe (w*, anneal composition, N–D split) — signed off
+    against the law's prediction, verified within CI on 9/11 clusters
+  · quarterly "what-if" service: recipe counterfactuals answered from the
+    fitted surface in minutes, with CIs
+  · the investment case for CapForge: q_i(N)·U_i showed unique gold tokens
+    as the binding constraint — the law literally priced a data engine</code></pre>
+<div class="callout keyidea"><strong>The narrative spine, in one breath:</strong> tune first (μP + WSD, or the law measures mistuning); fit the base law two independent ways and force them to agree; promote D from a count to a structured object (quality vector × repetition decay per family); go multimodal with per-stream losses and a sparse-interference joint form; validate by extrapolation and decision-rank, never by interpolation R²; and report regions, not points, wherever the data doesn't identify the answer.</div>
+
+<h2 class="section" id="s10">§10 · Speakable model &amp; number details (say these out loud)</h2>
+<p>Interviewers probe fluency with <em>concrete numbers</em>. Everything below is internally consistent with the narrative and calibrated to public-literature magnitudes, so it survives cross-examination. Practice saying these without looking.</p>
+
+<h3>10.1 The proxy-ladder model card</h3>
+<table>
+<tr><th></th><th>150M</th><th>300M</th><th>1B</th><th>3B</th><th>8B (ref)</th></tr>
+<tr><td><strong>Layers / d_model / heads</strong></td><td>12 / 768 / 12</td><td>16 / 1024 / 16</td><td>20 / 2048 / 16</td><td>28 / 3072 / 24</td><td>36 / 4608 / 36</td></tr>
+<tr><td><strong>Role in the project</strong></td><td>LR/μP tuning; noise floor (3 seeds)</td><td>Mixture LHS sweep</td><td>Mixture sweep + T2 branches</td><td>Capacity-aware rung; rank-gate</td><td>Reference for calibration gate; 2 holdout mixes</td></tr>
+<tr><td><strong>Trunk budget (WSD)</strong></td><td>30B tok</td><td>60B</td><td>150B</td><td>350B</td><td>700B</td></tr>
+<tr><td><strong>Decay branches</strong></td><td>—</td><td>3</td><td>5</td><td>5</td><td>3</td></tr>
+</table>
+<ul>
+<li><strong>Architecture family:</strong> decoder-only, early-fusion native-MM (justified by the Apple NMM result: no late-fusion advantage at matched compute, early fusion cheaper at small scale). SwiGLU, RMSNorm, RoPE, GQA above 1B. Sizes are ~½-decade spaced — close enough for a stable fit, far enough that exponents are identified.</li>
+<li><strong>Vision path:</strong> SigLIP-style ViT-L/14 tokenizer path, frozen for the sweep (a moving encoder would confound every data coefficient); native-resolution tiling with a canonical policy of <strong>256 tokens per 448px tile, max 4 tiles + 1 thumbnail ⇒ ≤1,280 image tokens</strong>. That canonical policy is what makes D_img well-defined (§5.1).</li>
+<li><strong>Context:</strong> 8K for the sweep (cost), which is exactly why long-video/multi-image streams under-proxied — I can name the limitation and its cause in the same sentence.</li>
+<li><strong>Vocab:</strong> 256K multimodal SentencePiece — large vocab means <strong>embeddings are ~35% of params at 150M but ~4% at 8B</strong>, which is the concrete reason non-embedding N is mandatory in the fit (§2's bookkeeping point, now with a number).</li>
+</ul>
+
+<h3>10.2 Numbers to quote fluently (the "fingertip facts")</h3>
+<table>
+<tr><th>Fact</th><th>Number I'd say</th><th>Where it comes from</th></tr>
+<tr><td>Total sweep cost</td><td>~160 runs ≈ <strong>1.2×10²² FLOPs total — under 15% of the single frontier run it de-risked</strong></td><td>T0–T4 matrix; the ROI sentence</td></tr>
+<tr><td>Chinchilla check</td><td>Our text-stream fit: α≈0.32, β≈0.29, near-proportional N–D split (a≈0.52)</td><td>T1; consistent with Hoffmann α=0.34/β=0.28</td></tr>
+<tr><td>Image-conditioned stream</td><td>α_img→txt ≈ 0.24 &lt; α_txt — vision more data-limited than capacity-limited in our regime</td><td>§5.3 finding #1</td></tr>
+<tr><td>Repetition decay</td><td>r ≈ 0.55–0.7 by family; ~4 epochs near-free, ≈0 value past ~16 (Muennighoff-consistent); grounding data fastest decay</td><td>T2 epoch branches</td></tr>
+<tr><td>Quality multipliers</td><td>q(gold captions) ≈ 3× on perception streams, ≈1× on text; q grows ~15–20% from 1B→3B</td><td>T2 tier swaps; capacity link</td></tr>
+<tr><td>WSD economics</td><td>Decay branch = 10–20% of trunk cost ⇒ each extra (N,D,L) point at ~⅙ the cost of a cosine run; matrix ~4× cheaper overall</td><td>§3.3</td></tr>
+<tr><td>LR–mixture coupling</td><td>η* shifted ~1.5–2× between text-heavy and image-heavy corners at fixed N; up to 20% coefficient shift after correction</td><td>§8-C1</td></tr>
+<tr><td>Calibration gate</td><td>Spearman ρ ≥ 0.8 over 12 probe mixtures vs the 8B ref, per-eval; 300M failed for reasoning evals and was excluded there</td><td>Projects doc, A2-v3</td></tr>
+<tr><td>Validation headline</td><td>Fit ≤1B → predicted 8B holdouts within ~8% effective-compute error; decision-rank 9/10 on held-out mixture pairs; frontier within CI on 9/11 clusters</td><td>§7.2</td></tr>
+<tr><td>Anneal efficiency</td><td>Same gold tokens ≈ 2.3× eval lift in final-15% fast-decay window vs spread in base mix</td><td>CapForge 2×2</td></tr>
+</table>
+<div class="callout practice"><strong>Delivery tip:</strong> quote each number <em>with its uncertainty behavior</em> ("α around 0.32 — and I care less about the point value than that M2 and M3 agreed on it") — that pairing is what distinguishes someone who fit laws from someone who read about them.</div>
+
+<h3>10.3 The reference mixture &amp; where w* moved it (composition fluency)</h3>
+<p>Interviewers will ask "so what was the mixture?" Have a before/after you can sketch on a whiteboard (token-share of the base mix, target-scale solve):</p>
+<table>
+<tr><th>Family</th><th>Incumbent (hand-tuned)</th><th>w* at target C</th><th>Why it moved</th></tr>
+<tr><td>Text (web/books/code)</td><td>55%</td><td>52%</td><td>Held near-flat by the text-floor constraint; quality composition inside it upgraded instead</td></tr>
+<tr><td>Noisy web pairs (alt-text)</td><td>18%</td><td>9%</td><td>Steepest saturation (largest r, lowest q); also the located source of text interference — capped</td></tr>
+<tr><td>Re-captioned pairs (T1/T2)</td><td>8%</td><td>14%</td><td>High q on perception streams, large unique supply post-CapForge</td></tr>
+<tr><td>Interleaved docs</td><td>7%</td><td>11%</td><td>Coefficient sign-flipped positive at ≥3B (capacity-gated); biggest single beneficiary of capacity-aware fitting</td></tr>
+<tr><td>OCR / doc / chart</td><td>5%</td><td>8%</td><td>Highest marginal eval-per-token on headroom-weighted objective; capped by unique supply, not by value</td></tr>
+<tr><td>Grounding / pointing</td><td>2%</td><td>2%</td><td>Value real but saturates at small dose; fastest repetition decay</td></tr>
+<tr><td>Video (post token-policy)</td><td>4%</td><td>3%</td><td>Wide CI (the E/β identifiability trap) → conservative allocation, flagged not solved</td></tr>
+<tr><td>Audio / speech</td><td>1%</td><td>1%</td><td>Out of scope for the law's first cycle; carried as fixed</td></tr>
+</table>
+<p><strong>The sentence that goes with the table:</strong> "Roughly: halve noisy pairs, double re-captioned and interleaved, push OCR to its supply cap, hold text — and the anneal window is where the T0 gold actually lives, on top of this base mix."</p>
+
+<h3>10.4 Eval suite &amp; infra facts (the follow-up layer)</h3>
+<ul>
+<li><strong>Eval battery:</strong> 11 capability clusters built from ~30 public+internal evals — doc/OCR (DocVQA, ChartQA, InfoVQA), counting/pointing, spatial, dense description (judged), multi-image, long-video, text reasoning (held as guardrail), etc. Clusters, not single benchmarks, because single benchmarks are too noisy at proxy scale — cluster averaging cut eval σ roughly in half.</li>
+<li><strong>Noise floor:</strong> from the 150M 3-seed runs — σ ≈ 0.15–0.3 pts per cluster at proxy scale; every claimed effect had to clear ~2σ paired. That σ is also the Huber δ in the fit — one measurement, two uses.</li>
+<li><strong>Decontamination:</strong> image-space (perceptual hash + embedding-NN at cosine ≥ 0.95 against every eval image) before any captioning; text n-gram overlap as the second net. Run before block T1, versioned with the validation battery.</li>
+<li><strong>Turnaround as a managed metric:</strong> a 300M sweep point was a same-day result, 1B ~2 days, 3B ~1 week. I tracked <em>fits-per-week</em> as the project's own KPI — the science is bottlenecked by iteration rate, so I treated proxy throughput as a first-class deliverable, not a byproduct.</li>
+<li><strong>One infra sentence worth saying:</strong> "Every run carried a pinned recipe hash — source snapshot IDs, filter versions, tokenizer version, tiling policy — and the fitter refuses runs whose hashes don't resolve; that rule exists because a silent pipeline upgrade once cost us 25 sweep points."</li>
+</ul>
+
+<h3>10.5 Three sentences that carry the whole §10 in an interview</h3>
+<ol>
+<li>"The ladder was five sizes, 150M to 8B at half-decade spacing, early-fusion decoder-only with a frozen SigLIP-style tower and a canonical 256-tokens-per-tile policy — frozen encoder and fixed tokenization because otherwise every data coefficient is confounded."</li>
+<li>"The whole 160-run matrix cost under 15% of the frontier run it de-risked — WSD branching is what made that ratio possible."</li>
+<li>"Our exponents came out Chinchilla-adjacent on text — α about 0.32 — but the image-conditioned stream was clearly more data-limited, α about 0.24, and that asymmetry is the quantitative reason the optimal mixture drifts toward dense visual data as compute grows."</li>
+</ol>
+
+<h2 class="section" id="s11">§11 · Future-looking agenda (what I'd do next — the vision question)</h2>
+<p>Interviews end with "where does this go?" Have a ladder: near-term extensions of what worked, mid-term bets, and one horizon idea that connects to your own research line.</p>
+
+<h3>11.1 Near-term (next two quarters — direct extensions)</h3>
+<p>Each stated the way I'd write the internal one-pager: hypothesis → experiment → kill criterion → payoff.</p>
+<div class="card" style="margin:14px 0"><h4>N1 · Context-length-aware proxy rung</h4>
+<p><strong>Hypothesis:</strong> long-context MM data (long-video, multi-image, long interleaved docs) has its own data exponent, and 8K-context proxies structurally under-value it — which is exactly why our two frontier misses were both long-context clusters.</p>
+<p><strong>Experiment:</strong> add a 32K rung at 1B (context extension on the existing trunk — cheap, reuses WSD infra); rerun the 12 probe mixtures at both contexts; fit <code>L_s(N, D, w, ctx)</code> with a ctx-dependent B-term for the long-context families. ~15 runs.</p>
+<p><strong>Kill criterion:</strong> if the 32K rung's mixture <em>ranking</em> matches 8K within CI, context isn't a law axis — close the workstream, document, move on.</p>
+<p><strong>Payoff if right:</strong> the first principled answer to "how much long-video should be in the mix," currently the least-defended number in every MM recipe I know of.</p></div>
+<div class="card" style="margin:14px 0"><h4>N2 · Resolution/token-budget law (pixels and text under one currency)</h4>
+<p><strong>Hypothesis:</strong> the marginal value of the k-th image token follows a per-task-family saturating curve — OCR/doc saturates late (fine text needs pixels), natural-scene VQA saturates early — so a <em>content-conditional</em> tiling policy dominates any fixed policy at iso-FLOP.</p>
+<p><strong>Experiment:</strong> 3×4 grid — {64, 256, 576} tokens/tile × 4 task-family-enriched mixtures at 1B, fixed total token budget so image tokens displace text tokens (that's the real tradeoff). Fit <code>L_s(tokens/image)</code> per family; solve the joint allocation.</p>
+<p><strong>Kill criterion:</strong> if the fitted saturation points cluster within 2× of each other across families, content-conditional routing isn't worth its complexity — ship one global number instead.</p>
+<p><strong>Payoff if right:</strong> a single marginal-value currency across modalities — "this image's 5th tile is worth 300 caption tokens" — which is the allocation primitive everything else in MM data science lacks.</p></div>
+<div class="card" style="margin:14px 0"><h4>N3 · Law-guided online mixing (the curriculum is the law's derivative)</h4>
+<p><strong>Hypothesis:</strong> since the fitted w* moves with compute (§5.3), the optimal <em>schedule</em> is approximately the path w*(C) traced during the run — static mixtures leave capability on the table, and the fitted surface already contains the curriculum for free.</p>
+<p><strong>Experiment:</strong> three arms at 1B, iso-FLOP: static w*(C_final), the law-implied path w*(C(t)), and a DoReMi-style online controller as the learned baseline. Guardrail instrumentation for path-dependence (does visiting web-heavy early poison anything the law, which is path-blind, can't see?).</p>
+<p><strong>Kill criterion:</strong> path arm must beat static by &gt;2σ on the headroom-weighted aggregate <em>and</em> show no guardrail regression; otherwise static + anneal is already capturing the effect and the extra machinery isn't paying.</p>
+<p><strong>Payoff if right:</strong> unifies mixture, curriculum, and anneal into one object — the anneal stops being a separate trick and becomes the tail of the w*(C) path, which is intellectually the cleanest result the project could produce.</p></div>
+
+<h3>11.2 Mid-term bets (the proposals I'd write)</h3>
+<div class="card" style="margin:14px 0"><h4>M1 · Scaling laws for the data engine itself</h4>
+<p><strong>The gap:</strong> frontier spend is shifting from crawling to <em>manufacturing</em> data (CapForge was exactly this), yet there is no published law pricing data-production compute against training compute. Every lab is making this allocation by intuition.</p>
+<p><strong>The proposed law:</strong> <code>capability = f(C_gen, C_verify, H_seed)</code> — generation compute, verification compute, human seed-set size. From CapForge I already have three fitted fragments: the captioner-quality/cost knee (90% of value at 15% of cost, except OCR-dense), the value-of-verification curve (T1-vs-T2 tier gap), and q's dependence on human-edit rounds. The proposal stitches them into one surface with a designed grid over (generator size × verifier strictness × seed size).</p>
+<p><strong>The decision it feeds:</strong> "next $X of compute: train on it, or generate-and-verify with it?" My prior from the fragments: verification compute is currently the under-bought term — its marginal curve was the steepest of the three — and I'd stake the first sweep on confirming that.</p>
+<p><strong>Risk to name unprompted:</strong> the surface is generator-model-dependent, so it must be refit per model generation — the law's shelf-life is one model cycle, and the proposal budgets for that refit rather than pretending permanence.</p></div>
+<div class="card" style="margin:14px 0"><h4>M2 · Post-training scaling laws done honestly</h4>
+<p><strong>Why loss breaks:</strong> RL moves the policy, not the likelihood surface — perplexity can be flat while pass-rate doubles. So the state variable must change: <em>pass-rate-vs-compute curves on verifiable MM tasks</em> (rendered charts with known answers, counting, OCR exact-match, geometry), which are smooth, cheap, and cheat-proof.</p>
+<p><strong>Design:</strong> a 3-axis grid — base-model PT gold-token dose (reusing T2 checkpoints!) × SFT data dose × RL compute — measuring pass-rate per capability. The T2 reuse is the trick: the pretraining sweep's checkpoints become the post-training sweep's <em>independent variable for free</em>, which is a ~10× cost saving over training fresh bases and the kind of asset-reuse argument that gets proposals funded.</p>
+<p><strong>Target result:</strong> the <em>elicitation frontier</em> — iso-capability curves in the (PT gold tokens, RL compute) plane. Its slope is the exchange rate the PT↔post budget debate has always lacked. Secondary prediction to test: the frontier is L-shaped for perception-bound capabilities (no amount of RL rescues missing perception) but shallow for format-bound ones — B3-P3's perception/expression split, promoted to a law.</p>
+<p><strong>Kill criterion:</strong> if pass-rate curves aren't stable across seeds at feasible RL budgets (RL variance is notorious), fall back to best-of-k likelihood-free probes as the state variable before giving up on the frontier concept.</p></div>
+<div class="card" style="margin:14px 0"><h4>M3 · Transfer-matrix laws (does transfer grow with scale?)</h4>
+<p><strong>The question:</strong> we found sparse positive cross-terms (text-math data lowered chart-stream loss). Is that a fixed fact, or does cross-modal transfer <em>strengthen</em> with scale — models becoming increasingly modality-agnostic learners, the optimistic reading of Apple's early-fusion results?</p>
+<p><strong>Design:</strong> estimate the full family×stream transfer matrix Γ (γ<sub>s,i</sub> for all off-diagonal pairs) at 1B and 3B with matched relative budgets; test H₀: Γ(3B) = Γ(1B) against ‖Γ‖ growing. Requires the group-lasso machinery from §7 plus ~30 targeted add-one-family runs — the most expensive of the three bets, and the most publishable.</p>
+<p><strong>Why it's load-bearing either way:</strong> if transfer grows, mixture optimization gets <em>easier</em> at the frontier (data becomes fungible; buy the cheapest capable tokens); if it doesn't, per-modality data supply is a permanent strategic constraint and data-engine investment (M1) becomes existential. Either answer reallocates real money — the definition of a well-posed bet.</p></div>
+
+<h3>11.3 Horizon (the idea I'd end the interview on)</h3>
+<div class="callout keyidea"><p><strong>Laws in representation space, not token space.</strong> Everything above measures data value through next-token loss — but token loss over-rewards surface redundancy and under-measures perceptual grounding. The natural next instrument: measure data value by how it moves <em>latent predictive quality</em> — e.g., loss of predicting frozen SSL/JEPA embeddings of future or masked visual content, which is precisely the setting of my LatentFusion proposal (LLM predicting in frozen video-JEPA space). If a latent-space law predicts downstream perception better than token-space laws do — my bet is it will, because it's denoised of surface entropy — then the whole science of MM data gets a better state variable, and questions like "what is a video token worth" finally get a principled answer. That's the through-line: today's laws are built on a proxy metric; the next generation should be built on representations.</p>
+<p><strong>The concrete first experiment (so it's a plan, not a slogan):</strong> take the existing T1/T3 checkpoints — again reusing the sweep as an asset — and evaluate each on two batteries: (a) standard per-stream token loss, (b) latent-prediction loss against frozen DINOv2/V-JEPA embeddings of held-out masked/future visual content. Fit the same law family on both state variables; the test is <em>which one better predicts the frontier eval vector we already measured</em>. Zero new training runs for the pilot — it's pure re-evaluation of ~160 existing checkpoints, roughly a two-week project for the strongest possible framing: "I can tell you today whether representation-space laws beat token-space laws, because the sweep already exists." If (b) wins, the follow-up is a small dedicated sweep where mixture weights are optimized directly against latent-prediction loss — data curation guided by representation quality end to end.</p></div>
+
+<h3>11.4 The 30-second "vision" answer, verbatim</h3>
+<p><em>"Three steps. Near-term: make context length and image-token budget explicit axes of the law, and let the fitted surface drive the curriculum online instead of a static mixture. Mid-term: two missing laws — one that prices data-manufacturing compute against training compute, because that's where frontier spend is moving, and one honest post-training law built on pass-rate curves rather than loss. Long-term: I think token-space loss is the wrong state variable for multimodal data science — I want laws fit in representation space, predicting frozen SSL embeddings, which connects to my own proposal on latent-space prediction. Better state variable, better science."</em></p>
+
+<h2 class="section" id="qa">Cross-exam Q&amp;A</h2>
+<div class="qa"><div class="q">"Why not just trust Chinchilla's exponents and skip T1?" <span class="chev">▶</span></div><div class="a"><p>Because exponents are distribution- and stack-dependent: our tokenizer, context length, MM interleaving, and data quality all differ from MassiveText, and E certainly differs per stream. T1 also serves a second role Chinchilla's numbers can't: it calibrates <em>my</em> pipeline's noise floor and extrapolation error, which set the CIs on everything downstream. You replicate the base law not to learn the answer but to certify the instrument.</p></div></div>
+<div class="qa"><div class="q">"μP or careful sweeps — pick one, why?" <span class="chev">▶</span></div><div class="a"><p>μP as backbone, sweeps as audit. μP collapses the width dimension of tuning nearly for free, but its guarantees are asymptotic and architecture-conditional — our vision patch-embed path violated its assumptions and needed an empirical multiplier. So: adopt the parametrization, then spend a small fixed budget verifying transfer at three widths on <em>your</em> architecture. Trust, with a receipt.</p></div></div>
+<div class="qa"><div class="q">"Your mixture law has ~100 parameters. Overfit much?" <span class="chev">▶</span></div><div class="a"><p>Three defenses, in order of importance: group-lasso killed most cross-terms (interference is sparse — that's an empirical finding, not an assumption); every headline claim is validated on held-out mixtures by extrapolation and rank agreement, not fit quality; and bootstrap-over-runs CIs accompany every coefficient — where the CI was wide (video stream), we said so and declined to allocate on it. The parameter count is honest because the validation is out-of-sample.</p></div></div>
+<div class="qa"><div class="q">"How would this change for post-training / RL data?" <span class="chev">▶</span></div><div class="a"><p>The machinery transfers but two assumptions break: loss stops being the right state variable (RL moves policies, not likelihoods — the link-function trick needs replacing with something like pass-rate-vs-compute curves), and data value becomes strongly <em>order-dependent</em> (curriculum effects dominate at small post-training scale, violating the mixture-weight abstraction). My honest answer: post-training scaling laws are an open problem; I'd start from dose–response and paired ablations there, and be suspicious of anyone selling smooth laws for RLHF data today.</p></div></div>
+<div class="qa"><div class="q">"What was the single most consequential technical choice?" <span class="chev">▶</span></div><div class="a"><p>Per-stream validation losses instead of a single MM loss. It looks like bookkeeping, but it's what made E identifiable per modality, made interference measurable as sparse cross-terms, made the loss→eval links stable, and made the compute-dependent mixture result visible at all. Most of the project's findings would have been invisible under a scalar loss — averaging is where multimodal signal goes to die.</p></div></div>
+
+<hr>
+<p style="color:var(--muted);font-size:14px">Layer 3 of the series: <em>Science_of_MM_Data_Scaling.html</em> (field map) → <em>Science_of_MM_Data_Projects.html</em> (two projects) → this doc (the fitting mechanics). Grounded in: Kaplan et al. 2020; Hoffmann et al. (Chinchilla) 2022; Muennighoff et al. (data-constrained) 2023; Yang et al. (μP / Tensor Programs V); Hu et al. (MiniCPM/WSD) 2024; Apple NMM (arXiv 2504.07951) &amp; Optimal Data Mixtures (2507.09404); Data Mixing Laws (ICLR'25); Capacity-Aware Mixture Law (2603.08022). Rehearsal narrative, not proprietary work.</p>
+</main>
+</div>
+<button class="back-top" id="backTop" aria-label="Back to top">↑</button>
+<script>
+document.querySelectorAll('.qa .q').forEach(q=>q.addEventListener('click',()=>q.parentElement.classList.toggle('open')));
+const prog=document.getElementById('progress'),bt=document.getElementById('backTop');
+const secs=[...document.querySelectorAll('h2.section')],links=[...document.querySelectorAll('nav.toc a')];
+addEventListener('scroll',()=>{const h=document.documentElement,st=h.scrollTop,sh=h.scrollHeight-h.clientHeight;prog.style.width=(st/sh*100)+'%';bt.style.display=st>500?'block':'none';
+let cur='';for(const s of secs){if(s.getBoundingClientRect().top<160)cur=s.id;}links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+cur));});
+bt.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
+</script>
+</body></html>

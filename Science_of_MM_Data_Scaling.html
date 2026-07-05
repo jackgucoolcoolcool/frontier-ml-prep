@@ -1,0 +1,356 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Science of (Multimodal) Data Scaling — Brainstorm + Gemini Case Study</title><style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--pink:#f78fb3;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .layout{display:flex;max-width:1240px;margin:0 auto;}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+  nav.toc a:hover{color:var(--text);background:var(--panel);}
+  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
+  nav.toc a.sub{padding-left:22px;font-size:12.5px;}
+  main{flex:1;min-width:0;padding:40px 48px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
+  header.hero h1{margin:0 0 10px;font-size:30px;}
+  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
+  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;}
+  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
+  ul,ol{padding-left:24px;} li{margin:6px 0;}
+  ul ul,ol ul{margin:6px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
+  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
+  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
+  .prob{background:rgba(247,143,179,.07);border-color:rgba(247,143,179,.35);}
+  .pill{display:inline-block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;padding:2px 9px;border-radius:20px;border:1px solid var(--border);color:var(--muted);margin-right:6px;}
+  .pill.p{background:rgba(126,224,192,.12);color:var(--accent-2);border-color:transparent;}
+  .pill.r{background:rgba(247,143,179,.12);color:var(--pink);border-color:transparent;}
+  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
+  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .qa .q:hover{background:var(--panel-2);}
+  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
+  .qa.open .q .chev{transform:rotate(90deg);}
+  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
+  .qa.open .a{display:block;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0;}
+  .card{border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:var(--panel);}
+  .card h4{margin-top:0;}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+  figure{margin:22px 0;text-align:center;} figcaption{color:var(--muted);font-size:13px;margin-top:8px;}
+  svg{max-width:100%;height:auto;}
+  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}.grid2{grid-template-columns:1fr;}}
+</style></head><body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2>
+<a href="#top">Overview</a>
+<a href="#s1">§1 · What "science of data" means</a>
+<a href="#s2">§2 · The MM data taxonomy</a>
+<a href="#s3">§3 · Vision-encoder data</a>
+<a href="#s4">§4 · Pretraining data science</a>
+<a href="#s5">§5 · Scaling laws for MM data</a>
+<a href="#s6">§6 · Post-training data science</a>
+<a href="#s7">§7 · Measurement &amp; infra</a>
+<a href="#s8">§8 · Open problems</a>
+<a href="#s9">§9 · Deep insights (hard-won truths)</a>
+<a href="#c0" style="margin-top:14px;color:var(--pink)">CASE STUDY — "Science of MM Data" @ Gemini</a>
+<a href="#c1" class="sub">C1 · Charter &amp; framing</a>
+<a href="#c2" class="sub">C2 · Methodology</a>
+<a href="#c3" class="sub">C3 · Experimental ladder</a>
+<a href="#c4" class="sub">C4 · Real problems faced</a>
+<a href="#c5" class="sub">C5 · Results &amp; laws found</a>
+<a href="#c6" class="sub">C6 · Interview Q&amp;A</a>
+</nav>
+<main>
+<header class="hero" id="top">
+<h1>The Science of (Multimodal) Data Scaling</h1>
+<p style="margin:4px 0;color:var(--muted)"><strong>Part I — Open brainstorm:</strong> a comprehensive map of how a frontier VLLM lab treats <em>data as the object of scientific study</em> across the vision encoder, native-multimodal pretraining, and post-training — with the emphasis on multimodal data (image, video, audio, doc, UI, interleaved, synthetic).</p>
+<p style="margin:4px 0;color:var(--muted)"><strong>Part II — Case study:</strong> a fully-fleshed project I'll narrate as if I ran it inside <strong>Gemini</strong> — "Science of MM Data" — with a real methodology, the concrete problems that actually bite in a project like this, and how I solved each.</p>
+<p style="margin:4px 0;color:var(--muted)"><span class="pill p">PT = pretraining</span><span class="pill r">Post = post-training</span> Equations in code blocks. This is a study/brainstorm doc, not a claim of privileged information.</p>
+</header>
+
+<!-- ================= PART I ================= -->
+<h2 class="section" id="s1">§1 · What "science of data" actually means</h2>
+<p>"Science of data" is the discipline of turning data decisions from <em>folklore</em> ("more is better, dedup helps") into <em>predictable, measured levers</em> with laws attached. The frontier framing has four commitments:</p>
+<div class="grid2">
+<div class="card"><h4>1. Data is a design space, not a pile</h4><p>Every corpus has axes — <strong>quantity, quality, diversity, freshness, modality mix, difficulty, provenance</strong>. Science means treating each as a knob you can turn and measure, not a fixed asset.</p></div>
+<div class="card"><h4>2. Predictable before large</h4><p>The goal is a <strong>function</strong>: given a data recipe, predict downstream loss/eval at the target scale from small-scale runs. If you can't predict it, you don't understand it.</p></div>
+<div class="card"><h4>3. Marginal value, not average value</h4><p>The question is never "is captions data good" — it's "what is the <strong>marginal</strong> eval gain per token of captions data <em>given</em> everything else already in the mix." Data value is contextual and saturating.</p></div>
+<div class="card"><h4>4. Compute-optimal allocation</h4><p>Under a fixed FLOP/token budget, science tells you how to <strong>split</strong> the budget across modalities, quality tiers, and PT-vs-post — the multimodal generalization of Chinchilla.</p></div>
+</div>
+<div class="callout keyidea"><strong>The one-sentence thesis.</strong> The science-of-data job is to convert the token budget into the maximum <em>capability per FLOP</em> by discovering the mixture, curriculum, and quality function that generalize from proxy scale to frontier scale — and to express the answer as laws, not vibes.</div>
+
+<h2 class="section" id="s2">§2 · A taxonomy of multimodal data</h2>
+<p>Before you can do science you need to enumerate the specimen. Modern VLLM data is far richer than "image–text pairs." A brainstormed map:</p>
+<table>
+<tr><th>Family</th><th>Examples</th><th>Primarily teaches</th><th>Scaling character</th></tr>
+<tr><td><strong>Alt-text / web pairs</strong></td><td>WebLI, LAION-scale crawls, alt-text</td><td>Broad visual concepts, grounding of nouns</td><td>Huge volume, low avg quality; saturates fast on quality-sensitive evals</td></tr>
+<tr><td><strong>Dense captions</strong></td><td>Re-captioned web (model-generated), human dense captions</td><td>Attributes, spatial relations, counting, OCR-in-caption</td><td>Quality-dominated; small clean set beats large noisy</td></tr>
+<tr><td><strong>Interleaved doc</strong></td><td>MMC4, OBELICS, web pages, textbooks</td><td>In-context multimodal reasoning, layout, many-image</td><td>Enables few-shot; long-context sensitive</td></tr>
+<tr><td><strong>OCR / document</strong></td><td>PDFs, screenshots, charts, tables, receipts</td><td>Text-in-image reading, structure extraction</td><td>Very high marginal value on DocVQA/ChartQA; cheap to synthesize</td></tr>
+<tr><td><strong>Grounding / detection</strong></td><td>Boxes, masks, referring expressions, points</td><td>Localization, pointing, spatial precision</td><td>Format-heavy; teaches output protocol as much as perception</td></tr>
+<tr><td><strong>Video</strong></td><td>Clips+ASR, described video, egocentric</td><td>Temporal reasoning, action, causality, audio-visual</td><td>Token-expensive; sampling &amp; dedup dominate</td></tr>
+<tr><td><strong>Audio / speech</strong></td><td>ASR, sound events, music, paralinguistics</td><td>Transcription, audio understanding, native omni</td><td>Alignment to text is the bottleneck</td></tr>
+<tr><td><strong>UI / agentic</strong></td><td>Screens, DOM, action trajectories</td><td>GUI grounding, tool/computer use</td><td>Trajectory data scarce; synthetic + RL heavy</td></tr>
+<tr><td><strong>Instruction / SFT</strong></td><td>VQA, reasoning, conversation, refusals</td><td>Formatting, following, chain-of-thought over images</td><td>Post-training; quality &gt;&gt; quantity, diversity is king</td></tr>
+<tr><td><strong>Preference / RL</strong></td><td>Pairwise, RLHF/RLAIF, verifiable rewards</td><td>Helpfulness, honesty about images, hallucination control</td><td>Reward signal quality dominates</td></tr>
+<tr><td><strong>Synthetic</strong></td><td>Rendered charts, code→figure, model-generated QA, programmatic scenes</td><td>Controllable coverage of rare skills</td><td>Infinite supply, distribution-shift &amp; collapse risk</td></tr>
+</table>
+<div class="callout watch"><strong>Why the taxonomy matters for science.</strong> Each family has a <em>different</em> scaling exponent and a <em>different</em> saturation point. Averaging them ("we have 10B pairs") destroys the signal. The unit of study is the <em>family × quality-tier</em> cell, not the corpus.</div>
+
+<h2 class="section" id="s3">§3 · Vision-encoder data science</h2>
+<p>The encoder (or the vision path of a native-multimodal model) determines the <em>ceiling</em> of perception; no amount of LLM post-training recovers detail the encoder discarded. Data questions here are distinct from the LLM's.</p>
+<h3>3.1 The contrastive-vs-generative data axis</h3>
+<ul>
+<li><strong>Contrastive (CLIP/SigLIP-style)</strong> needs <em>massive, diverse</em> image–text pairs; benefits from scale and aggressive filtering (CLIP-score, dedup). Learns aligned but sometimes <em>bag-of-words</em> semantics.</li>
+<li><strong>Caption/generative pretraining</strong> (CapPa, generative encoders) needs <em>denser, more grammatical</em> text; teaches attributes and relations that contrastive misses.</li>
+<li><strong>Self-supervised (DINO/MAE/JEPA)</strong> needs no text at all — pure images; gives spatially rich features. The frontier move is <strong>fusing SSL + contrastive targets</strong> (relevant to my own LatentFusion line).</li>
+</ul>
+<h3>3.2 Resolution &amp; tokens as a data axis</h3>
+<p>Native/any-resolution encoding turns <strong>pixels into a data-budget decision</strong>: a 4-tile 896px doc image costs ~4× the tokens of a thumbnail. "Science of data" for the encoder includes the <em>resolution schedule</em> — how many high-res tokens to spend on which content — because that's where DocVQA/ChartQA gains live.</p>
+<div class="callout keyidea"><strong>Encoder data laws worth owning:</strong> (1) contrastive eval improves as a power law in <em>unique</em> pairs, not raw pairs — dedup shifts the curve left; (2) re-captioning web data with a strong VLM is one of the highest-ROI data interventions known (fixes the alt-text quality floor); (3) resolution has its own compute-optimal frontier per task family.</p></div>
+
+<h2 class="section" id="s4">§4 · Pretraining-data science for the native-MM model</h2>
+<span class="pill p">PT</span>
+<h3>4.1 The mixture problem (the central object)</h3>
+<p>A native-multimodal PT run draws from dozens of sources. The <strong>mixture weights</strong> — the sampling probability of each source — are the single most consequential data decision. The science:</p>
+<pre><code>Given sources S₁..Sₙ with weights w₁..wₙ (Σw=1),
+find w* = argmax_w  Σ_tasks  λ_task · Eval_task( model trained on mix(w) )
+subject to fixed token budget T and per-source availability caps.</code></pre>
+<p>This is intractable to sweep directly at scale, so science replaces the sweep with <em>predictors</em>: proxy-model regressions, data-mixing laws, and gradient/influence-based attribution (§5).</p>
+<h3>4.2 Modality balance &amp; interference</h3>
+<p>Multimodal PT has a phenomenon single-modal doesn't: <strong>cross-modal interference / catastrophic forgetting of text</strong>. Push image tokens too high and the model's pure-text reasoning regresses; too low and perception is weak. The mixture must be tuned as a <em>Pareto front</em> (text quality ↔ vision quality), not a single optimum.</p>
+<h3>4.3 Curriculum &amp; staging</h3>
+<ul>
+<li><strong>Warmup on text</strong> → establish language backbone.</li>
+<li><strong>Ramp multimodal</strong> → introduce pairs, then interleaved, then video/audio.</li>
+<li><strong>Quality annealing / "mid-training"</strong> → in the final fraction of tokens, up-weight the cleanest, highest-density, hardest data (the biggest lever discovered in the last two years). Analogous to LR decay but for data quality.</li>
+</ul>
+<h3>4.4 Quality, dedup, and decontamination</h3>
+<p>Three under-glamorous but decisive pipelines: (1) <strong>quality classifiers</strong> per modality (aesthetic, caption-fidelity, OCR-density, toxicity); (2) <strong>near-dup detection</strong> across and within modalities (image hashing + text minhash); (3) <strong>eval decontamination</strong> — removing test images/captions that leak into training, which is <em>harder</em> in MM because the same image appears re-captioned, cropped, or re-encoded.</p>
+<div class="callout prob"><strong>Brainstorm edge cases worth flagging in interview:</strong> the same figure appearing in a paper's PDF, its arXiv HTML, a blog re-post, and a screenshot — four "different" samples that are one concept (dedup + contamination nightmare). Or a benchmark image that a re-captioning model has described in training data (silent leakage).</div>
+
+<h2 class="section" id="s5">§5 · Scaling laws &amp; predictive methodology</h2>
+<h3>5.1 Data-mixing laws</h3>
+<p>The key enabling result: downstream loss is a <em>predictable, low-parameter function of mixture weights</em>. A workable functional form:</p>
+<pre><code>L_task(w) ≈ c_task + Σ_i  a_{task,i} · exp( -b_{task,i} · w_i )     (mixing law)
+# fit a,b,c from a handful of small proxy runs at varied w;
+# then optimize w* analytically / with a tiny solver at target scale.</code></pre>
+<p>This converts an n-dimensional sweep into ~O(n) small runs + a regression — the workhorse of practical data science.</p>
+<h3>5.2 Joint data–compute laws (the MM Chinchilla)</h3>
+<pre><code>L(N, D_text, D_img, D_vid, ...) — loss as a function of params and
+per-modality token counts. Each modality contributes a term with its
+own exponent; interference shows up as cross terms.
+Compute-optimal: allocate marginal FLOP where ∂L/∂(FLOP) is steepest.</code></pre>
+<h3>5.3 Attribution methods (which data caused which capability)</h3>
+<ul>
+<li><strong>Leave-one-out / add-one-in proxy runs</strong> — gold standard, expensive.</li>
+<li><strong>Influence functions / TRAK-style estimators</strong> — approximate per-example influence on a target eval.</li>
+<li><strong>Gradient-alignment (DoGE/DoReMi-style)</strong> — reweight sources by how well their gradients align with a target distribution.</li>
+<li><strong>Datamodels</strong> — regress eval on the presence/absence of data groups.</li>
+</ul>
+<figure>
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Predict-then-scale loop">
+<defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6ea8fe"/></marker></defs>
+<style>.b{fill:#1c2530;stroke:#2a3340;rx:10} .t{fill:#d7dee8;font:13px -apple-system,sans-serif} .m{fill:#8b97a7;font:11px -apple-system,sans-serif} .l{stroke:#6ea8fe;stroke-width:1.6;fill:none;marker-end:url(#ar)}</style>
+<rect class="b" x="10" y="100" width="140" height="56" rx="10"/><text class="t" x="26" y="124">Proxy runs</text><text class="m" x="26" y="142">many small, varied w</text>
+<rect class="b" x="200" y="100" width="140" height="56" rx="10"/><text class="t" x="216" y="124">Fit laws</text><text class="m" x="216" y="142">mixing / scaling fit</text>
+<rect class="b" x="390" y="100" width="150" height="56" rx="10"/><text class="t" x="406" y="124">Optimize w*</text><text class="m" x="406" y="142">solve for target scale</text>
+<rect class="b" x="585" y="100" width="125" height="56" rx="10"/><text class="t" x="601" y="124">Frontier run</text><text class="m" x="601" y="142">verify prediction</text>
+<line class="l" x1="150" y1="128" x2="196" y2="128"/><line class="l" x1="340" y1="128" x2="386" y2="128"/><line class="l" x1="540" y1="128" x2="581" y2="128"/>
+<path class="l" d="M647 156 C647 220, 80 220, 80 158"/><text class="m" x="300" y="235">feedback: residual → refine functional form &amp; proxy design</text>
+</svg>
+<figcaption>The predict-then-scale loop: the core methodology of data science at frontier scale.</figcaption>
+</figure>
+<div class="callout watch"><strong>The central risk of the whole enterprise:</strong> <em>rank inversion across scale</em> — a mixture that wins at the 1B proxy loses at 100B. Proxy design (making small runs predictive of large ones) is the hardest, most valuable skill.</div>
+
+<h2 class="section" id="s6">§6 · Post-training-data science</h2>
+<span class="pill r">Post</span>
+<h3>6.1 SFT: diversity &gt; quantity, and the skill-coverage matrix</h3>
+<p>Post-training data science flips the PT intuition: past a few hundred K examples, <strong>adding more of the same helps little</strong>; what matters is <em>coverage</em> of the skill × modality × format matrix (counting, OCR, charts, spatial, multi-image, refusal, tool use...). Science = measuring the coverage grid and filling holes.</p>
+<h3>6.2 Synthetic data engines &amp; the collapse boundary</h3>
+<ul>
+<li><strong>Generation:</strong> use the current best model + tools (renderers, code, retrieval) to manufacture QA over images, especially for rare skills (chart reasoning, needle-in-video).</li>
+<li><strong>Verification:</strong> the value is in the <em>filter</em>, not the generator — verifiable tasks (code-rendered charts with known answers) let you keep only correct samples.</li>
+<li><strong>Collapse risk:</strong> naive self-training narrows the distribution. Science = measuring diversity (embedding coverage, n-gram/entropy) and capping the synthetic fraction.</li>
+</ul>
+<h3>6.3 RL/preference data</h3>
+<p>For VLLMs the crown-jewel problem is <strong>hallucination</strong> — describing objects not in the image. Preference/RLAIF data must be built to reward <em>image-grounded honesty</em>. Verifiable-reward RL (RLVR) extends to MM via programmatically-checkable visual tasks (counting, OCR exact-match, geometry).</p>
+<h3>6.4 The PT ↔ Post budget split</h3>
+<div class="callout keyidea"><strong>A genuinely open allocation question:</strong> a capability like chart reasoning can be bought with PT chart data, mid-training annealing, SFT, or RL. Each has a different cost curve and a different generalization footprint. Science-of-data means knowing <em>which stage</em> is the cheapest place to install a given capability — and post-training capabilities are often <em>elicitation</em> of what PT already latent-learned, not new learning.</div>
+
+<h2 class="section" id="s7">§7 · Measurement &amp; infrastructure (the unglamorous half)</h2>
+<div class="grid2">
+<div class="card"><h4>Eval that isn't noise</h4><p>Data experiments live or die on eval variance. You need low-variance, decontaminated, capability-decomposed suites — not a single leaderboard number. Confidence intervals on every claim.</p></div>
+<div class="card"><h4>Provenance &amp; lineage</h4><p>Every token traceable to source, license, filter version. Without lineage you can't do attribution or reproduce a mixture. This is a data-engineering problem masquerading as a research one.</p></div>
+<div class="card"><h4>Proxy-model infra</h4><p>A cheap, fast, high-throughput proxy training harness is the lab bench. The whole science is bottlenecked by how many proxy runs/day you can turn.</p></div>
+<div class="card"><h4>Counterfactual bookkeeping</h4><p>Every mixture decision should be an experiment with a control. Culture matters: "we added data X and eval went up" is not evidence unless X was the only change.</p></div>
+</div>
+
+<h2 class="section" id="s8">§8 · Open problems (brainstorm, think openly)</h2>
+<ol>
+<li><strong>Predictive proxies for emergent MM skills</strong> — losses predict smoothly; capabilities (OCR, counting) sometimes emerge sharply. Can we find proxy metrics that anticipate the jump?</li>
+<li><strong>Cross-modal transfer laws</strong> — how much does text math data improve chart reasoning? Positive transfer is real but unquantified.</li>
+<li><strong>The video token wall</strong> — video is where tokens explode; the science of <em>which frames/patches are worth their tokens</em> is wide open.</li>
+<li><strong>Synthetic-real optimal ratio as a function of scale</strong> — does the safe synthetic fraction shrink or grow as the base model improves?</li>
+<li><strong>Data as continuous, not batch</strong> — freshness/recency laws for a model that must know this month's world.</li>
+<li><strong>Unified value metric</strong> — a single "nats of capability per token" currency across modalities that actually predicts allocation.</li>
+</ol>
+
+<h2 class="section" id="s9">§9 · Deep insights — the hard-won truths beneath the taxonomy</h2>
+<p>Everything above is the map. These are the truths that only fall out of actually running the experiments — the layer that separates "has read the papers" from "has burned the compute." Each is stated as a claim you could defend, with its mechanism.</p>
+
+<h3>9.1 Loss is not capability, and the gap is structured</h3>
+<p>Stream loss improves smoothly; capabilities ride on top of it through <em>link functions</em> that are mostly sigmoidal — so "emergence" is usually a sharp link over smooth loss, not magic. The deep part: <strong>different capabilities sit at different points on their sigmoids at any given scale</strong>, which means the same data intervention looks transformative for one eval and useless for another <em>even when it moved both losses equally</em>. Naive readers conclude "data X helps counting but not OCR"; the truth may be "both moved 0.01 nats, but counting was mid-sigmoid and OCR pre-threshold." Misreading link position as data value is possibly the most common analytic error in MM data work.</p>
+
+<h3>9.2 Data value is a derivative, and derivatives don't commute</h3>
+<p>The marginal value of source X depends on everything already in the mix — formally, ∂L/∂w_x evaluated <em>at the current w</em>. Consequence that surprises people: two teams can run honest, well-controlled experiments on the same source and get opposite signs, because they evaluated the derivative at different base mixtures. "Is chart data good?" has no answer; "is chart data good <em>at our mixture</em>" does. This is also why published ablations transfer so poorly between labs — they're derivatives at undisclosed operating points.</p>
+
+<h3>9.3 The best data is the data the model almost understands</h3>
+<p>Quality classifiers rank data by <em>human</em> notions of cleanliness, but training value peaks at the edge of the model's current competence — too easy is redundant (gradient ≈ 0 information), too hard is noise (gradient ≈ interference). This is why q is N-dependent (bigger models extract more from dense data), why curriculum falls out of the same law, and why "quality" filtering can go <em>negative</em> at scale (DataComp-VLM's result): the filter deletes the hard-but-learnable band along with the garbage. The right mental model is a moving <strong>competence frontier</strong>, not a fixed quality bar.</p>
+
+<h3>9.4 Interference is sparse, and that's a gift</h3>
+<p>"Vision hurts text" is folk wisdom; measurement says interference concentrates in a few identifiable source×stream pairs (usually: high-volume low-density data crowding out its own modality's dense data, and format-heavy data bleeding format into free generation). Sparsity means interference is <em>fixable by surgery</em> — cap one family — rather than by retreat ("lower all image weight"). Labs that believe the folk version leave capability on the table permanently.</p>
+
+<h3>9.5 Multimodal dedup is a semantic problem wearing an infrastructure costume</h3>
+<p>The same visual concept arrives as: original photo, crop, re-encode, screenshot-of-a-tweet-containing-it, PDF figure, re-captioned copy, and a model-generated description of it. Hash-level dedup catches the first three; nothing standard catches the last three — and the last three are exactly how <strong>eval contamination and value double-counting</strong> actually happen at frontier labs. The uncomfortable conclusion: your unique-token count U — the denominator of every scaling claim — is soft, and it's soft in the direction of flattering you.</p>
+
+<h3>9.6 The anneal works because of what it displaces, not just what it adds</h3>
+<p>The standard story is "high-quality data + fast LR decay = steep gains." The doer's addendum: the anneal window is zero-sum in a way the base mix isn't — every gold token in the window displaces a base-mix token <em>at the moment of highest learning rate per token</em>. Half of the measured "anneal effect" in careful ablations is the <em>removal of noisy data from the decay window</em>, not the addition of gold. Test that distinguishes them: anneal on filtered-base-mix (no gold) captures a surprising fraction of the lift. This changes what you buy: cleaning the tail of the schedule is cheaper than manufacturing gold.</p>
+
+<h3>9.7 Every synthetic pipeline is secretly a distillation of its judge</h3>
+<p>The generator proposes; the verifier disposes; so the surviving distribution is shaped by the <em>judge's</em> preferences, blind spots, and biases — the generator's are filtered out. Long-run, models trained on verified synthetic data inherit judge biases at compound interest (each generation of data engine re-selects for them). Practical corollary: invest in judge diversity and adversarial judge-evals with the same seriousness as generator quality, because the judge is the actual teacher.</p>
+
+<h3>9.8 Mixture weights are a lie unless you audit realized tokens</h3>
+<p>You set w as sampling probabilities over <em>documents</em>; the model experiences tokens. Documents have wildly different lengths per family (an interleaved doc is 100× an alt-text pair), packing splits images across sequence boundaries, and loss masking changes which tokens even produce gradients. <strong>Nominal w and realized token-share routinely differ by 2×</strong> in unaudited pipelines. Any law fit on nominal weights is fit on a fiction — this single accounting discipline (log realized, masked, per-family token counts from the actual dataloader) silently invalidates a large fraction of public mixture research.</p>
+
+<h3>9.9 The eval suite is part of the training recipe</h3>
+<p>Whatever you measure, the optimizer (human or mathematical) maximizes. A saturated eval in the objective is dead weight that adds noise; an unrepresented capability silently decays; a contaminated eval actively steers data selection toward more contamination. Frontier practice treats the eval suite as a versioned, headroom-weighted, decontaminated <em>component of the recipe</em> — and re-derives it each cycle, because last cycle's optimization saturated last cycle's suite. Data science and eval science are one discipline with two names.</p>
+
+<h3>9.10 The half-life of a data law is one model generation</h3>
+<p>Exponents, q multipliers, and transfer terms are all conditioned on the architecture, tokenizer, context length, and — for synthetic data — the generator model. Ship a new base model and the surface must be refit. The durable assets are never the coefficients; they are the <em>instrument</em> (proxy ladders, calibration gates, realized-token audits, decontamination pipelines) and the <em>functional forms</em>. Teams that treasure coefficients ossify; teams that treasure instruments compound. This is the correct answer to "what did the project really produce?"</p>
+
+<div class="callout keyidea"><strong>If you can only carry five:</strong> loss≠capability (link functions, §9.1) · data value is a derivative at your operating point (§9.2) · quality is a moving competence frontier (§9.3) · audit realized tokens or your law is fiction (§9.8) · the durable asset is the instrument, not the coefficients (§9.10).</div>
+
+<hr>
+<!-- ================= PART II — CASE STUDY ================= -->
+<h2 class="section" id="c0" style="border-color:var(--pink)">CASE STUDY — "Science of MM Data" @ Gemini</h2>
+<div class="callout prob"><strong>Framing note (honesty):</strong> The following is a <em>constructed narrative</em> written in first person as if I had led this project inside Gemini, for interview-prep rehearsal. It's designed to be technically faithful to how such a project would actually run and fail — not a report of real proprietary work.</div>
+
+<h3 id="c1">C1 · Charter &amp; framing</h3>
+<p><strong>The ask.</strong> Leadership set a token budget for the next-gen native-multimodal model and wanted a <em>defensible</em> data recipe: mixture weights, quality tiers, resolution schedule, and PT-vs-post allocation — each backed by a prediction, not a hunch. My charter: <em>"Make the multimodal data recipe predictable. Give us a law we can allocate against."</em></p>
+<p><strong>Scope I owned.</strong> The pretraining mixture across ~40 sources spanning 8 modalities/families, the mid-training quality-anneal recipe, and the handoff of PT-latent capabilities into post-training.</p>
+<p><strong>Success metric.</strong> Not "higher eval" — that's too easy to fake. It was: <em>predict the frontier-run eval vector within CI from proxy-scale fits, and beat the incumbent hand-tuned recipe at iso-FLOP.</em></p>
+
+<h3 id="c2">C2 · Methodology (the machine I built)</h3>
+<ol>
+<li><strong>Instrument the corpus.</strong> Built per-source lineage + per-modality quality scores (caption-fidelity via a VLM judge, OCR density, aesthetic, dup-cluster id). Unit of study = <em>family × quality-tier</em> cell (~120 cells), not raw sources.</li>
+<li><strong>Proxy ladder.</strong> Three rungs: 300M, 1B, 3B params, each with a fixed short token budget, tuned so their <em>eval rankings</em> correlate with a held-out 8B reference — proxies chosen for <em>rank fidelity</em>, not absolute loss.</li>
+<li><strong>Mixing-law fitting.</strong> Ran ~60 proxy runs with Latin-hypercube-sampled mixture weights; fit the per-eval exponential mixing law (§5.1) with cross-modal cross-terms.</li>
+<li><strong>Constrained optimization.</strong> Solved for w* under availability caps and a text-regression guardrail (pure-text eval not allowed to drop &gt; X).</li>
+<li><strong>Anneal design.</strong> Separately fit the value of quality-annealing the final 15% of tokens; treated anneal composition as its own small law.</li>
+<li><strong>Verify at scale.</strong> One frontier run on w*, compared prediction vs actual, fed residuals back to refine the functional form.</li>
+</ol>
+<pre><code># the objective I actually optimized
+maximize   Σ_task λ_task · Ŝ_task(w, anneal)          # predicted eval vector
+subject to  Σ w = 1
+            w_i ≤ cap_i                                # can't exceed what exists
+            Ŝ_textreasoning(w) ≥ S_floor               # anti-interference guardrail
+            synthetic_fraction ≤ ρ(scale)              # anti-collapse guardrail</code></pre>
+
+<h3 id="c3">C3 · The experimental ladder (what ran, in order)</h3>
+<table>
+<tr><th>Phase</th><th>What</th><th>Purpose</th><th>Kill criterion</th></tr>
+<tr><td>0</td><td>Proxy calibration</td><td>Confirm 1B/3B rank-correlate with 8B ref on eval suite</td><td>Spearman ρ &lt; 0.8 → redesign proxy</td></tr>
+<tr><td>1</td><td>Single-family dose–response</td><td>Marginal-value curve per family</td><td>Flat curve → deprioritize family</td></tr>
+<tr><td>2</td><td>Mixing-law sweep (LHS)</td><td>Fit multi-family law + cross terms</td><td>Fit R² &lt; 0.9 on held-out mixes</td></tr>
+<tr><td>3</td><td>Anneal composition</td><td>Value of clean/hard data in final tokens</td><td>No lift beyond CI → drop anneal</td></tr>
+<tr><td>4</td><td>Frontier verification</td><td>Predicted vs actual at target scale</td><td>Prediction outside CI → post-mortem</td></tr>
+</table>
+
+<h3 id="c4">C4 · Real problems I faced — and how I solved them</h3>
+
+<div class="qa"><div class="q">Problem 1 · Rank inversion: the proxy lied at scale <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> The mixture that topped the 1B proxy underperformed at 8B on reasoning-heavy MM evals. Classic small-model-prefers-easy-data trap: at 1B, capacity is the bottleneck so noisy high-volume web pairs "look" great; at 8B, capacity frees up and dense/hard data pays off.</p>
+<p><strong>Fix.</strong> (1) Stopped fitting on <em>absolute</em> proxy loss and fit on <em>rank</em> against the 8B reference (Phase 0 gate, ρ≥0.8). (2) Added params as an explicit axis — fit the mixing law jointly over (w, N) so I could <em>extrapolate</em> the optimum in N rather than assume it's fixed. (3) Weighted proxy evals toward capabilities known to be capacity-gated. Net: predicted optimum tracked the 8B optimum instead of the 1B one.</p>
+</div></div>
+
+<div class="qa"><div class="q">Problem 2 · Eval variance drowned the signal <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> Run-to-run eval noise on small proxies (±2–3 pts) was as large as the mixture effect I was trying to measure. Every conclusion was seed noise.</p>
+<p><strong>Fix.</strong> Built a low-variance eval harness: larger eval sets, multi-seed proxy runs with variance-reduction (common random seeds / shared data order across arms so the <em>difference</em> is low-variance even if each arm isn't), and reported effects as paired deltas with bootstrapped CIs. Also switched marginal-value claims to <em>slopes</em> across a dose sweep rather than single-point comparisons — a slope is far more robust than a two-point diff.</p>
+</div></div>
+
+<div class="qa"><div class="q">Problem 3 · Silent eval contamination through re-captioning <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> A suspiciously good DocVQA number. Root cause: our re-captioning model had, in its own training, seen benchmark images and its generated captions leaked benchmark answers into our "synthetic dense caption" source — contamination the text-only dedup never caught because the <em>pixels</em> matched a test image while the <em>text</em> was freshly generated.</p>
+<p><strong>Fix.</strong> Moved decontamination to <em>image space</em>: perceptual-hash + embedding-NN against all eval images, applied <em>before</em> re-captioning, plus cross-checking generated captions for verbatim answer strings. Instituted a rule: any synthetic source inherits the contamination set of its <em>generator's</em> training data. Rescored — the DocVQA gain shrank to its honest size.</p>
+</div></div>
+
+<div class="qa"><div class="q">Problem 4 · Cross-modal interference (text regressed) <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> The eval-maximizing MM mixture quietly cost ~1.5 pts on pure-text reasoning — unacceptable, and invisible if you only watch MM dashboards.</p>
+<p><strong>Fix.</strong> Made it a <em>constrained</em> optimization, not a max: added the text-reasoning floor as a hard constraint (see C2 objective). Discovered via the fitted cross-terms that most interference came from one high-volume low-density image family; capping <em>it</em> specifically (rather than lowering all image weight) recovered text with near-zero MM cost. Interference is usually a <em>few bad sources</em>, not "vision vs language" globally.</p>
+</div></div>
+
+<div class="qa"><div class="q">Problem 5 · The video token wall blew the budget <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> Video at native frame rate consumed a wildly disproportionate token share for modest eval gain — the marginal-value curve (Phase 1) was near-flat past a low dose.</p>
+<p><strong>Fix.</strong> Reframed video as a <em>token-efficiency</em> problem, not a volume one: measured eval-per-token under different frame-sampling / token-budget-per-clip policies and found the compute-optimal frontier was aggressive temporal subsampling + keyframe selection. Allocated the freed tokens back to high-ROI OCR/doc data. Lesson I'd give in interview: for expensive modalities, the right knob is <em>tokens-per-sample</em>, not <em>number-of-samples</em>.</p>
+</div></div>
+
+<div class="qa"><div class="q">Problem 6 · Synthetic data quietly collapsed diversity <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> Up-weighting model-generated QA improved target evals but degraded out-of-distribution generalization; embedding-coverage of the synthetic set was visibly narrower than real data.</p>
+<p><strong>Fix.</strong> Added a diversity guardrail to the optimizer (synthetic_fraction ≤ ρ(scale)), measured via embedding-space coverage + response entropy. Invested in the <em>verifier</em> not the generator (kept only programmatically-checkable-correct samples), and forced generator diversity via templated tool/renderer variation. Kept synthetic as a <em>coverage-filler for rare skills</em>, never a bulk source.</p>
+</div></div>
+
+<div class="qa"><div class="q">Problem 7 · Attribution disagreed with dose–response <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> Influence-function attribution flagged a source as high-value, but a clean leave-one-out proxy run showed near-zero effect. Which do you trust?</p>
+<p><strong>Fix.</strong> Treated LOO/add-in proxy runs as ground truth and influence estimates as a <em>cheap prefilter</em> only. Used influence to rank candidate sources, then <em>confirmed the top-k with actual ablation runs</em> before any recipe change. Documented that first-order influence is unreliable under the strong data-mixing nonlinearity we'd measured — a good cautionary story about not shipping recipe changes on approximate attribution alone.</p>
+</div></div>
+
+<div class="qa"><div class="q">Problem 8 · Stakeholders wanted "add my dataset" mid-flight <span class="chev">▶</span></div><div class="a">
+<p><strong>Symptom.</strong> The organizational version of a data problem: teams lobbying to inject their favorite corpus, each anecdotally "great." Uncontrolled, this destroys the science.</p>
+<p><strong>Fix.</strong> Instituted an <em>evidentiary bar</em>: any new source enters via a standard Phase-1 dose–response + Phase-2 mix-in run; it earns weight only if its <em>marginal</em> value at the current mixture clears CI. Turned "who lobbies hardest" into "what does the marginal-value curve say." This process discipline was, honestly, half the actual value of the project.</p>
+</div></div>
+
+<h3 id="c5">C5 · Results, and the laws it left behind</h3>
+<ul>
+<li><strong>Prediction held:</strong> frontier-run eval vector landed within CI of the proxy-fit prediction for the majority of the suite — the recipe was <em>chosen</em>, then <em>confirmed</em>, not stumbled into.</li>
+<li><strong>Beat the hand-tuned incumbent at iso-FLOP</strong> on the aggregate MM suite with no pure-text regression (the guardrail did its job).</li>
+<li><strong>Reusable artifacts:</strong> the mixing-law fitter, the family×tier corpus instrumentation, the image-space decontamination rule, and the evidentiary intake process outlived the specific model — that's the real deliverable of a "science of data" team.</li>
+<li><strong>Durable laws:</strong> per-family marginal-value curves, the quality-anneal value function, and a video tokens-per-sample compute-optimal frontier.</li>
+</ul>
+<div class="callout keyidea"><strong>The meta-lesson I'd lead with in interview:</strong> the win wasn't a magic dataset. It was converting data decisions into <em>measured, predicted, constrained optimization</em> — and building the process so that every future recipe change had to clear a marginal-value bar. Science-of-data is 30% modeling, 30% eval/infra hygiene, and 40% making the org decide with evidence.</div>
+
+<h3 id="c6">C6 · Interview Q&amp;A rehearsal</h3>
+<div class="qa"><div class="q">"How would you know your proxy predicts the frontier?" <span class="chev">▶</span></div><div class="a"><p>I gate on <em>rank correlation</em> to a held-out larger reference before trusting any fit (Spearman ρ≥0.8), and I fit jointly over params so I extrapolate the optimum in N rather than assume the small-model optimum transfers. The frontier run is a <em>verification</em> of a prediction, and I track prediction residuals as the primary quality metric of the whole pipeline.</p></div></div>
+<div class="qa"><div class="q">"Vision encoder is frozen — why does encoder data still matter?" <span class="chev">▶</span></div><div class="a"><p>Because the encoder sets the perceptual ceiling: information it discards (fine text, small objects, spatial precision) can't be recovered by any downstream data. So encoder data science — resolution schedule, re-captioning quality, contrastive+SSL fusion — is upstream of everything the LLM can learn. It's the highest-leverage, least-reversible data decision.</p></div></div>
+<div class="qa"><div class="q">"Where would you install chart-reasoning: PT, anneal, SFT, or RL?" <span class="chev">▶</span></div><div class="a"><p>Empirically I'd test all four on a cost-per-capability basis, but my prior: PT + quality-anneal to build the latent perceptual+numeric substrate cheaply and broadly, then SFT/RLVR to <em>elicit and format</em> it, using programmatically-verifiable rendered charts so RL has a clean reward. Most post-training "gains" are elicitation of PT-latent skills — so I'd never try to install raw chart perception in SFT alone.</p></div></div>
+<div class="qa"><div class="q">"Your synthetic data helped the target eval — why not use more?" <span class="chev">▶</span></div><div class="a"><p>Because target-eval lift can mask diversity collapse and OOD degradation. I watch embedding-coverage and OOD holdouts, cap the synthetic fraction as a function of base-model quality, and keep synthetic as a rare-skill coverage-filler behind a verifier — the verifier is where the value is, not the generator.</p></div></div>
+<div class="qa"><div class="q">"One number to allocate the whole budget?" <span class="chev">▶</span></div><div class="a"><p>There isn't one honest scalar — capabilities have different exponents and saturation points. The closest is <em>marginal predicted-eval gain per FLOP</em> for each candidate intervention (family, tier, stage), allocating where that derivative is steepest under the interference and collapse guardrails. Allocation is a constrained gradient-following on the fitted laws, not a single ratio.</p></div></div>
+
+<hr>
+<p style="color:var(--muted);font-size:14px">Part I is an open brainstorm of the field; Part II is a rehearsal narrative constructed for interview practice, not a report of real proprietary Gemini work. Related to your <em>LatentFusion</em> line (SSL+contrastive encoder fusion) and your scaling-law interest (multimodal Chinchilla / Apple NMM).</p>
+</main>
+</div>
+<button class="back-top" id="backTop" aria-label="Back to top">↑</button>
+<script>
+document.querySelectorAll('.qa .q').forEach(q=>q.addEventListener('click',()=>q.parentElement.classList.toggle('open')));
+const prog=document.getElementById('progress'),bt=document.getElementById('backTop');
+const secs=[...document.querySelectorAll('h2.section, h3[id]')],links=[...document.querySelectorAll('nav.toc a')];
+addEventListener('scroll',()=>{const h=document.documentElement,st=h.scrollTop,sh=h.scrollHeight-h.clientHeight;prog.style.width=(st/sh*100)+'%';bt.style.display=st>500?'block':'none';
+let cur='';for(const s of secs){if(s.getBoundingClientRect().top<160)cur=s.id;}links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+cur));});
+bt.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
+</script>
+</body></html>
