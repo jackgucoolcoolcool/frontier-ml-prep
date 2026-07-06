@@ -23,6 +23,15 @@ def cross_entropy(logits, targets):
 ```
 **Probes:** Why subtract the max? (overflow). Why `logsumexp` instead of `log(sum(exp))`? (stability). The softmax-CE gradient is `ŷ − y` — be ready to say it.
 
+> **⚠️ Mistakes I actually made (2026-07-04) — softmax-CE forward+backward in NumPy:**
+> - **The gradient starts from `softmax(logits)`, not `logits`.** `dlogits = p.copy(); dlogits[arange(B), y] -= 1; dlogits /= B` — a full `(B, C)` tensor `= (ŷ − y)/B`. I mistakenly built it from raw logits, shape `(B,)`.
+> - **Grad must be averaged by `B`** (the loss is a mean, so the backward divides by `B` too).
+> - **Loss needs max-subtraction inside logsumexp** — `np.log(np.exp(logits).sum())` overflows; subtract `logits.max(-1, keepdims=True)` first.
+> - Watch the shape: `p[arange(B), y]` is `(B,)` for the loss; `dlogits` stays `(B, C)` for the grad — don't 2D-index a 1-D array.
+> - **Keep log-softmax full-width `(B, C)`**: `logp = logits − logsumexp` over *every* logit, then gather `[arange, y]` only for the loss. Don't collapse `logp` to `(B,)` or `p = exp(logp)` becomes just `p_y`.
+> - **`keepdims=True` rides on the reduction** (`.sum`/`.max`), not on the `np.log` around it (`log` has no `keepdims` → TypeError). Drop it and `(B,)` mis-broadcasts against `(B, C)`.
+> - **`p − onehot` is indexed** `dlogits[arange(B), y] -= 1`, not a scalar `dlogits -= 1` across the whole tensor.
+
 ---
 
 ## 2. Scaled dot-product attention (the #1 ask)
@@ -130,6 +139,12 @@ class RMSNorm(nn.Module):                                  # no mean-centering; 
 ```
 **Probes:** LN normalizes over the **feature dim within each token** (not the batch) — why transformers use it over BN. RMSNorm drops the mean subtraction. (Tie-in: the interviewer's Weight Standardization normalizes the *weights* instead.)
 
+> **⚠️ Mistakes I actually made (2026-07-04) — re-look before interviews:**
+> - **`eps` goes *inside* the sqrt**: `sqrt(var + eps)` / `sqrt(mean(x²) + eps)`, never `sqrt(var) + eps`. Added-outside doesn't guard the sqrt against `var → 0`, and it's a different quantity. Don't add it twice either.
+> - **RMS is a *reduction* over the last dim**, not elementwise: `mean(x**2, axis=-1, keepdim=True)`, i.e. `sum(x²)/d`. Writing `x^2/x.shape[-1]` is wrong (also `^` is XOR in Python — use `**`; and `x.shape` is indexed `x.shape[-1]`, not called).
+> - **LN = re-center + re-scale** `(x−μ)/sqrt(var+eps)`; **RMSNorm = re-scale only** (no μ subtraction). Don't blend them.
+> - Var/std default to **population** (`ddof=0` / `unbiased=False`) — that's what norm layers want.
+
 ---
 
 ## 7. Transformer block (pre-norm, decoder-style)
@@ -149,6 +164,8 @@ class Block(nn.Module):
         return x
 ```
 **Probes:** pre-norm vs post-norm (norm location relative to residual; pre-norm trains more stably), attention mixes across tokens / MLP processes each token, the residual `x +` as the gradient highway.
+
+**Why two LayerNorms (`ln1` ≠ `ln2`)?** The normalization math is parameter-free, but each `LayerNorm(d_model)` owns a learned per-feature gain/bias (γ, β — 2·d params each), and the two norms do different jobs: `ln1` reads raw `x`, `ln2` reads `x + attn_out` — a different distribution (the residual stream's scale and direction shift as sublayers write into it). In pre-norm, the LN output *is* everything the sublayer sees, so γ acts as a per-feature gate — attention and the MLP each get their own learned "view" of the stream. Sharing one module would be weight tying (same γ,β, gradients summed from both call sites) — a real modeling constraint — to save a negligible 4·d params vs ~12·d² in the block's weights. (With `elementwise_affine=False` the norm is stateless and you *could* reuse one instance, like `nn.ReLU` — the learned params are exactly why you don't.) Production models all do this: GPT-2 `ln_1`/`ln_2`, LLaMA `attention_norm`/`ffn_norm`, Gemma 2 even adds post-norms (4 per block).
 
 ---
 
@@ -271,6 +288,11 @@ dW1 = d1 @ x.T
 db1 = d1
 ```
 **Probes:** the three rules — weight grad `= δ aᵀ`, back through linear `= Wᵀδ`, back through activation `= ⊙ φ'`. (Full detail in Day 1 §2.)
+
+> **⚠️ Mistakes I actually made (2026-07-04) — batched `(B, ...)` MLP backprop.** For `out = in @ W + b` the batched rules are `dW = in.T @ d_out`, `db = d_out.sum(axis=0)`, `d_in = d_out @ W.T`. My slips:
+> - **`db2 = logits.sum(0)`** — used the *forward activation* instead of the *incoming grad*. Bias grad is `dlogits.sum(0)`. (Recurring theme: grad quantity vs forward quantity.)
+> - **`dW1 = h_pre.T @ dhpre`** — used `h_pre` as the layer-1 input. The input feeding `W1` is **`X`**: `dW1 = X.T @ dhpre`.
+> - **ReLU backward `dh * np.where(dh>0, dh, 0)`** — doubly wrong: (a) gate on the **pre-activation** `(h_pre > 0)`, not on `dh`; (b) the mask is `1/0`, not `dh` — as written it squares the grad. Correct: `dhpre = dh * (h_pre > 0)`.
 
 ---
 

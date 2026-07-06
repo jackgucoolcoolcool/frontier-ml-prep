@@ -28,10 +28,13 @@ Left alone, the router **collapses** — it sends most tokens to a few favored e
 - **Auxiliary load-balancing loss:** penalize imbalance so token assignment spreads across experts. Classic form:
 ```
 L_aux = α · n_experts · Σ_i (f_i · P_i)
-  f_i = fraction of tokens routed to expert i
-  P_i = mean router prob mass on expert i
+  f_i = (1/T) Σ_x 1[expert i in top-k(x)]   # HARD count: fraction of tokens actually routed to i
+  P_i = (1/T) Σ_x p_i(x)                    # SOFT mass: mean pre-top-k softmax prob on i
 ```
 This is minimized when load is uniform.
+- **f_i vs P_i — know the difference cold.** `f_i` is a *discrete* count taken **after** top-k selection (an argmax result → piecewise-constant → **no gradient**). `P_i` is the *continuous* mean of the router softmax taken **before** top-k (fully **differentiable**). Neither works alone: `Σ f_i²` measures true imbalance but can't be backpropped; `Σ P_i²` is differentiable but the router could keep probs near-uniform while top-k still piles tokens onto one expert.
+- **Why the product f_i · P_i works:** gradients only flow through `P_i`; `f_i` acts as a per-expert *weight* on that gradient. Since `∂L_aux/∂p_i(x) ∝ α·n·f_i`, overloaded experts (big `f_i`) get the strongest push to *lower* their router probability — a differentiable surrogate where `f_i` says *where* the imbalance is and `P_i` provides the *handle* to fix it. For top-1 routing `E[f_i] ≈ P_i`, so the minimum is exactly uniform load.
+- **Scale sanity check:** at perfect balance `f_i = P_i = 1/n` → `Σ f_i·P_i = 1/n` → the leading `n_experts` factor makes `L_aux = 1` independent of expert count (so one α works across model sizes).
 - **Capacity factor:** cap how many tokens each expert takes per batch; overflow tokens are **dropped** (skip the FFN via the residual). Tradeoff: higher capacity = less dropping but more compute/memory.
 - **Noisy / parameter-free routing:** add noise for exploration, or selection schemes that balance without a learned gate (your interviewer's *GatePro* line — parameter-free expert selection optimization). Be ready to discuss alternatives to the standard learned top-k gate.
 
@@ -66,6 +69,23 @@ This is minimized when load is uniform.
 - **Attention is O(T²)** in compute/memory (the score matrix).
 - **KV cache grows O(T)** and dominates inference memory.
 Long-context work attacks both.
+
+**Why O(T²):** attention is *all-pairs* token interaction — T queries each dotted against T keys:
+```
+scores = Q Kᵀ            # (T×d)·(d×T) → T×T matrix
+compute:  T² · d  multiply-adds  per head per layer   (2× context ⇒ 4× FLOPs)
+memory:   naive softmax materializes the T×T matrix per head
+          (T=32k → 1B floats/head — why long context was infeasible pre-Flash)
+```
+FlashAttention computes softmax in tiles and never stores the full matrix → memory O(T), **but compute stays O(T²)** — the dot products still happen. The quadratic is the *price of flexibility*: every token may attend to every other.
+
+**Why KV cache is O(T) and dominates:** decoding is autoregressive — token T+1's query must attend over K,V of all T predecessors. Recomputing prefix K,V each step would be O(T²) *per token*, so each token's K,V is computed **once and cached**:
+```
+KV bytes = 2 (K&V) · n_layers · n_kv_heads · d_head · T · bytes_per_elem
+         ≈ 0.5 MB/token for a 7B (32L · 4096d · fp16)
+         → 128k-token context ≈ 64 GB of cache  vs  ~14 GB of weights
+```
+Everything in the formula is an architecture constant except **T** → linear, per sequence in the batch. Weights are a *fixed* cost; the cache scales with **T × batch**, so at long context the cache — not the model — fills the GPU. It hurts twice: every decode step must *read the whole cache* from HBM to emit one token → decode is **memory-bandwidth-bound**. This is precisely what GQA/MQA, MLA, KV quantization, and sliding windows attack (each shrinks a factor: `n_kv_heads`, `d_head`, bytes, or `T`).
 
 ### 2.2 Attention-level approaches
 - **GQA / MQA:** share K/V across heads → shrink KV cache (Day 2 §3). The standard production lever.

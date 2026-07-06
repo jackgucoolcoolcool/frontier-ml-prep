@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>History — Mock Interview Simulator</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --bad: #ff7b72; --border: #2a3340;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 40px 24px 120px; }
+  a { color: var(--accent); }
+  h1 { font-size: 25px; margin: 8px 0 4px; }
+  .sub { color: var(--muted); margin-bottom: 26px; font-size: 14.5px; }
+  h2 { font-size: 18px; margin: 34px 0 8px; display: flex; align-items: center; gap: 12px; }
+  h2 .n { color: var(--muted); font-weight: 400; font-size: 13.5px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  th { background: var(--panel-2); font-size: 12.5px; }
+  tr.sel td { background: #241518; }
+  td.ok { color: var(--accent-2); } td.fail { color: var(--bad); }
+  input[type=checkbox] { accent-color: var(--accent); transform: scale(1.1); cursor: pointer; }
+  button { font-family: inherit; font-size: 13.5px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); padding: 7px 14px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.danger { background: #3a1a1e; border-color: #6a2a30; color: #ffb0aa; font-weight: 600; }
+  button:disabled { opacity: .4; cursor: default; }
+  .bar { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--border);
+    margin: 30px -24px -120px; padding: 14px 24px; display: flex; gap: 12px; align-items: center; }
+  .bar .count { color: var(--muted); font-size: 13.5px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 10px 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <a href="/">&larr; back to sessions</a>
+    <a href="/gap_report">gap report &rarr;</a>
+  </div>
+  <h1>History</h1>
+  <div class="sub">Tick anything you want gone — a botched run, a mis-scored question, a debrief you don't want
+    counted. Deleted records move to <code>sessions/archive/</code> (never destroyed) and immediately stop
+    counting toward the gap report, picker stats, and variant rotation.</div>
+
+  <h2>Coding submissions <span class="n" id="nAtt"></span></h2>
+  <div id="attempts"></div>
+
+  <h2>Verbal self-scores <span class="n" id="nVer"></span></h2>
+  <div id="verbal"></div>
+
+  <h2>Session debriefs <span class="n" id="nDeb"></span></h2>
+  <div id="debriefs"></div>
+
+  <div class="bar">
+    <button class="danger" id="btnDelete" disabled>Delete selected</button>
+    <span class="count" id="selCount">nothing selected</span>
+    <span style="flex:1"></span>
+    <span class="count">deletions are archived, not destroyed</span>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+let DATA = null;
+
+function checkbox(kind, key) {
+  return `<input type="checkbox" data-kind="${kind}" data-key="${esc(key)}">`;
+}
+function selAll(kind) {
+  return `<input type="checkbox" data-selall="${kind}" title="select all">`;
+}
+
+function render() {
+  const d = DATA;
+  $("#nAtt").textContent = d.attempts.length ? `${d.attempts.length} logged` : "";
+  $("#attempts").innerHTML = d.attempts.length ? `<table>
+    <tr><th>${selAll("attempts")}</th><th>time</th><th>stage</th><th>variation</th><th>result</th></tr>` +
+    d.attempts.map(a => `<tr>
+      <td>${checkbox("attempts", a.idx + "|" + a.ts)}</td>
+      <td>${esc(a.ts)}</td><td>${esc(a.title)}</td>
+      <td>${a.variant > 0 ? "B" : "base"}</td>
+      <td class="${a.n_fail ? "fail" : "ok"}">${a.n_fail ? a.n_fail + " failed" : "all " + a.n_pass + " passed"}</td>
+    </tr>`).join("") + "</table>"
+    : `<div class="empty">no coding submissions logged</div>`;
+
+  $("#nVer").textContent = d.verbal.length ? `${d.verbal.length} logged` : "";
+  $("#verbal").innerHTML = d.verbal.length ? `<table>
+    <tr><th>${selAll("verbal")}</th><th>time</th><th>question</th><th>topic</th><th>score</th></tr>` +
+    d.verbal.map(v => `<tr>
+      <td>${checkbox("verbal", v.idx + "|" + v.ts)}</td>
+      <td>${esc(v.ts)}</td><td>${esc(v.title)}</td><td>${esc(v.topic)}</td>
+      <td class="${v.score >= 4 ? "ok" : "fail"}">${v.score} / 5</td>
+    </tr>`).join("") + "</table>"
+    : `<div class="empty">no verbal scores logged</div>`;
+
+  $("#nDeb").textContent = d.debriefs.length ? `${d.debriefs.length} saved` : "";
+  $("#debriefs").innerHTML = d.debriefs.length ? `<table>
+    <tr><th>${selAll("debriefs")}</th><th>saved</th><th>session</th><th>result</th><th>elapsed</th><th>file</th></tr>` +
+    d.debriefs.map(b => `<tr>
+      <td>${checkbox("debriefs", b.file)}</td>
+      <td>${esc(b.ts)}</td><td>${esc(b.title)}</td>
+      <td>${b.passed}/${b.total}</td><td>${esc(b.elapsed)}</td>
+      <td style="color:var(--muted)">${esc(b.file)}</td>
+    </tr>`).join("") + "</table>"
+    : `<div class="empty">no debriefs saved</div>`;
+
+  document.querySelectorAll("input[data-selall]").forEach(box => {
+    box.onchange = () => {
+      document.querySelectorAll(`input[data-kind="${box.dataset.selall}"]`)
+        .forEach(cb => { cb.checked = box.checked; cb.closest("tr").classList.toggle("sel", box.checked); });
+      updateBar();
+    };
+  });
+  document.querySelectorAll("input[data-kind]").forEach(cb => {
+    cb.onchange = () => { cb.closest("tr").classList.toggle("sel", cb.checked); updateBar(); };
+  });
+  updateBar();
+}
+
+function selected() {
+  const out = { attempts: [], verbal: [], debriefs: [] };
+  document.querySelectorAll("input[data-kind]:checked").forEach(cb => {
+    const kind = cb.dataset.kind, key = cb.dataset.key;
+    if (kind === "debriefs") out.debriefs.push(key);
+    else {
+      const bar = key.indexOf("|");
+      out[kind].push({ idx: parseInt(key.slice(0, bar), 10), ts: key.slice(bar + 1) });
+    }
+  });
+  return out;
+}
+function updateBar() {
+  const s = selected();
+  const n = s.attempts.length + s.verbal.length + s.debriefs.length;
+  $("#btnDelete").disabled = n === 0;
+  $("#selCount").textContent = n === 0 ? "nothing selected" :
+    `${n} record${n === 1 ? "" : "s"} selected` +
+    (s.attempts.length ? ` · ${s.attempts.length} coding` : "") +
+    (s.verbal.length ? ` · ${s.verbal.length} verbal` : "") +
+    (s.debriefs.length ? ` · ${s.debriefs.length} debrief` : "");
+}
+
+$("#btnDelete").onclick = async () => {
+  const s = selected();
+  const n = s.attempts.length + s.verbal.length + s.debriefs.length;
+  if (!n || !confirm(`Delete ${n} record(s)? They move to sessions/archive/ and stop counting immediately.`)) return;
+  const r = await fetch("/delete_history", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify(s) }).then(x => x.json());
+  const d = r.deleted;
+  alert(`Deleted (archived): ${d.attempts} coding, ${d.verbal} verbal, ${d.debriefs} debrief(s).`);
+  load();
+};
+
+async function load() {
+  DATA = await fetch("/history_data").then(r => r.json());
+  render();
+}
+load();
+</script>
+</body>
+</html>

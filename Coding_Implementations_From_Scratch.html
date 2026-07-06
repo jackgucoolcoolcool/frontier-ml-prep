@@ -77,6 +77,18 @@ def cross_entropy(logits, targets):
     logp = logits - torch.logsumexp(logits, dim=-1, keepdim=True)  # log-softmax, stable
     return -logp[torch.arange(len(targets)), targets].mean()</code></pre>
 <p><strong>Probes:</strong> Why subtract the max? (overflow). Why <code>logsumexp</code> instead of <code>log(sum(exp))</code>? (stability). The softmax-CE gradient is <code>ŷ − y</code> — be ready to say it.</p>
+<div style="border-left:4px solid #e0a800;background:rgba(224,168,0,.08);padding:10px 14px;margin:10px 0;border-radius:4px">
+<p style="margin:0 0 6px"><strong>⚠️ Mistakes I actually made (2026-07-04) — softmax-CE forward+backward in NumPy:</strong></p>
+<ul style="margin:0">
+<li><strong>The gradient starts from <code>softmax(logits)</code>, not <code>logits</code>.</strong> <code>dlogits = p.copy(); dlogits[arange(B), y] -= 1; dlogits /= B</code> — a full <code>(B, C)</code> tensor <code>= (ŷ − y)/B</code>. I built it from raw logits, shape <code>(B,)</code>.</li>
+<li><strong>Grad must be averaged by <code>B</code></strong> (loss is a mean → backward divides by <code>B</code> too).</li>
+<li><strong>Loss needs max-subtraction inside logsumexp</strong> — <code>np.log(np.exp(logits).sum())</code> overflows; subtract <code>logits.max(-1, keepdims=True)</code> first.</li>
+<li>Shapes: <code>p[arange(B), y]</code> is <code>(B,)</code> for the loss; <code>dlogits</code> stays <code>(B, C)</code> for the grad — don&#x27;t 2D-index a 1-D array.</li>
+<li><strong>Keep log-softmax full-width <code>(B, C)</code></strong>: <code>logp = logits − logsumexp</code> over <em>every</em> logit, gather <code>[arange, y]</code> only for the loss. Collapsing <code>logp</code> to <code>(B,)</code> makes <code>p = exp(logp)</code> just <code>p_y</code>.</li>
+<li><strong><code>keepdims=True</code> rides on the reduction</strong> (<code>.sum</code>/<code>.max</code>), not on the <code>np.log</code> around it (<code>log</code> has no <code>keepdims</code> → TypeError). Drop it and <code>(B,)</code> mis-broadcasts against <code>(B, C)</code>.</li>
+<li><strong><code>p − onehot</code> is indexed</strong> <code>dlogits[arange(B), y] -= 1</code>, not a scalar <code>dlogits -= 1</code> across the whole tensor.</li>
+</ul>
+</div>
 <hr>
 <h2 class="section" id="s2">2. Scaled dot-product attention (the #1 ask)</h2>
 <pre><code>def attention(Q, K, V, mask=None):
@@ -158,6 +170,15 @@ class RMSNorm(nn.Module):                                  # no mean-centering; 
         rms = torch.sqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
         return self.g * x / rms</code></pre>
 <p><strong>Probes:</strong> LN normalizes over the <strong>feature dim within each token</strong> (not the batch) — why transformers use it over BN. RMSNorm drops the mean subtraction. (Tie-in: the interviewer&#x27;s Weight Standardization normalizes the <em>weights</em> instead.)</p>
+<div style="border-left:4px solid #e0a800;background:rgba(224,168,0,.08);padding:10px 14px;margin:10px 0;border-radius:4px">
+<p style="margin:0 0 6px"><strong>⚠️ Mistakes I actually made (2026-07-04) — re-look before interviews:</strong></p>
+<ul style="margin:0">
+<li><strong><code>eps</code> goes <em>inside</em> the sqrt</strong>: <code>sqrt(var + eps)</code> / <code>sqrt(mean(x²) + eps)</code>, never <code>sqrt(var) + eps</code>. Added outside it doesn&#x27;t guard the sqrt against <code>var → 0</code> and is a different quantity. Don&#x27;t add it twice either.</li>
+<li><strong>RMS is a <em>reduction</em> over the last dim</strong>, not elementwise: <code>mean(x**2, axis=-1, keepdim=True)</code> = <code>sum(x²)/d</code>. <code>x^2/x.shape[-1]</code> is wrong (<code>^</code> is XOR in Python — use <code>**</code>; and it&#x27;s <code>x.shape[-1]</code>, not <code>x.shape(-1)</code>).</li>
+<li><strong>LN = re-center + re-scale</strong> <code>(x−μ)/sqrt(var+eps)</code>; <strong>RMSNorm = re-scale only</strong> (no μ). Don&#x27;t blend them.</li>
+<li>Var/std default to <strong>population</strong> (<code>ddof=0</code> / <code>unbiased=False</code>) — what norm layers want.</li>
+</ul>
+</div>
 <hr>
 <h2 class="section" id="s7">7. Transformer block (pre-norm, decoder-style)</h2>
 <pre><code>class Block(nn.Module):
@@ -173,6 +194,45 @@ class RMSNorm(nn.Module):                                  # no mean-centering; 
         x = x + self.mlp(self.ln2(x))
         return x</code></pre>
 <p><strong>Probes:</strong> pre-norm vs post-norm (norm location relative to residual; pre-norm trains more stably), attention mixes across tokens / MLP processes each token, the residual <code>x +</code> as the gradient highway.</p>
+<p><strong>Why two LayerNorms (<code>ln1</code> ≠ <code>ln2</code>)?</strong> The normalization math is parameter-free, but each <code>LayerNorm(d_model)</code> owns a learned per-feature gain/bias ($\gamma,\beta$ — $2d$ params each), and the two sit at different points of the residual stream: <code>ln1</code> reads raw $x$, <code>ln2</code> reads $x + \text{attn\_out}$ — a different distribution (the stream's scale and direction shift as sublayers write into it). In pre-norm the LN output <em>is</em> everything the sublayer sees, so $\gamma$ acts as a per-feature gate — attention and the MLP each get their own learned "view" of the stream. Sharing one module would be weight tying (same $\gamma,\beta$, gradients summed from both call sites) — a real modeling constraint — to save a negligible $4d$ params vs $\sim 12d^2$ in the block's weights. (With <code>elementwise_affine=False</code> the norm is stateless and you <em>could</em> reuse one instance, like <code>nn.ReLU</code> — the learned params are exactly why you don't.) Production models all do this: GPT-2 <code>ln_1</code>/<code>ln_2</code>, LLaMA <code>attention_norm</code>/<code>ffn_norm</code>, Gemma 2 even adds post-norms (4 per block).</p>
+<svg viewBox="0 0 700 290" width="100%" style="max-width:680px;display:block;margin:12px 0;" role="img" aria-label="Pre-norm transformer block pipeline: x flows through LN1 with its own gamma-1 beta-1 into attention, adds back to the residual stream, then through LN2 with its own gamma-2 beta-2 into the MLP, adds again. LN1 reads raw x; LN2 reads x plus the attention output, which has different statistics. Same operation, two learned parameter sets.">
+  <text x="16" y="24" fill="var(--text)" font-size="14" font-weight="600">One block, two norms — each sublayer gets its own learned read of the residual stream</text>
+  <text x="16" y="93" fill="var(--text)" font-size="14" font-weight="600">x</text>
+  <line x1="28" y1="88" x2="50" y2="88" stroke="var(--muted)" stroke-width="1.5"/>
+  <circle cx="40" cy="88" r="3" fill="var(--muted)"/>
+  <rect x="52" y="70" width="76" height="36" rx="6" fill="none" stroke="var(--accent)"/>
+  <text x="90" y="85" fill="var(--accent)" font-size="13" font-weight="600" text-anchor="middle">LN&#8321;</text>
+  <text x="90" y="100" fill="var(--accent)" font-size="11" text-anchor="middle">&#947;&#8321;, &#946;&#8321;</text>
+  <line x1="128" y1="88" x2="148" y2="88" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#s7arr)"/>
+  <rect x="152" y="70" width="92" height="36" rx="6" fill="none" stroke="var(--border)"/>
+  <text x="198" y="93" fill="var(--text)" font-size="13" text-anchor="middle">Attn</text>
+  <line x1="244" y1="88" x2="268" y2="88" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#s7arr)"/>
+  <circle cx="284" cy="88" r="12" fill="none" stroke="var(--border)"/>
+  <text x="284" y="93" fill="var(--text)" font-size="14" text-anchor="middle">+</text>
+  <line x1="296" y1="88" x2="318" y2="88" stroke="var(--muted)" stroke-width="1.5"/>
+  <circle cx="308" cy="88" r="3" fill="var(--muted)"/>
+  <rect x="322" y="70" width="76" height="36" rx="6" fill="none" stroke="var(--accent-2)"/>
+  <text x="360" y="85" fill="var(--accent-2)" font-size="13" font-weight="600" text-anchor="middle">LN&#8322;</text>
+  <text x="360" y="100" fill="var(--accent-2)" font-size="11" text-anchor="middle">&#947;&#8322;, &#946;&#8322;</text>
+  <line x1="398" y1="88" x2="418" y2="88" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#s7arr)"/>
+  <rect x="422" y="70" width="92" height="36" rx="6" fill="none" stroke="var(--border)"/>
+  <text x="468" y="93" fill="var(--text)" font-size="13" text-anchor="middle">MLP</text>
+  <line x1="514" y1="88" x2="538" y2="88" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#s7arr)"/>
+  <circle cx="554" cy="88" r="12" fill="none" stroke="var(--border)"/>
+  <text x="554" y="93" fill="var(--text)" font-size="14" text-anchor="middle">+</text>
+  <line x1="566" y1="88" x2="592" y2="88" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#s7arr)"/>
+  <text x="600" y="93" fill="var(--text)" font-size="14" font-weight="600">out</text>
+  <path d="M40,88 L40,144 L284,144 L284,104" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#s7arr)"/>
+  <path d="M308,88 L308,144 L554,144 L554,104" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#s7arr)"/>
+  <text x="120" y="160" fill="var(--muted)" font-size="11.5">residual (skip)</text>
+  <defs><marker id="s7arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="var(--muted)" stroke-width="1.5"/></marker></defs>
+  <text x="52" y="192" fill="var(--accent)" font-size="12.5" font-weight="600">LN&#8321; reads raw x</text>
+  <text x="52" y="209" fill="var(--muted)" font-size="12">its &#947;&#8321;, &#946;&#8321; gate the features attention gets to see</text>
+  <text x="380" y="192" fill="var(--accent-2)" font-size="12.5" font-weight="600">LN&#8322; reads x + attn_out — different stats</text>
+  <text x="380" y="209" fill="var(--muted)" font-size="12">its &#947;&#8322;, &#946;&#8322; gate what the MLP gets to see</text>
+  <text x="16" y="248" fill="var(--text)" font-size="12.5">Same op, two learned parameter sets: 2&#215;(&#947;, &#946;) = 4·d params — vs ~12·d&#178; in the block's weights (d=4096: 16K vs ~200M).</text>
+  <text x="16" y="268" fill="var(--muted)" font-size="12.5">Sharing one LN = tying &#947;, &#946; across two different distributions and two different consumers — a constraint, not a dedup.</text>
+</svg>
 <hr>
 <h2 class="section" id="s8">8. KV-cache generation loop</h2>
 <pre><code>@torch.no_grad()
@@ -257,6 +317,14 @@ d1  = da1 * (z1 &gt; 0)            # back through ReLU = mask
 dW1 = d1 @ x.T
 db1 = d1</code></pre>
 <p><strong>Probes:</strong> the three rules — weight grad <code>= δ aᵀ</code>, back through linear <code>= Wᵀδ</code>, back through activation <code>= ⊙ φ&#x27;</code>. (Full detail in Day 1 §2.)</p>
+<div style="border-left:4px solid #e0a800;background:rgba(224,168,0,.08);padding:10px 14px;margin:10px 0;border-radius:4px">
+<p style="margin:0 0 6px"><strong>⚠️ Mistakes I actually made (2026-07-04) — batched <code>(B, …)</code> MLP backprop.</strong> For <code>out = in @ W + b</code>: <code>dW = in.T @ d_out</code>, <code>db = d_out.sum(axis=0)</code>, <code>d_in = d_out @ W.T</code>.</p>
+<ul style="margin:0">
+<li><strong><code>db2 = logits.sum(0)</code></strong> — used the <em>forward activation</em>, not the <em>incoming grad</em>. Bias grad is <code>dlogits.sum(0)</code>. (Recurring: grad quantity vs forward quantity.)</li>
+<li><strong><code>dW1 = h_pre.T @ dhpre</code></strong> — used <code>h_pre</code> as the layer-1 input. The input feeding <code>W1</code> is <strong><code>X</code></strong>: <code>dW1 = X.T @ dhpre</code>.</li>
+<li><strong>ReLU backward <code>dh * np.where(dh&gt;0, dh, 0)</code></strong> — doubly wrong: (a) gate on the <strong>pre-activation</strong> <code>(h_pre &gt; 0)</code>, not on <code>dh</code>; (b) the mask is <code>1/0</code>, not <code>dh</code> — as written it squares the grad. Correct: <code>dhpre = dh * (h_pre &gt; 0)</code>.</li>
+</ul>
+</div>
 <hr>
 <h2 class="section" id="s15">Drill checklist (re-type each from blank, timed)</h2>
 <ul>

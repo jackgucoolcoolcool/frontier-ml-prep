@@ -273,6 +273,30 @@
     </ul>
     <p>Add them:</p>
     <p>$$\frac{\partial L}{\partial z_{2,i}} = \hat{y}_i - y_i \quad\Longrightarrow\quad \frac{\partial L}{\partial z_2} = \hat{y} - y$$</p>
+    <p><strong>Why does log-sum-exp differentiate back into softmax?</strong> It's just the chain rule on a $\log$ of a sum — nothing softmax-specific is assumed:</p>
+    <p>$$\frac{\partial}{\partial z_i}\log\sum_j e^{z_j} \;\overset{\frac{d}{dx}\log u=\frac{1}{u}\frac{du}{dx}}{=}\; \frac{1}{\sum_j e^{z_j}}\cdot\underbrace{\frac{\partial}{\partial z_i}\sum_j e^{z_j}}_{=\,e^{z_i}\ (\text{only }j=i\text{ survives})} \;=\; \frac{e^{z_i}}{\sum_j e^{z_j}} \;=\; \hat{y}_i$$</p>
+    <p>The $1/\sum$ pulled out by the outer $\log$ is exactly the softmax <em>denominator</em>, and the surviving $e^{z_i}$ is its <em>numerator</em> — so the derivative reassembles softmax by construction. Stated cleanly: <strong>LSE is the antiderivative (scalar potential) of softmax</strong>, $\nabla_z\,\mathrm{LSE}(z)=\mathrm{softmax}(z)$. (LSE is the smooth relaxation of $\max$; its gradient is the "soft-argmax.") That is the whole reason the loss splits into $-z_c + \mathrm{LSE}(z)$ and the messy softmax Jacobian of Method 2 never appears here — the LSE term <em>regenerates</em> $\hat{y}_i$, and the linear $-z_c$ term supplies the $-y_i$.</p>
+
+    <figure class="viz">
+      <svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif">
+        <text x="320" y="24" text-anchor="middle" font-size="15" font-weight="600">LSE is the potential; softmax is its gradient</text>
+        <!-- axes -->
+        <line x1="60" y1="250" x2="600" y2="250" stroke="#888" stroke-width="1.2"/>
+        <line x1="60" y1="60" x2="60" y2="250" stroke="#888" stroke-width="1.2"/>
+        <text x="596" y="270" font-size="12" fill="#555">z₁ (with z₂ fixed)</text>
+        <!-- LSE curve: y = log(e^z + e^0), scaled. z from -3..4 -> x 60..600 -->
+        <path d="M60,243 L94,240 L128,235 L162,227 L196,215 L230,199 L264,180 L298,159 L332,137 L366,114 L400,91 L434,68"
+              fill="none" stroke="#2b6cb0" stroke-width="2.5"/>
+        <text x="440" y="66" font-size="12" fill="#2b6cb0">LSE(z) — smooth max, convex</text>
+        <!-- softmax (derivative) curve: y = sigmoid(z), the slope of LSE -->
+        <path d="M60,247 L110,246 L160,243 L210,236 L260,222 L300,201 L340,175 L380,150 L430,128 L480,114 L540,106 L600,103"
+              fill="none" stroke="#c05621" stroke-width="2.5" stroke-dasharray="5 4"/>
+        <text x="300" y="252" font-size="12" fill="#c05621" transform="translate(150,-95)">ŷ₁ = softmax(z)₁ = slope of LSE</text>
+        <text x="320" y="290" text-anchor="middle" font-size="11.5" fill="#555">The slope of the blue curve at every point equals the orange curve — differentiating LSE gives softmax back.</text>
+      </svg>
+      <figcaption style="font-size:12px;color:#555;text-align:center">Along one logit, LSE rises like a smoothed hinge; its slope <em>is</em> the softmax probability (here a sigmoid, the 2-class case). ∇LSE = softmax, exactly.</figcaption>
+    </figure>
+
     <p>The reason it's so clean: the log-sum-exp is the function whose gradient <em>is</em> the softmax, so differentiating the loss hands you the predicted distribution directly.</p>
 
     <h4>Method 2 — full chain rule (shows the structure)</h4>
@@ -416,11 +440,88 @@ jnp.outer(d2, a1)             # einsum:  np.einsum('i,j->ij', d2, a1)</code></pr
       Separate <code>softmax</code> then <code>log</code> can overflow (<code>e^large</code>) or underflow (<code>log(0)=−inf</code>). Libraries use a fused, log-sum-exp-stabilized <code>cross_entropy_with_logits</code>. <strong>See</strong> loss = inf/NaN from step 0, or only when a logit gets large → <strong>suspect</strong> double-applied softmax (softmax in the model <em>and</em> a loss expecting raw logits) → <strong>look at</strong> the loss wiring. Extremely common real bug.
     </div>
 
+    <h3>2.5 Coding it: stable cross-entropy in two lines (the interview implementation)</h3>
+    <p>This is exactly what the fused op above does internally — be ready to write it and defend every token:</p>
+    <pre><code>def cross_entropy(logits, targets):
+    # logits: (B, C), targets: (B,) int class indices
+    logp = logits - torch.logsumexp(logits, dim=-1, keepdim=True)  # log-softmax, stable
+    return -logp[torch.arange(len(targets)), targets].mean()</code></pre>
+    <p><strong>Line 1 is log-softmax, computed via an identity — not <code>log(softmax(x))</code>.</strong> Take the log of softmax and split the quotient:</p>
+    <p>$$\log\,\text{softmax}(z)_i = \log\frac{e^{z_i}}{\sum_j e^{z_j}} = z_i - \log\sum_j e^{z_j} = z_i - \text{LSE}(z)$$</p>
+    <p>So log-softmax is just <strong>each logit minus the logsumexp of all logits</strong> — one subtraction. Why it must be written this way: naive <code>log(softmax(z))</code> overflows for a large logit ($e^{z}\to\infty$ → <code>nan</code>) and underflows for a very negative one (softmax → exact <code>0.0</code> → $\log 0=-\infty$) — broken in <em>both</em> directions. <code>torch.logsumexp</code> applies the <strong>max trick</strong> internally:</p>
+    <p>$$\text{LSE}(z) = m + \log\sum_j e^{z_j - m},\qquad m=\max_j z_j$$</p>
+    <p>After subtracting $m$, every exponent is $\le 0$ (no overflow) and the largest term is $e^0=1$ (the sum is $\ge 1$, so no $\log 0$). Same value, finite in floating point.</p>
+    <svg viewBox="0 0 700 260" width="100%" style="max-width:680px;display:block;margin:12px 0;" role="img" aria-label="Two pipelines for logits 1000, 999, 998. Naive path: exp gives infinity, softmax gives NaN, log gives NaN. Stable path: logsumexp subtracts the max giving exponents 0, minus 1, minus 2, so exp gives 1, 0.37, 0.14, and the final log-probs are minus 0.41, minus 1.41, minus 2.41 — all finite.">
+      <text x="16" y="26" fill="var(--text)" font-size="14" font-weight="600">Same math, different fate in floating point&#160;&#160;·&#160;&#160;z = [1000, 999, 998]</text>
+      <!-- naive path -->
+      <text x="16" y="62" fill="var(--warn)" font-size="13" font-weight="600">naive&#160;&#160;log(softmax(z))</text>
+      <rect x="16" y="74" width="130" height="34" rx="6" fill="none" stroke="var(--border)"/>
+      <text x="30" y="96" fill="var(--text)" font-size="13">exp(z)</text>
+      <rect x="196" y="74" width="150" height="34" rx="6" fill="none" stroke="var(--warn)"/>
+      <text x="210" y="96" fill="var(--warn)" font-size="13">[inf, inf, inf]</text>
+      <rect x="396" y="74" width="120" height="34" rx="6" fill="none" stroke="var(--warn)"/>
+      <text x="410" y="96" fill="var(--warn)" font-size="13">inf / inf</text>
+      <rect x="566" y="74" width="118" height="34" rx="6" fill="var(--warn)" opacity="0.15" stroke="var(--warn)"/>
+      <text x="580" y="96" fill="var(--warn)" font-size="13" font-weight="600">nan</text>
+      <line x1="146" y1="91" x2="190" y2="91" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <line x1="346" y1="91" x2="390" y2="91" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <line x1="516" y1="91" x2="560" y2="91" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <defs><marker id="ceArrow25" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="var(--muted)" stroke-width="1.5"/></marker></defs>
+      <!-- stable path -->
+      <text x="16" y="152" fill="var(--accent-2)" font-size="13" font-weight="600">stable&#160;&#160;z − logsumexp(z)&#160;&#160;(max trick inside)</text>
+      <rect x="16" y="164" width="130" height="34" rx="6" fill="none" stroke="var(--border)"/>
+      <text x="30" y="186" fill="var(--text)" font-size="13">z − max(z)</text>
+      <rect x="196" y="164" width="150" height="34" rx="6" fill="none" stroke="var(--border)"/>
+      <text x="210" y="186" fill="var(--text)" font-size="13">[0, −1, −2]</text>
+      <rect x="396" y="164" width="120" height="34" rx="6" fill="none" stroke="var(--border)"/>
+      <text x="404" y="186" fill="var(--text)" font-size="12.5">e → [1, .37, .14]</text>
+      <rect x="566" y="164" width="118" height="34" rx="6" fill="var(--accent-2)" opacity="0.15" stroke="var(--accent-2)"/>
+      <text x="572" y="180" fill="var(--accent-2)" font-size="11.5" font-weight="600">logp = [−0.41,</text>
+      <text x="586" y="193" fill="var(--accent-2)" font-size="11.5" font-weight="600">−1.41, −2.41]</text>
+      <line x1="146" y1="181" x2="190" y2="181" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <line x1="346" y1="181" x2="390" y2="181" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <line x1="516" y1="181" x2="560" y2="181" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <text x="16" y="238" fill="var(--muted)" font-size="12.5">exponents ≤ 0 → exp can't overflow;&#160;&#160;largest term = e⁰ = 1 → sum ≥ 1 → log never sees 0</text>
+    </svg>
+    <p>Shapes: <code>dim=-1</code> reduces over classes; <code>keepdim=True</code> keeps the result $(B,1)$ so $(B,C)-(B,1)$ broadcasts the per-example normalizer across its row. Each row of <code>logp</code> is a valid log-distribution: its logsumexp is 0 ⇔ its probabilities sum to 1.</p>
+    <p><strong>Line 2 is NLL via advanced indexing.</strong> With hard labels, CE collapses to $-\log\hat y_c$ (§2.1), so per example we need <code>logp[b, targets[b]]</code>. <code>logp[torch.arange(B), targets]</code> pairs row indices $[0..B{-}1]$ with each row's target column → a $(B,)$ vector of "log-prob assigned to the true class". Negate (log-probs are ≤ 0, we minimize) and mean over the batch:</p>
+    <p>$$\mathcal{L} = -\frac{1}{B}\sum_{b=1}^{B} \log p_{b,\,y_b}$$</p>
+    <svg viewBox="0 0 700 190" width="100%" style="max-width:680px;display:block;margin:12px 0;" role="img" aria-label="A 3-by-4 grid of log-probabilities. targets equal 2, 0, 3. In each row the cell at the target column is highlighted; the three picked values are gathered into a vector, negated, and averaged into the loss.">
+      <text x="16" y="22" fill="var(--text)" font-size="13" font-weight="600">logp&#160;(B=3, C=4)</text>
+      <text x="300" y="22" fill="var(--muted)" font-size="12.5">targets = [2, 0, 3]&#160;&#160;→&#160;&#160;pick logp[b, targets[b]]</text>
+      <g font-size="12.5" fill="var(--text)">
+        <rect x="16" y="34" width="66" height="30" fill="none" stroke="var(--border)"/><text x="26" y="54">−2.1</text>
+        <rect x="82" y="34" width="66" height="30" fill="none" stroke="var(--border)"/><text x="92" y="54">−1.7</text>
+        <rect x="148" y="34" width="66" height="30" fill="var(--accent)" opacity="0.18" stroke="var(--accent)" stroke-width="2"/><text x="158" y="54" font-weight="600">−0.4</text>
+        <rect x="214" y="34" width="66" height="30" fill="none" stroke="var(--border)"/><text x="224" y="54">−3.0</text>
+        <rect x="16" y="64" width="66" height="30" fill="var(--accent)" opacity="0.18" stroke="var(--accent)" stroke-width="2"/><text x="26" y="84" font-weight="600">−0.9</text>
+        <rect x="82" y="64" width="66" height="30" fill="none" stroke="var(--border)"/><text x="92" y="84">−1.2</text>
+        <rect x="148" y="64" width="66" height="30" fill="none" stroke="var(--border)"/><text x="158" y="84">−2.5</text>
+        <rect x="214" y="64" width="66" height="30" fill="none" stroke="var(--border)"/><text x="224" y="84">−2.2</text>
+        <rect x="16" y="94" width="66" height="30" fill="none" stroke="var(--border)"/><text x="26" y="114">−1.5</text>
+        <rect x="82" y="94" width="66" height="30" fill="none" stroke="var(--border)"/><text x="92" y="114">−2.8</text>
+        <rect x="148" y="94" width="66" height="30" fill="none" stroke="var(--border)"/><text x="158" y="114">−1.9</text>
+        <rect x="214" y="94" width="66" height="30" fill="var(--accent)" opacity="0.18" stroke="var(--accent)" stroke-width="2"/><text x="224" y="114" font-weight="600">−0.6</text>
+      </g>
+      <text x="16" y="148" fill="var(--muted)" font-size="12.5">row index:&#160;arange(B) = [0, 1, 2]&#160;&#160;·&#160;&#160;col index: targets</text>
+      <line x1="290" y1="79" x2="340" y2="79" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <rect x="348" y="60" width="160" height="38" rx="6" fill="none" stroke="var(--accent)"/>
+      <text x="358" y="84" fill="var(--accent)" font-size="13" font-weight="600">[−0.4, −0.9, −0.6]</text>
+      <line x1="508" y1="79" x2="556" y2="79" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#ceArrow25)"/>
+      <rect x="564" y="60" width="122" height="38" rx="6" fill="var(--accent-2)" opacity="0.15" stroke="var(--accent-2)"/>
+      <text x="572" y="78" fill="var(--accent-2)" font-size="12" font-weight="600">−mean(·)</text>
+      <text x="572" y="93" fill="var(--accent-2)" font-size="12" font-weight="600">L ≈ 0.633</text>
+      <text x="348" y="126" fill="var(--muted)" font-size="12.5">log-prob the model gave the true class</text>
+    </svg>
+    <p>The <code>gather</code> spelling (generalizes to extra dims, e.g. $(B,T,V)$ next-token loss): <code>-logp.gather(-1, targets[..., None]).squeeze(-1).mean()</code>.</p>
+    <p><strong>Probe-depth follow-ups:</strong> (1) the gradient of this whole thing w.r.t. logits is $(\text{softmax}(z)-\text{onehot}(y))/B$ — the §2.2 identity, which is why the fused backward is one subtraction. (2) <code>F.cross_entropy</code> = exactly this + <code>ignore_index</code> (masking pad tokens) + optional label smoothing/weights — and it expects <strong>raw logits</strong>, never softmaxed probs. (3) Sanity checks in a debug session: <code>logp.logsumexp(-1)</code> ≈ 0 per row; uniform logits must give loss $=\log C$.</p>
+
     <h4>Self-test §2</h4>
     <div class="qa"><div class="q">Derive backprop for a 2-layer net.<span class="chev">▶</span></div><div class="a">Reproduce §2.2–§2.3. Three rules: weight grad <code>= δ aᵀ</code>; back through linear <code>= Wᵀδ</code>; back through activation <code>= ⊙ φ'</code>.</div></div>
     <div class="qa"><div class="q">What's ∂L/∂(logits) for softmax-cross-entropy?<span class="chev">▶</span></div><div class="a"><code>ŷ − y</code>. Be ready to sketch why (softmax Jacobian × CE grad telescopes via Σy_k=1).</div></div>
     <div class="qa"><div class="q">Explain vanishing/exploding gradients from the equations.<span class="chev">▶</span></div><div class="a">Layer-1 gradient is a product of many <code>Wᵀ</code> and <code>φ'</code> factors; consistently &lt;1 → vanish, &gt;1 → explode. Geometric in depth.</div></div>
     <div class="qa"><div class="q">Why is ReLU's backward pass essentially a mask?<span class="chev">▶</span></div><div class="a"><code>φ'(z)=1</code> for z&gt;0 else 0 — passes the incoming gradient unchanged or zeros it; no shrinking on the active path.</div></div>
+    <div class="qa"><div class="q">Why is <code>logits − logsumexp(logits)</code> the right way to get log-probs?<span class="chev">▶</span></div><div class="a">It <em>is</em> log-softmax (split the log of the softmax quotient: <code>log softmax(z)ᵢ = zᵢ − LSE(z)</code>), and <code>logsumexp</code> max-shifts internally so nothing overflows (exponents ≤ 0) or hits <code>log(0)</code> (sum ≥ 1). Naive <code>log(softmax)</code> breaks in both directions. See §2.5.</div></div>
 
     <!-- ===================== §3 ===================== -->
     <h2 class="section" id="s3">§3 — Initialization & gradient flow</h2>
@@ -497,6 +598,77 @@ jnp.outer(d2, a1)             # einsum:  np.einsum('i,j->ij', d2, a1)</code></pr
 
     <h4>Why does RMSNorm match LayerNorm? (theory + empirical)</h4>
     <p>LayerNorm does two things — re-<strong>center</strong> (subtract $\mu$) and re-<strong>scale</strong> (divide by $\sigma$); RMSNorm keeps only the re-scaling. The hypothesis (Zhang &amp; Sennrich 2019): <strong>LayerNorm's benefit comes mainly from re-scaling invariance, not re-centering.</strong> Normalization helps optimization by <em>controlling the magnitude</em> of activations/gradients — bounding them, smoothing the loss landscape, stabilizing the per-layer effective learning rate — and that magnitude control <em>is</em> the $/\text{RMS}$ part. The mean subtraction is argued to be near-redundant because (a) the learned affine + the next linear layer can absorb any constant offset, and (b) in high dimensions the mean is small relative to the scale. Both LN and RMSNorm are also <strong>invariant to input scaling</strong> ($f(\alpha x)=f(x)$), which gives a self-stabilizing gradient (gradient roughly orthogonal to the weight direction, bounded) — RMSNorm keeps this; it only gives up the less-important <em>shift</em>-invariance. <strong>Verdict:</strong> a well-motivated hypothesis <em>plus</em> strong empirical confirmation — RMSNorm matches LN across tasks while being ~7–64% faster, and at scale the equivalence holds (LLaMA, T5, Gemma use RMSNorm). Not a theorem, but more than "just empirical."</p>
+
+    <h4>4.2b RMSNorm, precisely: geometry + code</h4>
+    <p><strong>The equation, one token at a time.</strong> For one token's feature vector $x\in\mathbb{R}^d$ (RMSNorm never looks at other tokens or the batch): compute one scalar statistic and one learned per-feature gain $\gamma$ (init 1) — no $\mu$, no $\beta$:</p>
+    <p>$$\text{RMS}(x)=\sqrt{\tfrac1d\sum_{i=1}^{d} x_i^2+\epsilon},\qquad y_i=\gamma_i\,\frac{x_i}{\text{RMS}(x)}$$</p>
+    <p><strong>The geometric picture.</strong> Since $\text{RMS}(x)=\lVert x\rVert_2/\sqrt d$, we have $x/\text{RMS}(x)=\sqrt d\cdot x/\lVert x\rVert_2$: RMSNorm is a <strong>radial projection of every token vector onto the hypersphere of radius $\sqrt d$</strong> — direction preserved exactly, magnitude forced to a constant (then $\gamma$ stretches per axis). LayerNorm does one extra step first: slide $x$ onto the hyperplane $\sum_i x_i=0$ (mean-centering), <em>then</em> project onto the sphere.</p>
+    <svg viewBox="0 0 680 330" width="100%" style="max-width:660px;margin:12px 0;" role="img" aria-label="Left: bar chart of one token's eight features before and after dividing by RMS — same shape, rescaled so RMS becomes 1. Right: a circle of radius square-root-of-d; the vector x is projected radially onto the circle to give y; scaled copies of x on the same ray map to the same point; a dashed line marks the sum-zero hyperplane where LayerNorm centers first.">
+      <text x="40" y="24" fill="var(--muted)" font-size="13">x — one token's d features&#160;&#160;(RMS(x) = 1.44)</text>
+      <line x1="30" y1="95" x2="310" y2="95" stroke="var(--border)" stroke-width="1"/>
+      <g fill="var(--accent)" opacity="0.85">
+        <rect x="40" y="48.8" width="22" height="46.2"/>
+        <rect x="74" y="95" width="22" height="13.2"/>
+        <rect x="108" y="64.2" width="22" height="30.8"/>
+        <rect x="142" y="95" width="22" height="52.8"/>
+        <rect x="176" y="86.2" width="22" height="8.8"/>
+        <rect x="210" y="73" width="22" height="22"/>
+        <rect x="244" y="95" width="22" height="35.2"/>
+        <rect x="278" y="79.6" width="22" height="15.4"/>
+      </g>
+      <text x="118" y="178" fill="var(--text)" font-size="14" font-weight="600">÷ RMS(x)</text>
+      <line x1="100" y1="168" x2="100" y2="192" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#rmsArrow)"/>
+      <defs><marker id="rmsArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="var(--muted)" stroke-width="1.5"/></marker></defs>
+      <text x="40" y="215" fill="var(--accent-2)" font-size="13">y = x / RMS(x)&#160;&#160;→&#160;&#160;RMS(y) = 1,&#160;&#160;‖y‖ = √d</text>
+      <line x1="30" y1="272" x2="310" y2="272" stroke="var(--border)" stroke-width="1"/>
+      <g fill="var(--accent-2)" opacity="0.85">
+        <rect x="40" y="240.1" width="22" height="31.9"/>
+        <rect x="74" y="272" width="22" height="9.2"/>
+        <rect x="108" y="250.7" width="22" height="21.3"/>
+        <rect x="142" y="272" width="22" height="36.5"/>
+        <rect x="176" y="265.8" width="22" height="6.2"/>
+        <rect x="210" y="256.8" width="22" height="15.2"/>
+        <rect x="244" y="272" width="22" height="24.4"/>
+        <rect x="278" y="261.4" width="22" height="10.6"/>
+      </g>
+      <circle cx="500" cy="170" r="75" fill="none" stroke="var(--muted)" stroke-width="1.5"/>
+      <text x="404" y="262" fill="var(--muted)" font-size="12">sphere ‖v‖ = √d</text>
+      <line x1="436" y1="234" x2="564" y2="106" stroke="var(--warn)" stroke-width="1" stroke-dasharray="5 4" opacity="0.7"/>
+      <text x="398" y="286" fill="var(--warn)" font-size="12" opacity="0.9">- - Σxᵢ = 0 plane (LN centers here first)</text>
+      <line x1="500" y1="170" x2="637" y2="78.6" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"/>
+      <line x1="500" y1="170" x2="600" y2="103.3" stroke="var(--accent)" stroke-width="2" marker-end="url(#rmsArrow)"/>
+      <text x="606" y="100" fill="var(--accent)" font-size="14" font-weight="600">x</text>
+      <text x="636" y="72" fill="var(--muted)" font-size="12">αx — same ray,</text>
+      <text x="636" y="86" fill="var(--muted)" font-size="12" >same output</text>
+      <circle cx="562.4" cy="128.4" r="5" fill="var(--accent-2)"/>
+      <text x="560" y="152" fill="var(--accent-2)" font-size="14" font-weight="600">y</text>
+      <text x="404" y="52" fill="var(--text)" font-size="13" font-weight="600">RMSNorm = radial projection onto the √d-sphere</text>
+    </svg>
+    <p>Three facts you can read straight off the picture:</p>
+    <ul>
+      <li>$\text{RMS}(y)=1$ and $\lVert y\rVert=\sqrt d$ for <em>every</em> token, always → the residual stream enters each sublayer at a fixed magnitude.</li>
+      <li>$x$ and $\alpha x$ lie on the same ray → same projection point → <strong>identical output</strong> ($f(\alpha x)=f(x)$, the scale-invariance that stabilizes training).</li>
+      <li>$x + c\mathbf{1}$ changes the ray → different output. Shift-invariance is what RMSNorm <strong>gives up</strong> (LN would remove the offset) — and it's the near-redundant half.</li>
+    </ul>
+    <p><strong>Implementation (LLaMA-style — the version to write in interviews):</strong></p>
+    <pre><code>class RMSNorm(nn.Module):
+    def __init__(self, d, eps=1e-6):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(d))    # gamma only — no beta
+
+    def forward(self, x):                            # x: (B, T, d)
+        x32 = x.float()                              # stats in fp32 (bf16-safe)
+        inv = torch.rsqrt(x32.pow(2).mean(-1, keepdim=True) + self.eps)
+        return self.weight * (x32 * inv).type_as(x)</code></pre>
+    <p>NumPy core, if asked to strip it down: <code>y = g * x / np.sqrt((x**2).mean(-1, keepdims=True) + eps)</code>.</p>
+    <ol>
+      <li><strong>Why fp32 inside?</strong> Squaring bf16 activations loses precision / can overflow; LLaMA computes the statistic in fp32 and casts back (<code>type_as</code>).</li>
+      <li><strong>$\epsilon$ inside the sqrt</strong>, typical $10^{-6}$ (LLaMA) or $10^{-5}$ — guards the all-zero vector.</li>
+      <li><strong>Cost:</strong> one reduction instead of two (no mean pass), no subtraction, $d$ fewer params (no $\beta$). Norm kernels are memory-bound → ~10–60% faster; at LLM scale that matters.</li>
+      <li><strong>Placement:</strong> pre-norm <code>x + Sublayer(RMSNorm(x))</code> in LLaMA/Mistral/Qwen; Gemma also norms sublayer outputs. <code>torch.nn.RMSNorm</code> exists since PyTorch 2.4.</li>
+      <li><strong>Gradient fact:</strong> scale-invariance makes the gradient w.r.t. $x$ orthogonal to $x$ — a self-limiting mechanism against activation blow-up.</li>
+    </ol>
 
     <h4>Why BN's stats are "noisy"</h4>
     <p>BN's $\mu_i,\sigma_i^2$ are <strong>sample estimates</strong> of the true feature mean/variance from only $B$ examples. The standard error of a sample mean is $\propto 1/\sqrt B$ (variance estimate noisier still), so with small $B$ they <strong>jump from batch to batch</strong> — the normalization applied to a fixed example depends on which <em>other random examples</em> shared its batch, coupling every example to its batch-mates and injecting noise into each pass. Transformers make it worse: long sequences → small effective batch, variable-length → ragged batches, and decoding is often $B=1$ (batch stats undefined). LN/RMSNorm instead use the $d$ features of one example ($d$ large and fixed, e.g. 4096) → <strong>batch-independent, deterministic, identical at train and inference</strong> (BN uses batch stats at train but a running EMA at test — a different function in the two modes, a classic bug source).</p>

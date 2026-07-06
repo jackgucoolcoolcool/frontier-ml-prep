@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reading Room — Attention · Norms &amp; Backprop · Sampling</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --bad: #ff7b72; --border: #2a3340;
+    --code-bg: #11161d;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.65; font-size: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 24px 140px; }
+  .backlink { font-size: 14px; margin-bottom: 8px; }
+  a { color: var(--accent); }
+  h1 { font-size: 27px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin-bottom: 24px; }
+  nav.chapters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 34px; }
+  nav.chapters a { border: 1px solid var(--border); background: var(--panel-2); padding: 7px 14px;
+    border-radius: 20px; text-decoration: none; font-size: 14px; }
+  h2 { font-size: 23px; margin: 54px 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 16px; }
+  h2 .tag { font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--accent-2);
+    display: block; font-weight: 700; margin-bottom: 2px; }
+  h3 { font-size: 18px; margin: 34px 0 8px; color: #eaf0f7; scroll-margin-top: 16px; }
+  h3 .stage { color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; display: block; }
+  p { margin: 10px 0; }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .88em; color: var(--accent-2); }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 15px;
+    overflow-x: auto; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; }
+  pre code { background: none; border: 0; padding: 0; color: var(--text); }
+  .traps { background: #241518; border: 1px solid #4a2a2e; border-radius: 8px; padding: 10px 16px; margin: 14px 0; }
+  .traps .t { color: var(--bad); font-weight: 700; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  .traps ul { margin: 6px 0 4px; padding-left: 20px; }
+  .traps li { margin: 4px 0; font-size: 14.5px; }
+  details.probe { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--accent-2);
+    border-radius: 8px; padding: 10px 16px; margin: 14px 0; }
+  details.probe summary { cursor: pointer; color: var(--accent-2); font-weight: 600; font-size: 14.5px; }
+  details.probe div { margin-top: 8px; color: var(--muted); font-size: 14.5px; }
+  .fig { border: 1px solid var(--border); background: var(--panel); border-radius: 10px;
+    padding: 16px 18px 8px; margin: 18px 0; }
+  .fig .cap { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .chartbox { position: relative; height: 240px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 6px 12px; text-align: left; }
+  th { background: var(--panel-2); }
+  .cta { border: 1px solid var(--border); border-left: 3px solid var(--accent); background: var(--panel-2);
+    border-radius: 8px; padding: 10px 16px; margin: 18px 0; font-size: 14.5px; }
+  svg text { font-family: -apple-system, "Segoe UI", sans-serif; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="backlink"><a href="/">&larr; back to sessions</a></div>
+  <h1>Reading Room</h1>
+  <div class="sub">Every coding track, in the same stage-by-stage ladder the interviews use.
+    For each stage: the concept → the math → the exact code the grader accepts → the traps the hidden
+    tests spring → the out-loud probe. Read a chapter, then take the mock cold.</div>
+  <nav class="chapters">
+    <a href="#attn">1 · Attention (W1)</a>
+    <a href="#norms">2 · Norms &amp; Backprop (W2)</a>
+    <a href="#sampling">3 · Sampling (F1)</a>
+    <a href="#rl">4 · Post-training losses (F2)</a>
+    <a href="#algo">5 · Algorithms (A1)</a>
+    <a href="#arch">6 · Full architecture (research round)</a>
+  </nav>
+
+  <!-- ================= CHAPTER 1: ATTENTION ================= -->
+  <h2 id="attn"><span class="tag">Chapter 1 · mirrors session W1</span>Attention, from scratch</h2>
+
+  <h3><span class="stage">Stage 1 · what W1 asks first</span>Scaled dot-product attention</h3>
+  <p>One sentence you should be able to say cold: <em>attention is a differentiable dictionary lookup —
+  each query softly retrieves a mixture of values, weighted by how well its key matches.</em></p>
+  $$\mathrm{Attention}(Q,K,V) = \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V,
+  \qquad Q = XW_Q,\; K = XW_K,\; V = XW_V$$
+  <p><b>Why $\sqrt{d_k}$</b> — the variance argument, which the probe asks verbatim: if $q, k$ have unit-variance
+  i.i.d. entries, then $q\cdot k = \sum_{i=1}^{d_k} q_i k_i$ has variance $d_k$ (each term has variance 1, they add).
+  Scores grow like $\sqrt{d_k}$, softmax saturates toward one-hot, and the gradient through softmax —
+  $\frac{\partial p_i}{\partial z_j} = p_i(\delta_{ij} - p_j)$ — collapses to zero when any $p_i \to 1$.
+  Dividing by $\sqrt{d_k}$ keeps score variance at 1 for any head size.</p>
+  <p><b>Stable softmax</b> — the other half of stage 1. Softmax is shift-invariant, so subtract the row max
+  before exponentiating; every exponent becomes $\le 0$ and nothing overflows:</p>
+  $$\mathrm{softmax}(z)_i = \frac{e^{z_i - m}}{\sum_j e^{z_j - m}}, \qquad m = \max_j z_j$$
+<pre><code>def softmax(z, axis=-1):
+    z = z - z.max(axis=axis, keepdims=True)   # stability: exponents <= 0
+    e = np.exp(z)
+    return e / e.sum(axis=axis, keepdims=True)
+
+def attention(X, Wq, Wk, Wv):
+    Q, K, V = X @ Wq, X @ Wk, X @ Wv          # (T,dk) (T,dk) (T,dv)
+    scores = Q @ K.T / np.sqrt(Wk.shape[1])    # (T,T)
+    A = softmax(scores, axis=-1)               # each ROW sums to 1
+    return A @ V                               # (T,dv)</code></pre>
+  <div class="traps"><span class="t">traps the hidden tests spring</span>
+    <ul>
+      <li>Inputs scaled ×60 → a naive <code>np.exp</code> overflows to <code>inf</code>, output goes NaN. The stability test exists because a textbook-correct answer still fails it.</li>
+      <li>Softmax over the wrong axis: rows (queries) must sum to 1, not columns. Symptom: every position gets the same output.</li>
+      <li>Scaling by $\sqrt{d_{model}}$ instead of $\sqrt{d_k}$ — matters the moment $d_v \ne d_k$ or heads appear.</li>
+    </ul>
+  </div>
+  <div class="fig">
+    <div id="attnGrids" style="display:flex;gap:28px;flex-wrap:wrap"></div>
+    <div class="cap">Attention weight matrices (row = query, column = key; brighter = more weight, each row sums to 1).
+    Left: full self-attention. Right: the same scores with a causal mask — the upper triangle is exactly zero, and each
+    row renormalizes over its allowed prefix. Row 0 has no choice but itself.</div>
+  </div>
+  <details class="probe"><summary>Probe: why divide by √d_k? What goes wrong without it?</summary>
+    <div>Unit-variance $q,k$ → dot product variance $d_k$ → scores grow like $\sqrt{d_k}$ → softmax saturates
+    near one-hot → gradients through softmax vanish (the Jacobian rows go to zero) → training destabilizes.
+    The division keeps score variance ~1 regardless of head size. Bonus point: this is also why attention logits
+    are a classic fp16 overflow site.</div>
+  </details>
+
+  <h3><span class="stage">Stage 2 · first extension</span>Causal masking</h3>
+  <p>The mask must hit the <b>scores, before softmax</b>. Set disallowed entries to $-\infty$; then
+  $e^{-\infty} = 0$ exactly and the softmax renormalizes over the allowed prefix:</p>
+  $$S_{ij} \leftarrow \begin{cases} S_{ij} & j \le i \\ -\infty & j > i \end{cases}
+  \qquad\Rightarrow\qquad p_{ij} = \frac{e^{S_{ij}}}{\sum_{j' \le i} e^{S_{ij'}}}$$
+  <p>Why not zero the <em>weights</em> after softmax? Rows stop summing to 1 (outputs are wrongly scaled),
+  and gradient still flows to masked positions. The $-\infty$ survives the stable-softmax max-subtraction because
+  the diagonal is always allowed, so the row max is finite.</p>
+<pre><code>def attention(X, Wq, Wk, Wv, causal=False):
+    Q, K, V = X @ Wq, X @ Wk, X @ Wv
+    scores = Q @ K.T / np.sqrt(Wk.shape[1])
+    if causal:
+        mask = np.tril(np.ones((len(X), len(X)), dtype=bool))  # True = allowed
+        scores = np.where(mask, scores, -np.inf)               # BEFORE softmax
+    return softmax(scores, axis=-1) @ V</code></pre>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>The leak test: it perturbs <em>future</em> tokens and asserts <em>past</em> outputs don't move. Masking after softmax, or an off-by-one triangle, fails it.</li>
+      <li>Breaking the <code>causal=False</code> path while adding the flag — regression tests exist in interviews too.</li>
+      <li>Interview tell: a causal LM with suspiciously low loss almost always means a leaking mask (the model copies the target from the input).</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: why −∞ before softmax rather than zeroing weights after?</summary>
+    <div>Zeroing after breaks normalization — rows no longer sum to 1, outputs are scaled wrong, and masked
+    positions still receive gradient. $-\infty$ before makes $e^{S}=0$ exactly and the softmax renormalizes over
+    only the allowed positions. Variation to expect: the same logic with an arbitrary boolean mask (padding masks) —
+    same <code>np.where(mask, S, -inf)</code>, nothing special about the triangle.</div>
+  </details>
+
+  <h3><span class="stage">Stage 3 · second extension</span>Multi-head attention</h3>
+  <p>Multi-head is <em>batched single-head</em> over a split feature dimension. With $H$ heads and
+  $d_h = d_{model}/H$:</p>
+  $$\mathrm{head}_h = \mathrm{Attention}(XW_Q^{(h)}, XW_K^{(h)}, XW_V^{(h)}),\qquad
+  \mathrm{MHA}(X) = \big[\mathrm{head}_1; \dots; \mathrm{head}_H\big]\, W_O$$
+  <p>In code the per-head weights are one big matrix, and the split is a reshape + transpose. The reshape
+  convention matters: split the <b>last</b> axis in place, then move heads to the front so NumPy's <code>@</code>
+  broadcasts over them:</p>
+<pre><code>def mha(X, Wq, Wk, Wv, Wo, n_heads, causal=False):
+    T, d = X.shape
+    dh = d // n_heads
+    split = lambda W: (X @ W).reshape(T, n_heads, dh).transpose(1, 0, 2)  # (H,T,dh)
+    Q, K, V = split(Wq), split(Wk), split(Wv)
+    S = Q @ K.transpose(0, 2, 1) / np.sqrt(dh)        # (H,T,T) -- scale by HEAD dim
+    if causal:
+        S = np.where(np.tril(np.ones((T, T), dtype=bool)), S, -np.inf)
+    out = (softmax(S, axis=-1) @ V)                    # (H,T,dh)
+    return out.transpose(1, 0, 2).reshape(T, d) @ Wo   # concat heads, project</code></pre>
+  <div class="fig">
+    <svg viewBox="0 0 820 210" width="100%" role="img" aria-label="head split diagram">
+      <rect x="10" y="70" width="120" height="70" rx="8" fill="#1c2530" stroke="#2a3340"/>
+      <text x="70" y="100" fill="#d7dee8" font-size="13" text-anchor="middle">X W_Q</text>
+      <text x="70" y="120" fill="#8b97a7" font-size="12" text-anchor="middle">(T, d)</text>
+      <text x="163" y="108" fill="#6ea8fe" font-size="20" text-anchor="middle">→</text>
+      <rect x="196" y="40" width="120" height="40" rx="6" fill="#14253a" stroke="#2f5d8a"/>
+      <rect x="196" y="86" width="120" height="40" rx="6" fill="#14253a" stroke="#2f5d8a"/>
+      <rect x="196" y="132" width="120" height="40" rx="6" fill="#14253a" stroke="#2f5d8a"/>
+      <text x="256" y="65" fill="#d7dee8" font-size="12" text-anchor="middle">head 1 (T, d_h)</text>
+      <text x="256" y="111" fill="#d7dee8" font-size="12" text-anchor="middle">head 2 (T, d_h)</text>
+      <text x="256" y="157" fill="#d7dee8" font-size="12" text-anchor="middle">head 3 (T, d_h)</text>
+      <text x="256" y="25" fill="#8b97a7" font-size="12" text-anchor="middle">reshape(T,H,d_h) → transpose(1,0,2)</text>
+      <text x="349" y="108" fill="#6ea8fe" font-size="20" text-anchor="middle">→</text>
+      <rect x="382" y="40" width="150" height="40" rx="6" fill="#16241f" stroke="#2a6a52"/>
+      <rect x="382" y="86" width="150" height="40" rx="6" fill="#16241f" stroke="#2a6a52"/>
+      <rect x="382" y="132" width="150" height="40" rx="6" fill="#16241f" stroke="#2a6a52"/>
+      <text x="457" y="65" fill="#7ee0c0" font-size="12" text-anchor="middle">softmax(QKᵀ/√d_h)V</text>
+      <text x="457" y="111" fill="#7ee0c0" font-size="12" text-anchor="middle">softmax(QKᵀ/√d_h)V</text>
+      <text x="457" y="157" fill="#7ee0c0" font-size="12" text-anchor="middle">softmax(QKᵀ/√d_h)V</text>
+      <text x="457" y="25" fill="#8b97a7" font-size="12" text-anchor="middle">batched matmul broadcasts over H</text>
+      <text x="565" y="108" fill="#6ea8fe" font-size="20" text-anchor="middle">→</text>
+      <rect x="598" y="70" width="100" height="70" rx="8" fill="#1c2530" stroke="#2a3340"/>
+      <text x="648" y="100" fill="#d7dee8" font-size="13" text-anchor="middle">concat</text>
+      <text x="648" y="120" fill="#8b97a7" font-size="12" text-anchor="middle">(T, d)</text>
+      <text x="723" y="108" fill="#6ea8fe" font-size="20" text-anchor="middle">→</text>
+      <rect x="748" y="70" width="60" height="70" rx="8" fill="#1c2530" stroke="#6ea8fe"/>
+      <text x="778" y="110" fill="#d7dee8" font-size="13" text-anchor="middle">W_O</text>
+    </svg>
+    <div class="cap">The head split is a reshape, not new parameters: one (d, d) projection viewed as H independent
+    (d, d_h) projections. Scale by √d_h — the head dimension — not √d.</div>
+  </div>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li><code>reshape(H, T, dh)</code> directly (without the transpose) scrambles tokens across heads — values look plausible, tests fail. The reshape splits the <em>last</em> axis; the transpose moves heads forward.</li>
+      <li>Scaling by $\sqrt{d}$ instead of $\sqrt{d_h}$ — off by $\sqrt{H}$.</li>
+      <li>A test compares 1 head vs 4 heads and asserts they differ — catches implementations that "split" but attend jointly anyway.</li>
+      <li>Variation to expect: <b>cross</b>-attention — Q from one sequence, K/V from another; scores go rectangular $(H, T_q, T_{kv})$ and output length follows the queries.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: same parameters and FLOPs — why do heads help?</summary>
+    <div>Each head gets its own softmax, so different heads attend to different relations simultaneously;
+    a single head must commit to one convex mixture per query. It's a low-rank factorization of a richer
+    attention operator. Empirically many heads are prunable after training, but training-time diversity of
+    attention patterns is what you're buying.</div>
+  </details>
+
+  <h3><span class="stage">Stage 3 · the golden answer</span>MHA in einsum — project, reshape, name the axes</h3>
+  <p>Same math as above, but all three transposes disappear: <code>@</code> for the plain linear maps,
+  <code>reshape</code> at the two head boundaries, einsum for the two lines where axes actually interact.
+  Axis letters: <code>q</code>/<code>k</code> = reader/source token, <code>h</code> = head, <code>e</code> = per-head dim.
+  The einsum mental model in one line: <b>every distinct letter is an independent loop dial; a shared letter is one
+  dial turning two tensors in lockstep (zip), different letters cross (all pairs), a letter dropped from the output
+  gets summed, and output order is just the layout you receive.</b></p>
+<pre><code>def mha(X, Wq, Wk, Wv, Wo, n_heads, causal=True):
+    T, D = X.shape
+    dh = D // n_heads
+
+    Q = X @ Wq                                   # (T, D)   project first
+    K = X @ Wk
+    V = X @ Wv
+
+    Q = Q.reshape(T, n_heads, dh)                # (T, h, dh)  split heads
+    K = K.reshape(T, n_heads, dh)                # (einsum can't split axes --
+    V = V.reshape(T, n_heads, dh)                #  that's reshape's job)
+
+    S = np.einsum('qhe,khe->hqk', Q, K) / np.sqrt(dh)     # (h, T, T)
+    if causal:
+        mask = np.tril(np.ones((T, T), dtype=bool))       # True = allowed
+        S = np.where(mask, S, -np.inf)                    # BEFORE softmax
+    A = softmax(S, axis=-1)                                # rows sum to 1
+
+    O = np.einsum('hqk,khe->qhe', A, V)                    # (T, h, dh) token-major
+    return O.reshape(T, D) @ Wo                            # (T, D) merge + project</code></pre>
+  <p>Read each string as a sentence:</p>
+  <table>
+    <tr><th>String</th><th>Sentence</th></tr>
+    <tr><td><code>'qhe,khe->hqk'</code></td><td>readers <b>cross</b> sources (two different token letters!), heads
+      zipped, <code>e</code> dropped = the dot product. Writing <code>h</code> first in the output <em>is</em> the old
+      <code>transpose(1,0,2)</code>; contracting <code>e</code> between two token axes <em>is</em> the old
+      <code>K.transpose(0,2,1)</code>.</td></tr>
+    <tr><td><code>'hqk,khe->qhe'</code></td><td>per head, each reader sums over sources <code>k</code>, grabbing source
+      <code>k</code>'s value — the weighted mix. Output <code>qhe</code> = token-major, so the final
+      <code>reshape(T, D)</code> is legal with no cleanup transpose.</td></tr>
+  </table>
+  <div class="fig">
+    <div id="einsumGrids" style="display:flex;gap:36px;flex-wrap:wrap"></div>
+    <div class="cap">Why V must wear the <code>k</code> letter. Each cell (q, k) of the attention grid multiplies
+    A[q,k] by whichever value vector its letter grabs (cell color = whose V). Left, <code>'hqk,khe'</code>: colors vary
+    <em>along the summation direction</em>, so each row-sum is a real blend — out[q] is a mixed color. Right,
+    <code>'hqk,qhe'</code>: every cell in a row grabs the row's own V, the weights factor out and sum to 1, and
+    out[q] = v(q) exactly — attention silently becomes a no-op.</div>
+  </div>
+  <div class="traps"><span class="t">traps — each is one letter away from the golden answer, and none raises an error</span>
+    <ul>
+      <li><code>'hqk,qhe->qhe'</code> — V locked to its <em>reader</em>: V is constant during the &Sigma;<sub>k</sub>,
+        softmax rows sum to 1, and the whole layer returns V unchanged. Model trains; attention does nothing.</li>
+      <li><code>'qhe,qhe->hq'</code> — same letter for both token axes <b>zips</b> them: you get only the diagonal
+        (each token scored against itself), never the (T, T) grid. Two independent axes need two letters even when
+        they have the same length.</li>
+      <li><code>'...->hqe'</code> followed by a bare <code>reshape(T, D)</code> — head-major memory gets re-cut
+        across tokens. Either write <code>-&gt;qhe</code> (free) or pay a <code>transpose(1,0,2)</code> first.</li>
+      <li><code>reshape(T, dh, n_heads)</code> instead of <code>(T, n_heads, dh)</code> — reshape fills the last axis
+        fastest, so this stripes dims across heads instead of giving each head a contiguous block.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: read 'hqk,khe->qhe' out loud; what does 'hqk,qhe->qhe' compute instead?</summary>
+    <div>Golden: "per head (zipped), for each reader q (kept), sum over sources k (dropped) the product of a weight and
+    source k's value (V soldered to A on k), give it to me token-major." The one-letter variant reads V with the
+    <em>reader's</em> dial, so during the sum over k nothing from V changes: out[q] = V[q] · &Sigma;<sub>k</sub>A[q,k]
+    = V[q] · 1 = V[q]. Identical output shape, zero information flow between positions — the einsum version of the
+    leaking-mask class of silent bugs. Defensive test: assert the output is <em>not</em> allclose to V.</div>
+  </details>
+
+  <h3><span class="stage">Stage 4 · the inference stage</span>KV-cache decoding</h3>
+  <p>At decode step $t$ you need one new query, but K/V over the whole history. Past K/V never change
+  (causality), so cache them and append one row per step. Cost per step drops from rebuilding
+  $O(t \cdot d^2 + t^2 d)$ to $O(d^2 + t\,d)$ — and no mask is needed, because the cache <em>is</em> the past:</p>
+<pre><code>def decode_step(x_t, Wq, Wk, Wv, cache):
+    q = (x_t @ Wq)[None, :]                        # ONE query row
+    k, v = (x_t @ Wk)[None, :], (x_t @ Wv)[None, :]
+    K = k if cache["K"] is None else np.vstack([cache["K"], k])
+    V = v if cache["V"] is None else np.vstack([cache["V"], v])
+    A = softmax(q @ K.T / np.sqrt(K.shape[1]), axis=-1)   # attends over cache = past
+    return (A @ V)[0], {"K": K, "V": V}</code></pre>
+  <details class="probe" open><summary>Why <code>[None, :]</code>? Isn't <code>x_t @ Wq</code> already a vector?</summary>
+    <div>It is — 1-D, shape $(d_k,)$ — and that's the problem. <code>[None, :]</code> promotes it to a $(1, d_k)$ <em>row
+    matrix</em> (same numbers, higher rank: $x \in \mathbb{R}^{d_k}$ vs $x^\top \in \mathbb{R}^{1\times d_k}$), because
+    the cache invariant is <b>K/V is a $(t, d_k)$ stack of rows, one per token — from step one</b>. Step 1 seeds the
+    cache with <code>K = k</code> directly: if <code>k</code> were 1-D, <code>K.shape[1]</code> raises
+    <code>IndexError</code>, and in the sliding-window variant <code>K[-window:]</code> would slice the last $W$
+    <em>features of one key</em> instead of the last $W$ <em>tokens</em> — silent wrong shape. Kept 2-D,
+    <code>q @ K.T</code> is $(1, t)$ — literally row $t$ of $\mathrm{softmax}(QK^\top/\sqrt{d_k})$ — and the final
+    <code>(A @ V)[0]</code> strips the dummy row back to $(d_v,)$. With 1-D <code>q</code> that same <code>[0]</code>
+    would return a <em>scalar</em> (the first feature), no error. One promotion up front buys a single 2-D code path
+    shared with full attention, and NumPy 1-D arrays have no row/column identity anyway (<code>.T</code> is a no-op).
+    Equivalent: <code>.reshape(1, -1)</code>, <code>np.atleast_2d</code>, or <code>x_t[None, :] @ Wq</code>.
+    Mechanics of the syntax itself: <code>None</code> in an index <em>is</em> <code>np.newaxis</code> — it consumes no
+    existing axis and injects a length-1 axis at that slot (ndim: &minus;1 per integer, +1 per <code>None</code>).
+    Full write-ups: Q&amp;A log Q46 (this line) &amp; Q47 (<code>None</code> indexing).</div>
+  </details>
+  <div class="fig" id="decodeViz">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+      <button id="dvStep" style="background:var(--panel-2);border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:6px 14px;font-size:13.5px;font-weight:600;cursor:pointer;">&#9654; decode next token</button>
+      <button id="dvReset" style="background:var(--panel-2);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 12px;font-size:13.5px;cursor:pointer;">&#8634; reset</button>
+      <span id="dvStatus" style="color:var(--muted);font-size:13px;"></span>
+    </div>
+    <div id="dvPipe" style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;"></div>
+    <div class="cap">Every line of <code>decode_step</code>, live (d_model=6, d_k=d_v=4, real math on seeded random weights).
+    One press = one decode step: <code>x_t</code> is projected to one <b>row</b> each of q/k/v (the <code>[None,:]</code>),
+    k and v are vstacked onto the cache, q scores <em>every</em> cached row (softmax row A sums to 1 — newest column included:
+    the token attends to itself), and A mixes the cached values into the output. Past rows never change — that's the
+    entire cache trick; no mask needed because the cache <em>is</em> the past.</div>
+  </div>
+  <p><b>The memory number to know cold</b> (the probe asks for it): per token, cache size
+  $= 2 \times L \times H_{kv} \times d_h \times \text{bytes}$. For 32 layers, 8 KV heads × 128 dims, fp16:
+  $2 \cdot 32 \cdot 8 \cdot 128 \cdot 2 = 128\,\mathrm{KB/token}$ — a 100k-token agent trajectory holds
+  ~13 GB <em>per sequence</em>. Decode is memory-bandwidth-bound on re-reading this cache every step;
+  that's the entire motivation for GQA/MQA, sliding windows, and cache quantization.</p>
+  <div class="fig">
+    <div class="chartbox"><canvas id="kvChart"></canvas></div>
+    <div class="cap">Per-step attention FLOPs (arbitrary units) with and without a KV cache, and with a
+    sliding window of 8. Without a cache each step recomputes all past K/V — quadratic total. The window
+    caps both compute and memory at the cost of a bounded receptive field.</div>
+  </div>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>The correctness invariant, tested exactly: feeding tokens one at a time must reproduce row $t$ of full causal attention at every step.</li>
+      <li>Adding a mask inside the decode step — there's no future in the cache to mask; it signals confusion about <em>why</em> the cache works.</li>
+      <li>Variation to expect: sliding-window cache — append first, then truncate to the last $W$ rows; the truncation order is the bug magnet.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: KV-cache size per token, and why it dominates agent inference</summary>
+    <div>128 KB/token for the 32-layer GQA example above → ~13 GB at 100k tokens. Every decode step re-reads
+    the whole cache, so cache size sets both step latency and max batch size (throughput). Long-horizon agents
+    are the worst case: enormous contexts, mostly idle weights, all bandwidth. Mitigations in order of adoption:
+    GQA/MQA (shrink $H_{kv}$), sliding windows + attention sinks, cache quantization, paged attention.</div>
+  </details>
+  <div class="cta">Done reading? Take <a href="/">W1 — Attention, from scratch</a> cold, out loud, 45 minutes.</div>
+
+  <!-- ================= CHAPTER 2: NORMS & BACKPROP ================= -->
+  <h2 id="norms"><span class="tag">Chapter 2 · mirrors session W2</span>Norms &amp; backprop by hand</h2>
+
+  <h3><span class="stage">Stages 1–2 · warm-up pair</span>RMSNorm and LayerNorm</h3>
+  $$\mathrm{LN}(x) = \frac{x - \mu}{\sqrt{\sigma^2 + \varepsilon}} \odot \gamma + \beta
+  \qquad\qquad
+  \mathrm{RMS}(x) = \frac{x}{\sqrt{\tfrac{1}{d}\sum_i x_i^2 + \varepsilon}} \odot \gamma$$
+  <p>Both normalize over the <b>feature axis</b> (last), per token — never over batch or time. RMSNorm deletes
+  two things from LayerNorm: the mean subtraction and the bias $\beta$. That saves a reduction pass
+  (~10–30% cheaper norm) and empirically loses nothing for transformers — the <em>re-scaling</em> is what
+  stabilizes training; the re-centering was along for the ride. Hence Llama-class models use RMSNorm.</p>
+  <table>
+    <tr><th></th><th>LayerNorm</th><th>RMSNorm</th></tr>
+    <tr><td>Mean subtraction</td><td>yes → shift-invariant</td><td><b>no</b> → $x{+}c$ changes output</td></tr>
+    <tr><td>Variance</td><td>biased / population (ddof=0)</td><td>— (mean of squares)</td></tr>
+    <tr><td>$\varepsilon$ placement</td><td>inside the sqrt, added to $\sigma^2$</td><td>inside the sqrt</td></tr>
+    <tr><td>Learned params</td><td>$\gamma, \beta$</td><td>$\gamma$ only</td></tr>
+  </table>
+<pre><code>def rmsnorm(x, g, eps=1e-6):
+    rms = np.sqrt((x ** 2).mean(axis=-1, keepdims=True) + eps)
+    return x / rms * g
+
+def layernorm(x, g, b, eps=1e-5):
+    mu = x.mean(axis=-1, keepdims=True)
+    var = x.var(axis=-1, keepdims=True)          # ddof=0: population variance
+    return (x - mu) / np.sqrt(var + eps) * g + b</code></pre>
+  <div class="traps"><span class="t">traps (the debug variants are built from exactly these)</span>
+    <ul>
+      <li><b>keepdims=True</b> on every reduction — without it, (B,T,d) inputs either crash or, worse, broadcast silently wrong.</li>
+      <li>Mean-subtracting in RMSNorm (that's LayerNorm) — caught by testing on inputs with nonzero mean.</li>
+      <li>$\sqrt{\sigma^2} + \varepsilon$ instead of $\sqrt{\sigma^2 + \varepsilon}$, and ddof=1 instead of 0 — both fail reference comparison.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: pre-norm vs post-norm — why did everyone move to pre-norm?</summary>
+    <div>Post-norm (original Transformer) normalizes <em>after</em> the residual add: the identity path itself
+    passes through LN, so gradients at depth need warmup tricks or they diverge. Pre-norm keeps a clean identity
+    path, $x + f(\mathrm{LN}(x))$ — well-behaved gradients at any depth, trains without warmup games. The cost is
+    slightly weaker final quality per parameter, which is why hybrid schemes keep being revisited.</div>
+  </details>
+  <div class="fig">
+    <svg viewBox="0 0 820 200" width="100%" role="img" aria-label="pre-norm vs post-norm">
+      <text x="200" y="22" fill="#8b97a7" font-size="13" text-anchor="middle">POST-norm (original)</text>
+      <line x1="40" y1="110" x2="360" y2="110" stroke="#6ea8fe" stroke-width="2"/>
+      <rect x="90" y="55" width="90" height="34" rx="7" fill="#1c2530" stroke="#2a3340"/>
+      <text x="135" y="77" fill="#d7dee8" font-size="12" text-anchor="middle">Attn/MLP</text>
+      <path d="M 90 110 L 90 72 M 180 72 L 218 108" stroke="#7ee0c0" fill="none" stroke-width="1.6"/>
+      <circle cx="222" cy="110" r="9" fill="none" stroke="#7ee0c0" stroke-width="1.6"/>
+      <text x="222" y="114" fill="#7ee0c0" font-size="12" text-anchor="middle">+</text>
+      <rect x="252" y="93" width="64" height="34" rx="7" fill="#241518" stroke="#ff7b72"/>
+      <text x="284" y="115" fill="#ff7b72" font-size="12" text-anchor="middle">LN</text>
+      <text x="200" y="165" fill="#8b97a7" font-size="12" text-anchor="middle">LN sits ON the residual path → deep stacks need warmup</text>
+      <text x="620" y="22" fill="#8b97a7" font-size="13" text-anchor="middle">PRE-norm (modern default)</text>
+      <line x1="460" y1="110" x2="780" y2="110" stroke="#6ea8fe" stroke-width="2"/>
+      <rect x="500" y="55" width="56" height="34" rx="7" fill="#16241f" stroke="#2a6a52"/>
+      <text x="528" y="77" fill="#7ee0c0" font-size="12" text-anchor="middle">LN</text>
+      <rect x="576" y="55" width="90" height="34" rx="7" fill="#1c2530" stroke="#2a3340"/>
+      <text x="621" y="77" fill="#d7dee8" font-size="12" text-anchor="middle">Attn/MLP</text>
+      <path d="M 500 110 L 500 72 M 666 72 L 704 108" stroke="#7ee0c0" fill="none" stroke-width="1.6"/>
+      <circle cx="708" cy="110" r="9" fill="none" stroke="#7ee0c0" stroke-width="1.6"/>
+      <text x="708" y="114" fill="#7ee0c0" font-size="12" text-anchor="middle">+</text>
+      <text x="620" y="165" fill="#8b97a7" font-size="12" text-anchor="middle">identity path is clean → stable at any depth</text>
+    </svg>
+    <div class="cap">The blue line is the residual stream. Pre-norm keeps it untouched — that's the whole argument.</div>
+  </div>
+
+  <h3><span class="stage">Stage 3 · the derivation stage</span>Softmax cross-entropy and its gradient</h3>
+  <p>The one identity to hold in your head — derive it once, recite it forever. With logits $z$, label $y$,
+  and $p = \mathrm{softmax}(z)$:</p>
+  $$L = -\log p_y = -z_y + \log\!\sum_j e^{z_j}
+  \qquad\Rightarrow\qquad
+  \frac{\partial L}{\partial z_k} = -\,\mathbb{1}[k{=}y] + \frac{e^{z_k}}{\sum_j e^{z_j}} = p_k - \mathbb{1}[k{=}y]$$
+  <p>The softmax Jacobian and the log collapse into <b>prediction minus target</b> — which is why every framework
+  fuses softmax+CE into one op: better numerics <em>and</em> a trivial backward. For a mean over a batch of $B$,
+  divide by $B$. Numerics: compute <b>log-softmax</b> directly, never <code>log(softmax(x))</code> in two steps:</p>
+  $$\log p_i = (z_i - m) - \log\!\sum_j e^{z_j - m}$$
+<pre><code>def softmax_xent(logits, y):
+    B = logits.shape[0]
+    z = logits - logits.max(axis=1, keepdims=True)        # stability
+    logp = z - np.log(np.exp(z).sum(axis=1, keepdims=True))
+    loss = -logp[np.arange(B), y].mean()
+    p = np.exp(logp)
+    dlogits = p.copy()
+    dlogits[np.arange(B), y] -= 1.0                        # p - onehot
+    dlogits /= B                                           # grad of the MEAN
+    return loss, dlogits</code></pre>
+  <div class="fig">
+    <div class="chartbox"><canvas id="ceChart"></canvas></div>
+    <div class="cap">Loss $-\log p_y$ and gradient magnitude $|p_y - 1|$ as functions of the probability
+    assigned to the correct class. The gradient is large exactly when the model is confidently wrong and
+    fades as $p_y \to 1$ — self-paced learning built into the loss.</div>
+  </div>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>Forgetting the $1/B$: your gradient is exactly $B\times$ too big — finite differences catch it instantly.</li>
+      <li>Logits at $\pm 1000$: two-step <code>log(softmax)</code> gives <code>-inf</code>/NaN; the fused log-softmax is exact.</li>
+      <li>Variation to expect: binary logistic with logits — same collapse, $\sigma(z) - y$, with $-\log\sigma(z) = \mathrm{logaddexp}(0, -z)$.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: sketch the derivation of dL/dz = p − y</summary>
+    <div>$L = -z_y + \log\sum_j e^{z_j}$. Differentiate: the first term gives $-\mathbb{1}[k{=}y]$; the second gives
+    $e^{z_k}/\sum_j e^{z_j} = p_k$. Sum: $p_k - \mathbb{1}[k{=}y]$. No softmax-Jacobian gymnastics needed if you
+    differentiate the log-sum-exp form directly — say that out loud, it reads as fluency.</div>
+  </details>
+
+  <h3><span class="stage">Stage 4 · the boss stage</span>Two-layer MLP backward</h3>
+  <p>Three reusable facts cover the whole backward pass:</p>
+  <p><b>1. Linear layer</b> $y = xW + b$: &nbsp; $\;\dfrac{\partial L}{\partial W} = x^\top \dfrac{\partial L}{\partial y}$,
+  &nbsp; $\dfrac{\partial L}{\partial b} = \sum_{\text{batch}} \dfrac{\partial L}{\partial y}$,
+  &nbsp; $\dfrac{\partial L}{\partial x} = \dfrac{\partial L}{\partial y} W^\top$.
+  Get the transposes from <em>shapes</em>, not memory: $dW$ must be (in, out).</p>
+  <p><b>2. ReLU is a gate</b>: $\;dh_{pre} = dh \odot \mathbb{1}[h_{pre} > 0]$ — gate on the <em>pre</em>-activation.</p>
+  <p><b>3. The head</b>: $d\mathrm{logits} = (p - \mathrm{onehot})/B$ from stage 3.</p>
+  <div class="fig">
+    <svg viewBox="0 0 820 190" width="100%" role="img" aria-label="backprop graph">
+      <rect x="16" y="70" width="70" height="40" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="51" y="95" fill="#d7dee8" font-size="12" text-anchor="middle">X (B,D)</text>
+      <rect x="126" y="70" width="110" height="40" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="181" y="88" fill="#d7dee8" font-size="12" text-anchor="middle">h_pre = XW₁+b₁</text><text x="181" y="103" fill="#8b97a7" font-size="11" text-anchor="middle">(B,H)</text>
+      <rect x="276" y="70" width="90" height="40" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="321" y="88" fill="#d7dee8" font-size="12" text-anchor="middle">h = ReLU</text><text x="321" y="103" fill="#8b97a7" font-size="11" text-anchor="middle">(B,H)</text>
+      <rect x="406" y="70" width="110" height="40" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="461" y="88" fill="#d7dee8" font-size="12" text-anchor="middle">logits = hW₂+b₂</text><text x="461" y="103" fill="#8b97a7" font-size="11" text-anchor="middle">(B,C)</text>
+      <rect x="556" y="70" width="110" height="40" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="611" y="95" fill="#d7dee8" font-size="12" text-anchor="middle">softmax-CE</text>
+      <rect x="706" y="70" width="70" height="40" rx="7" fill="#16241f" stroke="#2a6a52"/><text x="741" y="95" fill="#7ee0c0" font-size="12" text-anchor="middle">loss</text>
+      <path d="M 86 90 L 126 90 M 236 90 L 276 90 M 366 90 L 406 90 M 516 90 L 556 90 M 666 90 L 706 90" stroke="#6ea8fe" stroke-width="1.6"/>
+      <path d="M 706 130 L 566 130 M 556 130 L 416 130 M 406 130 L 286 130 M 276 130 L 136 130" stroke="#ffb454" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <text x="636" y="150" fill="#ffb454" font-size="11.5" text-anchor="middle">dlogits = (p−y)/B</text>
+      <text x="461" y="150" fill="#ffb454" font-size="11.5" text-anchor="middle">dh = dlogits·W₂ᵀ · dW₂ = hᵀdlogits</text>
+      <text x="286" y="150" fill="#ffb454" font-size="11.5" text-anchor="middle">dh_pre = dh ⊙ (h_pre&gt;0)</text>
+      <text x="150" y="150" fill="#ffb454" font-size="11.5" text-anchor="middle">dW₁ = Xᵀdh_pre</text>
+      <text x="400" y="30" fill="#8b97a7" font-size="12">blue = forward · orange dashed = gradients flowing back</text>
+    </svg>
+    <div class="cap">Keep a running shape table as you code — dlogits (B,C) → dh (B,H) → dh_pre (B,H) → dW₁ (D,H).
+    Shapes dictate every transpose.</div>
+  </div>
+<pre><code>def mlp_grads(X, y, W1, b1, W2, b2):
+    B = X.shape[0]
+    h_pre = X @ W1 + b1                    # forward, keeping intermediates
+    h = np.maximum(h_pre, 0)
+    logits = h @ W2 + b2
+    z = logits - logits.max(axis=1, keepdims=True)
+    p = np.exp(z); p /= p.sum(axis=1, keepdims=True)
+
+    d = p.copy(); d[np.arange(B), y] -= 1.0; d /= B    # (B,C)
+    dW2 = h.T @ d;        db2 = d.sum(axis=0)
+    dh  = d @ W2.T                                     # (B,H)
+    dh_pre = dh * (h_pre > 0)                          # ReLU gate
+    dW1 = X.T @ dh_pre;   db1 = dh_pre.sum(axis=0)
+    return {"dW1": dW1, "db1": db1, "dW2": dW2, "db2": db2}</code></pre>
+  <p><b>The professional habit the session grades</b>: check any hand-written gradient against central finite
+  differences before trusting it — $\frac{f(w+h) - f(w-h)}{2h}$ with $h \approx 10^{-5}$, agreement to $10^{-4}$.
+  The hidden tests <em>are</em> a finite-difference checker; in real life you write your own.</p>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>Gating ReLU on $h$ instead of $h_{pre}$ (equivalent here, but the habit breaks for leaky/GELU) — and forgetting the gate entirely.</li>
+      <li><code>db = dy.mean(0)</code> instead of <code>sum(0)</code> — the $1/B$ already lives in dlogits; dividing twice under-scales bias gradients.</li>
+      <li>Variation to expect: add L2 regularization — $+2\lambda W$ on weights, <em>nothing</em> on biases.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: loss won't go down — first three debugging steps, in order</summary>
+    <div>1) Finite-difference every gradient on a tiny batch — isolates a wrong formula. 2) Overfit a single
+    batch of ~10 examples to ~zero loss — if it can't, the wiring is broken, not the data. 3) Check loss at
+    init ≈ $\log C$ — catches bad init, label misindexing, softmax over the wrong axis. Then: LR sweep,
+    per-layer gradient norms.</div>
+  </details>
+  <div class="cta">Done reading? Take <a href="/">W2 — Norms &amp; backprop by hand</a>, and let the finite differences judge you.</div>
+
+  <!-- ================= CHAPTER 3: SAMPLING ================= -->
+  <h2 id="sampling"><span class="tag">Chapter 3 · mirrors session F1</span>Sampling &amp; decoding</h2>
+
+  <h3><span class="stage">Stage 1 · the knob</span>Temperature</h3>
+  $$p_i = \frac{e^{z_i / T}}{\sum_j e^{z_j / T}}$$
+  <p>Temperature rescales logit <em>gaps</em>: $T{<}1$ sharpens toward the mode, $T{>}1$ flattens toward uniform,
+  $T{\to}0$ is argmax, $T{\to}\infty$ is uniform. Handle $T{=}0$ as an explicit greedy branch <em>before</em>
+  dividing. Everything else is the stable softmax from chapter 1.</p>
+  <div class="fig">
+    <div class="chartbox"><canvas id="tempChart"></canvas></div>
+    <div class="cap">The same 8 logits at four temperatures (computed live with the exact code below). At T=0.5 the
+    top token dominates; at T=2 the tail matters again. In RL rollouts you sample warm for diversity — the
+    advantage signal comes from disagreement between samples; for evals and tool calls you go cold.</div>
+  </div>
+<pre><code>def sample_probs(logits, temperature=1.0):
+    if temperature == 0:                       # greedy: branch BEFORE dividing
+        p = np.zeros_like(logits, dtype=float)
+        p[np.argmax(logits)] = 1.0
+        return p
+    z = logits / temperature
+    z = z - z.max()
+    p = np.exp(z)
+    return p / p.sum()</code></pre>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>$T{=}0$ → division by zero unless you branch first. The test asks for an exact one-hot.</li>
+      <li>Multiplying by $T$ instead of dividing — the $T{=}0.5$ test compares against softmax(logits/0.5) exactly.</li>
+      <li>Variation to expect: return <b>log</b>-probabilities (what PPO ratios need) — log-softmax in one pass, $T{=}0$ gives $0$ and $-\infty$.</li>
+    </ul>
+  </div>
+
+  <h3><span class="stage">Stage 2 · the filters</span>Top-k, top-p, min-p</h3>
+  <p>All three truncate the unreliable tail, then renormalize. Order of operations in the graded task:
+  temperature → top-k → top-p, renormalizing after <b>every</b> filter.</p>
+  <table>
+    <tr><th>Rule</th><th>Keep</th><th>Character</th></tr>
+    <tr><td>top-k</td><td>the $k$ highest-probability tokens</td><td>fixed count — ignores the shape of the distribution</td></tr>
+    <tr><td>top-p (nucleus)</td><td>smallest prefix (sorted desc) with $\sum p \ge p$</td><td>adaptive count — covers fixed <em>mass</em>; always ≥ 1 token</td></tr>
+    <tr><td>min-p</td><td>tokens with $p_i \ge m \cdot \max_j p_j$</td><td>adaptive to <em>confidence</em>; no sort needed; argmax always survives</td></tr>
+  </table>
+  <div class="fig">
+    <svg viewBox="0 0 820 250" width="100%" role="img" aria-label="truncation rules">
+      <g id="truncBars"></g>
+      <line x1="40" y1="218" x2="800" y2="218" stroke="#2a3340"/>
+      <text x="420" y="242" fill="#8b97a7" font-size="12" text-anchor="middle">tokens sorted by probability (a peaked distribution)</text>
+    </svg>
+    <div class="cap">One sorted distribution, three cutoffs: <span style="color:#6ea8fe">top-k=4</span> keeps a fixed
+    count; <span style="color:#7ee0c0">top-p=0.9</span> keeps the smallest prefix reaching 90% mass;
+    <span style="color:#ffb454">min-p=0.1</span> keeps everything within 10× of the top token. When the model is
+    confident (shown), min-p and top-p cut deep into the tail while top-k blindly admits it.</div>
+  </div>
+<pre><code>order = np.argsort(-p)                       # original vocab indices, desc
+cs = np.cumsum(p[order])
+cnt = int(np.searchsorted(cs, top_p)) + 1    # smallest prefix with cumsum >= p
+keep = order[:cnt]
+m = np.zeros_like(p); m[keep] = p[keep]
+p = m / m.sum()                              # renormalize -- every time</code></pre>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>Off-by-one at the cutoff: "smallest prefix with cumsum ≥ p" — <code>searchsorted + 1</code>, and at least one token always survives (tested with top-p=0.1 on a peaked distribution).</li>
+      <li>Sorting <code>p</code> itself and losing vocab positions — filter via indices from <code>argsort</code>.</li>
+      <li>Forgetting to renormalize after a filter — samples are silently biased; the tests check <code>sum == 1</code>.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: why did nucleus (top-p) replace top-k as the default?</summary>
+    <div>A fixed $k$ ignores distribution shape: when the model is confident, $k{=}50$ admits garbage; when
+    genuinely uncertain, it cuts valid options. Top-p adapts — it truncates the tail (where probability estimates
+    are worst) while preserving calibrated uncertainty. Min-p pushes the same idea further with a
+    confidence-relative threshold and no sort.</div>
+  </details>
+
+  <h3><span class="stage">Stage 3 · the anti-loop knobs</span>Repetition penalties</h3>
+  <p>CTRL-style multiplicative penalty, for every already-generated token $t$ with penalty $\rho > 1$:</p>
+  $$z_t \leftarrow \begin{cases} z_t / \rho & z_t > 0 \\ z_t \cdot \rho & z_t \le 0 \end{cases}$$
+  <p>The asymmetry <em>is</em> the interview question: both branches must push toward <b>less likely</b>.
+  Dividing a negative logit by $\rho$ would move it toward zero — i.e. <em>boost</em> it. The additive
+  (OpenAI-style) scheme has no asymmetry to trip on: $z_t \leftarrow z_t - \alpha\,\mathbb{1}[\mathrm{count}>0] - \beta\,\mathrm{count}(t)$
+  (presence $\alpha$, frequency $\beta$).</p>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>The negative-logit test: penalty 2.0 on logit −2.0 must give −4.0, not −1.0.</li>
+      <li>Mutating the caller's logits array — tests assert the input is untouched.</li>
+      <li>Known failure mode to volunteer: penalties hit <em>legitimate</em> repeats too (code identifiers, "the") — why DRY-style n-gram penalties exist.</li>
+    </ul>
+  </div>
+
+  <h3><span class="stage">Stage 4 · inference-time alignment</span>Best-of-n</h3>
+  <p>Sample $n$ candidates, score with a reward model, keep the argmax (ties → earliest). It's policy
+  improvement without touching weights, and its distance from the base policy is tightly bounded:</p>
+  $$\mathrm{KL}\big(\pi_{\mathrm{BoN}} \,\|\, \pi\big) \;\le\; \log n - \frac{n-1}{n}$$
+  <p>— about 2.35 nats at $n{=}16$. That bound is why best-of-n is the <em>gentle, analyzable</em> optimizer:
+  compare with RL, which can move arbitrarily far. The catch as $n$ grows: you increasingly select the reward
+  model's <em>errors</em> — Goodhart / reward over-optimization. Best-of-n is also the workhorse behind
+  rejection-sampling distillation (SFT on best-of-n outputs) and verifier-based test-time compute.</p>
+  <div class="fig">
+    <div class="chartbox"><canvas id="bonChart"></canvas></div>
+    <div class="cap">Illustrative over-optimization: proxy reward (what the RM says) climbs monotonically with n,
+    true quality peaks and then decays as selection starts exploiting RM blind spots. The gap is Goodhart's law,
+    measured. Mitigations: modest n, better/ensembled RMs, KL-aware selection, verifiable rewards.</div>
+  </div>
+<pre><code>def best_of_n(generate, reward, n, rng):
+    best_t, best_r = None, -float("inf")
+    for _ in range(n):
+        t = generate(rng)
+        r = reward(t)
+        if r > best_r:              # strict >: earliest wins ties
+            best_t, best_r = t, r
+    return best_t, best_r</code></pre>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>Tie-breaking: strict <code>&gt;</code> so the earliest sample wins — tested with a constant reward.</li>
+      <li>RNG discipline: call <code>generate(rng)</code> exactly $n$ times in order; extra rng consumption breaks determinism.</li>
+      <li>Variation to expect: self-consistency (majority voting) — agreement replaces the reward model; same earliest-wins tie rule.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: how does best-of-n relate to RLHF, and what happens as n → large?</summary>
+    <div>It's inference-time policy improvement against the RM with KL ≈ $\log n - (n{-}1)/n$ from the base —
+    a bounded, analyzable optimizer. Large $n$ → reward over-optimization: samples that exploit RM blind spots
+    outscore genuinely good ones. It doubles as a data engine (rejection-sampling SFT) and as test-time compute
+    with verifiers.</div>
+  </details>
+  <div class="cta">Done reading? Take <a href="/">F1 — Sampling &amp; decoding</a>, then keep going —
+    the RL chapter below is the two coding interviewers' home turf.</div>
+
+  <!-- ================= CHAPTER 4: POST-TRAINING LOSSES ================= -->
+  <h2 id="rl"><span class="tag">Chapter 4 · mirrors session F2 — both coding interviewers' specialty</span>Post-training losses: RM → DPO → PPO → GRPO</h2>
+  <p>This ladder is the alignment stack in miniature. The through-line to say out loud at some point:
+  <em>every method here is a different answer to one question — where does the training signal come from,
+  and how do you stop the policy from running away with it?</em></p>
+
+  <h3><span class="stage">Stage 1 · the signal source</span>Reward model: Bradley–Terry</h3>
+  <p>Humans are unreliable at absolute scores but reliable at pairwise comparisons, so we model preferences
+  with a latent scalar reward per response and a logistic link (the <b>Bradley–Terry</b> model):</p>
+  $$P(y_w \succ y_l) = \sigma\big(r(y_w) - r(y_l)\big)
+  \qquad\Rightarrow\qquad
+  \mathcal{L}_{RM} = -\,\mathbb{E}\Big[\log \sigma\big(r_\theta(y_w) - r_\theta(y_l)\big)\Big]$$
+  <p>Two consequences worth stating unprompted. <b>Identifiability:</b> only reward <em>differences</em> appear,
+  so the absolute scale is free — RM outputs need normalization (whitening, or the KL anchor in PPO) before use.
+  <b>Numerics:</b> $-\log\sigma(x) = \log(1 + e^{-x}) = \mathrm{softplus}(-x)$, which the naive form overflows for
+  $x \ll 0$. One stable primitive covers this whole chapter:</p>
+  $$-\log\sigma(x) = \mathrm{logaddexp}(0, -x) \approx \begin{cases} e^{-x} \to 0 & x \gg 0 \\ -x & x \ll 0 \text{ (exactly linear)} \end{cases}$$
+<pre><code>def rm_loss(r_chosen, r_rejected):
+    margin = r_chosen - r_rejected
+    return np.mean(np.logaddexp(0.0, -margin))   # -log sigmoid, exact at ±1000
+
+# what you'd actually log during RM training (the "with metrics" variation):
+def rm_stats(r_chosen, r_rejected):
+    margin = r_chosen - r_rejected
+    loss = np.mean(np.logaddexp(0.0, -margin))
+    acc = float(np.mean(margin > 0))              # strict >: ties count as wrong
+    return loss, acc, float(margin.mean())</code></pre>
+  <div class="fig">
+    <div class="chartbox"><canvas id="rmChart"></canvas></div>
+    <div class="cap">The Bradley–Terry loss $-\log\sigma(m)$ and its gradient weight $\sigma(-m)$ as functions of
+    the reward margin. Correct-and-confident pairs (right) contribute ~zero gradient; the loss is exactly linear
+    in the wrong tail (left) — softplus never explodes, which is why <code>logaddexp</code> is the only safe
+    implementation.</div>
+  </div>
+  <div class="traps"><span class="t">traps the hidden tests spring</span>
+    <ul>
+      <li>Margins of ±1000: <code>-np.log(sigmoid(m))</code> overflows to <code>inf</code>/NaN; the test asserts the loss ≈ 1000 exactly (linear tail).</li>
+      <li>A tie ($r_c = r_r$) must give loss $\log 2 \approx 0.693$ — a hand-check the interviewer can do on sight.</li>
+      <li>Metrics variation: accuracy uses strict $>$ — a tie counts as wrong.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: why pairwise comparisons instead of absolute scores, and what does BT assume?</summary>
+    <div>Human absolute scores drift across annotators and time; side-by-side ranking is far more consistent.
+    BT assumes a scalar latent quality with a logistic link — transitivity, no context effects (both violated in
+    practice, which is partly why RMs are imperfect). And only differences are identified: the scale is a free
+    parameter, hence reward normalization before RL.</div>
+  </details>
+
+  <h3><span class="stage">Stage 2 · skip the RM</span>DPO — and the derivation you should own</h3>
+  <p>The RLHF objective is reward maximization with a KL leash to a frozen reference:</p>
+  $$\max_\pi \; \mathbb{E}_{y\sim\pi}\big[r(y)\big] \;-\; \beta\,\mathrm{KL}\big(\pi \,\|\, \pi_{\mathrm{ref}}\big)$$
+  <p>This has a <em>closed-form</em> optimum (write it, it's two lines): the Gibbs distribution
+  $\pi^*(y) = \frac{1}{Z}\,\pi_{\mathrm{ref}}(y)\,e^{r(y)/\beta}$. Invert it to express the reward in terms of
+  the policy:</p>
+  $$r(y) = \beta \log\frac{\pi^*(y)}{\pi_{\mathrm{ref}}(y)} + \beta \log Z$$
+  <p>Substitute into Bradley–Terry — and $\beta\log Z$, the intractable part, <b>cancels in the pairwise
+  difference</b>. That cancellation <em>is</em> DPO:</p>
+  $$\mathcal{L}_{DPO} = -\log\sigma\!\Big(\underbrace{\beta\log\tfrac{\pi(y_w)}{\pi_{\mathrm{ref}}(y_w)}}_{\hat r_w}
+  \;-\; \underbrace{\beta\log\tfrac{\pi(y_l)}{\pi_{\mathrm{ref}}(y_l)}}_{\hat r_l}\Big)$$
+  <p>The $\hat r$ terms are <b>implicit rewards</b> — your policy <em>is</em> secretly a reward model. The gradient
+  tells you the training dynamics: $\nabla\mathcal{L} = -\beta\,\sigma(-h)\big[\nabla\log\pi(y_w) - \nabla\log\pi(y_l)\big]$
+  where $h$ is the margin — pairs the model gets <em>wrong</em> (small $h$) get the largest updates, and the weight
+  $\sigma(-h)$ saturates: once a pair is won, DPO stops pushing... almost. That saturation is slow enough that easy
+  pairs still drift, which motivates <b>IPO</b> (the variation): regress the margin to a fixed target instead of
+  maximizing it —</p>
+  $$\mathcal{L}_{IPO} = \Big(h - \tfrac{1}{2\beta}\Big)^2, \qquad h = \log\tfrac{\pi(y_w)}{\pi_{\mathrm{ref}}(y_w)} - \log\tfrac{\pi(y_l)}{\pi_{\mathrm{ref}}(y_l)} \;\;(\text{no }\beta\text{ inside})$$
+<pre><code>def dpo_loss(logp_c, logp_r, ref_c, ref_r, beta=0.1):
+    h = beta * ((logp_c - ref_c) - (logp_r - ref_r))   # implicit reward margin
+    loss = np.logaddexp(0.0, -h).mean()                 # -log sigmoid(h), stable
+    return loss, h.mean()                               # log the margin: run health
+
+def ipo_loss(logp_c, logp_r, ref_c, ref_r, beta=0.1):
+    h = (logp_c - ref_c) - (logp_r - ref_r)             # beta NOT inside h
+    return np.mean((h - 1.0 / (2 * beta)) ** 2)         # regress to target 1/(2β)</code></pre>
+  <div class="fig">
+    <div class="chartbox"><canvas id="dpoChart"></canvas></div>
+    <div class="cap">Per-pair loss vs the log-ratio margin $h$. DPO ($-\log\sigma(\beta h)$) saturates — won pairs
+    stop contributing, but only asymptotically, and larger β saturates faster (stronger KL anchor). IPO is a
+    parabola with a minimum at the target margin $1/(2\beta)$: it actively pulls back pairs that overshoot,
+    which is the overfitting fix.</div>
+  </div>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>The grouping: it's (policy − reference) <em>per response</em>, then chosen − rejected. Mis-pairing silently corrupts the objective while the loss still goes down.</li>
+      <li>β inside the sigmoid for DPO, but in the <em>target</em> for IPO — the tests hand-check both (h=1, β=0.1 → IPO loss (1−5)² = 16).</li>
+      <li>Stability again: extreme log-prob gaps must not overflow — same <code>logaddexp</code>.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: what role does the reference model play, and what happens as β → 0?</summary>
+    <div>The reference anchors the implicit reward $\hat r = \beta\log(\pi/\pi_{\mathrm{ref}})$ — DPO is exactly the
+    KL-constrained RLHF optimum in closed form, and π_ref must stay frozen or the reward definition moves under you.
+    Small β = weak leash: the policy chases preferences far off-distribution — margins grow while the log-prob of
+    even the <em>chosen</em> responses can fall (mass leaves both). β→0 is an unconstrained preference optimizer:
+    degeneration. Bonus: monitor chosen log-prob separately from the margin; the margin alone hides this failure.</div>
+  </details>
+
+  <h3><span class="stage">Stage 3 · on-policy RL</span>PPO's clipped surrogate — pessimism, precisely</h3>
+  <p>Policy gradient with importance sampling lets you reuse rollouts from $\pi_{\mathrm{old}}$ for a few
+  minibatch epochs: with ratio $\rho = \frac{\pi(a|s)}{\pi_{\mathrm{old}}(a|s)} = e^{\log\pi - \log\pi_{\mathrm{old}}}$,
+  the surrogate $\mathbb{E}[\rho A]$ is only a valid local approximation near $\rho = 1$. Unconstrained, a few
+  high-advantage tokens drive huge updates and the policy collapses. PPO's fix is a <b>pessimistic lower bound</b>:</p>
+  $$J = \mathbb{E}\Big[\min\big(\rho A,\;\; \mathrm{clip}(\rho,\, 1{-}\varepsilon,\, 1{+}\varepsilon)\, A\big)\Big],
+  \qquad \mathcal{L} = -J$$
+  <p>The <code>min</code> — not the clip — is the idea. Work the four quadrants once and you'll never sign-flip it:</p>
+  <table>
+    <tr><th>Case</th><th>min picks</th><th>Gradient</th><th>Meaning</th></tr>
+    <tr><td>$A>0$, $\rho > 1{+}\varepsilon$</td><td>clipped $(1{+}\varepsilon)A$</td><td>zero</td><td>stop over-reinforcing a good action</td></tr>
+    <tr><td>$A>0$, $\rho < 1{-}\varepsilon$</td><td>unclipped $\rho A$</td><td>flows</td><td>keep pushing probability up</td></tr>
+    <tr><td>$A<0$, $\rho > 1{+}\varepsilon$</td><td><b>unclipped</b> $\rho A$ (more negative)</td><td>flows</td><td><b>never protected from getting worse</b></td></tr>
+    <tr><td>$A<0$, $\rho < 1{-}\varepsilon$</td><td>clipped $(1{-}\varepsilon)A$</td><td>zero</td><td>stop over-suppressing</td></tr>
+  </table>
+<pre><code>def ppo_loss(logp_new, logp_old, adv, clip_eps=0.2):
+    ratio = np.exp(logp_new - logp_old)
+    clipped = np.clip(ratio, 1.0 - clip_eps, 1.0 + clip_eps)
+    objective = np.minimum(ratio * adv, clipped * adv)   # min handles BOTH signs
+    return -objective.mean()                              # never branch on sign(A)</code></pre>
+  <div class="fig">
+    <div class="chartbox"><canvas id="ppoChart"></canvas></div>
+    <div class="cap">The canonical PPO figure: per-token objective vs ratio ρ at ε = 0.2. For A = +1 the objective
+    flattens above 1+ε (no reward for overshooting); for A = −1 it flattens below 1−ε but keeps falling above 1+ε —
+    the asymmetry is the pessimism. If you can draw this from memory, the stage is yours.</div>
+  </div>
+  <p>In RLHF the same ratio shows up a second way (the variation): the KL leash is often applied as
+  <b>reward shaping</b> on each token instead of a loss term:</p>
+  $$\tilde r_t = r_t - \beta\big(\log\pi(a_t) - \log\pi_{\mathrm{ref}}(a_t)\big)$$
+  <p>— drift above the reference gets taxed in the reward itself, and the mean of $(\log\pi - \log\pi_{\mathrm{ref}})$
+  is the KL estimate you'd chart in every RLHF run.</p>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>The four-quadrant test uses ratios {1.5, 0.5} × advantages {+1, −1} and checks the exact mean — any branch-on-sign(A) shortcut gets at least one quadrant wrong.</li>
+      <li>Hand-check on sight: ρ=1.5, A=1, ε=0.2 → min(1.5, 1.2) = 1.2 → loss −1.2.</li>
+      <li>Inside the trust band the loss must equal the plain surrogate exactly — clipping too early fails it.</li>
+      <li>KL-shaping variation: sign check — policy above reference must <em>reduce</em> reward.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: what failure does the clip prevent, and why is the min essential?</summary>
+    <div>Off-policy drift within an epoch: the surrogate is only locally valid, and unconstrained minibatch updates
+    on high-advantage tokens cause destructive policy jumps. Clip alone would also cap the <em>penalty</em> when an
+    update makes things worse (A&lt;0, ρ large); the min keeps the objective a lower bound — gradients stop when
+    overshooting in your favor, never when degrading.</div>
+  </details>
+
+  <h3><span class="stage">Stage 4 · drop the critic</span>GRPO and RLOO — critic-free baselines</h3>
+  <p>PPO's value network exists for one reason: variance reduction via a baseline. If you sample $N$ responses
+  per prompt, the <em>group itself</em> is a Monte-Carlo baseline and the critic — a whole model's worth of memory
+  and its own lag pathologies — can be deleted. GRPO (the DeepSeek-R1 recipe) normalizes within the group:</p>
+  $$A_{ij} = \frac{r_{ij} - \mathrm{mean}(r_{i\cdot})}{\mathrm{std}(r_{i\cdot}) + \epsilon}$$
+  <p>The std division is where the bodies are buried (the probe): a nearly-solved prompt with rewards
+  $\{0.99, 1, 1, 1\}$ has tiny variance, so its meaningless 0.01 gap gets amplified to a full-sized advantage —
+  <b>difficulty bias</b>: easy and impossible prompts get overweighted relative to informative ones. Dr.&nbsp;GRPO
+  drops the std for exactly this reason. The cleaner cousin (the variation) is <b>RLOO</b> — leave-one-out,
+  an <em>unbiased</em> baseline because sample $j$'s baseline never includes sample $j$:</p>
+  $$A_{ij} = r_{ij} - \frac{1}{N-1}\sum_{k \ne j} r_{ik}
+  \;=\; r_{ij} - \frac{S_i - r_{ij}}{N-1}, \qquad S_i = \sum_k r_{ik}$$
+<pre><code>def grpo_advantages(rewards, eps=1e-6):
+    mean = rewards.mean(axis=1, keepdims=True)     # per-prompt MC baseline
+    std = rewards.std(axis=1, keepdims=True)       # population std
+    return (rewards - mean) / (std + eps)          # eps on STD: all-equal group -> 0
+
+def rloo_advantages(rewards):
+    N = rewards.shape[1]
+    row_sum = rewards.sum(axis=1, keepdims=True)
+    return rewards - (row_sum - rewards) / (N - 1) # own sample excluded: unbiased</code></pre>
+  <div class="fig">
+    <div class="chartbox"><canvas id="grpoChart"></canvas></div>
+    <div class="cap">Difficulty bias, visible: an easy prompt (rewards 0.99, 1, 1, 1) and a hard prompt
+    (0.1, 0.9, 0.5, 0.3). GRPO's std-normalization inflates the easy prompt's trivial 0.01 gap to the same
+    advantage magnitude as the hard prompt's genuinely informative spread. RLOO keeps advantages on the
+    reward scale — the easy prompt correctly contributes almost nothing.</div>
+  </div>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>ε goes on the <b>std</b>, not the variance: an all-equal group must give exactly 0 (no signal), not $0.01/\sqrt{\epsilon}$-sized noise.</li>
+      <li>Per-<b>row</b> statistics with keepdims — normalizing across the whole batch mixes prompts and destroys the baseline logic.</li>
+      <li>RLOO hand-check: rewards [1, 2, 3] → advantages [−1.5, 0, 1.5] (each vs the mean of the <em>others</em>).</li>
+      <li>Both must be exactly zero on a uniform group — the test that catches copy-pasted z-scoring.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: why can GRPO drop the value network, and what bias does the std introduce?</summary>
+    <div>The critic is just a learned baseline; N samples per prompt give a Monte-Carlo baseline for free — cost
+    shifts from critic memory/training to N× rollouts. The std division whitens per-prompt but amplifies
+    near-zero-variance (too-easy/too-hard) prompts into full-strength gradients — difficulty bias, the Dr. GRPO
+    fix. RLOO's leave-one-out mean is unbiased (own sample excluded) and keeps the reward scale.</div>
+  </details>
+  <div class="cta">This chapter is both coding interviewers' home turf. Take
+    <a href="/">F2 — Post-training losses</a> next, and expect the IPO / KL-shaping / RLOO variations on re-runs.</div>
+
+  <!-- ================= CHAPTER 5: ALGORITHMS ================= -->
+  <h2 id="algo"><span class="tag">Chapter 5 · mirrors session A1</span>Algorithmic warm-up patterns</h2>
+  <p>Either coding round may open with one of these. They're not hard — the bar is <em>speed, edge cases
+  without prompting, and complexity stated unasked</em>.</p>
+
+  <h3><span class="stage">Stage 1 · sweep pattern</span>Merge intervals (and insert-interval)</h3>
+  <p>Sort by start, then one linear pass: if the next interval starts at or before the current merged end,
+  extend; otherwise emit. Two details carry the whole problem: <b>touching merges</b> ($s \le \mathrm{end}$,
+  and say out loud that you're choosing that semantic), and extension uses
+  $\mathrm{end} \leftarrow \max(\mathrm{end}, e)$ — the max is what survives <b>nested</b> intervals.</p>
+  <div class="fig">
+    <svg viewBox="0 0 820 170" width="100%" role="img" aria-label="interval merge">
+      <text x="20" y="24" fill="#8b97a7" font-size="12">input (sorted by start)</text>
+      <rect x="60"  y="36" width="120" height="18" rx="5" fill="rgba(110,168,254,.55)"/><text x="120" y="50" fill="#d7dee8" font-size="11" text-anchor="middle">[1, 10]</text>
+      <rect x="86"  y="60" width="27"  height="18" rx="5" fill="rgba(110,168,254,.55)"/><text x="100" y="74" fill="#d7dee8" font-size="11" text-anchor="middle">[2,3]</text>
+      <rect x="126" y="60" width="27"  height="18" rx="5" fill="rgba(110,168,254,.55)"/><text x="140" y="74" fill="#d7dee8" font-size="11" text-anchor="middle">[5,6]</text>
+      <rect x="193" y="36" width="53"  height="18" rx="5" fill="rgba(110,168,254,.55)"/><text x="220" y="50" fill="#d7dee8" font-size="11" text-anchor="middle">[11,15]</text>
+      <rect x="246" y="60" width="40"  height="18" rx="5" fill="rgba(110,168,254,.55)"/><text x="266" y="74" fill="#d7dee8" font-size="11" text-anchor="middle">[15,18]</text>
+      <text x="330" y="60" fill="#ffb454" font-size="12">← [2,3] and [5,6] are NESTED in [1,10]:</text>
+      <text x="330" y="76" fill="#ffb454" font-size="12">naive end-overwrite gives [1,3] then splits wrongly</text>
+      <text x="20" y="118" fill="#8b97a7" font-size="12">output</text>
+      <rect x="60" y="128" width="120" height="18" rx="5" fill="rgba(126,224,192,.6)"/><text x="120" y="142" fill="#0f1419" font-size="11" text-anchor="middle" font-weight="bold">[1, 10]</text>
+      <rect x="193" y="128" width="93" height="18" rx="5" fill="rgba(126,224,192,.6)"/><text x="240" y="142" fill="#0f1419" font-size="11" text-anchor="middle" font-weight="bold">[11, 18]</text>
+      <text x="330" y="142" fill="#7ee0c0" font-size="12">max(end, e) keeps [1,10]; touching 15 merges [11,15]+[15,18]</text>
+    </svg>
+    <div class="cap">The two test cases that catch 90% of broken merges: nested intervals (needs max) and
+    touching endpoints (needs ≤).</div>
+  </div>
+<pre><code>def merge_intervals(intervals):
+    if not intervals:
+        return []
+    intervals = sorted(intervals, key=lambda iv: iv[0])   # O(n log n) dominates
+    out = [list(intervals[0])]
+    for s, e in intervals[1:]:
+        if s <= out[-1][1]:                    # overlap OR touch
+            out[-1][1] = max(out[-1][1], e)    # max: the nested-interval fix
+        else:
+            out.append([s, e])
+    return out</code></pre>
+  <p><b>Insert-interval variation</b> (input already sorted &amp; disjoint — don't re-sort, that wastes the
+  precondition): three phases, one pass, $O(n)$ — copy intervals ending strictly before the new one; absorb every
+  overlapper into the new interval with min/max; copy the rest.</p>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li>Empty input, unsorted input, fully-nested intervals, touching endpoints — all tested; handle them before being asked.</li>
+      <li>Insert variation: "absorb" must take min of starts AND max of ends — the new interval can extend in both directions.</li>
+      <li>Complexity unasked: sort $O(n\log n)$, pass $O(n)$; already-sorted input → $O(n)$.</li>
+    </ul>
+  </div>
+
+  <h3><span class="stage">Stage 2 · window pattern</span>Longest substring without repeats (and at-most-k-distinct)</h3>
+  <p>Sliding window with a last-seen map. The single trap that decides pass/fail is the stale index: when a
+  repeat is found <em>behind</em> the current window, the left pointer must <b>never move backward</b>:</p>
+  $$\mathrm{left} \leftarrow \max(\mathrm{left},\; \mathrm{seen}[c] + 1)$$
+  <div class="fig">
+    <table style="font-family:'SF Mono',Menlo,monospace;font-size:13px">
+      <tr><th>step</th><th>char</th><th>seen</th><th>naive left</th><th>correct left</th><th>window</th></tr>
+      <tr><td>0</td><td>a</td><td>{a:0}</td><td>0</td><td>0</td><td>a</td></tr>
+      <tr><td>1</td><td>b</td><td>{a:0, b:1}</td><td>0</td><td>0</td><td>ab</td></tr>
+      <tr><td>2</td><td>b (repeat!)</td><td>{a:0, b:2}</td><td>2</td><td>2</td><td>b</td></tr>
+      <tr><td>3</td><td>a (stale: seen[a]=0)</td><td>{a:3, b:2}</td><td style="color:var(--bad)">1 — moves BACKWARD, window "bba" has a duplicate</td><td style="color:var(--accent-2)">max(2, 1) = 2 → window "ba" ✓</td><td>ba</td></tr>
+    </table>
+    <div class="cap">The <code>"abba"</code> trace — why the max() exists. Without it the answer overcounts to 3;
+    the correct answer is 2.</div>
+  </div>
+<pre><code>def longest_unique(s):
+    seen, left, best = {}, 0, 0
+    for right, c in enumerate(s):
+        if c in seen:
+            left = max(left, seen[c] + 1)   # never backward
+        seen[c] = right
+        best = max(best, right - left + 1)
+    return best
+
+# at-most-k-distinct variation: counts dict + shrink-while-invalid
+def longest_k_distinct(s, k):
+    if k == 0: return 0
+    counts, left, best = {}, 0, 0
+    for right, c in enumerate(s):
+        counts[c] = counts.get(c, 0) + 1
+        while len(counts) > k:              # shrink until valid again
+            lc = s[left]
+            counts[lc] -= 1
+            if counts[lc] == 0: del counts[lc]   # keep len() == true distinct count
+            left += 1
+        best = max(best, right - left + 1)
+    return best</code></pre>
+  <div class="traps"><span class="t">traps</span>
+    <ul>
+      <li><code>"abba"</code> — the stale-index test, named in the failure message if you miss it.</li>
+      <li>k-distinct variation: forgetting <code>del</code> at count zero inflates the distinct count forever; k=0 and empty string are tested.</li>
+      <li>Say it unasked: $O(n)$ time (each pointer only moves forward), $O(\min(n, |\Sigma|))$ space.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: why is the max() in the left-pointer update necessary?</summary>
+    <div>A repeat found <em>before</em> the current window would drag left backward ("abba": the second 'a' has
+    seen index 0, but left is already 2) — re-admitting a duplicate and overcounting. max() makes the pointer
+    monotone, which is also exactly the property that makes the algorithm $O(n)$.</div>
+  </details>
+
+  <!-- ================= CHAPTER 6: FULL ARCHITECTURE ================= -->
+  <h2 id="arch"><span class="tag">Chapter 6 · beyond the coding sessions — the research round's home turf</span>The full transformer architecture</h2>
+  <p>Chapters 1–5 cover what the coding rounds grade. This chapter assembles the <em>whole model</em> —
+  the material an architecture-focused research interviewer probes: where the parameters live, RoPE,
+  GQA, MoE, and how vision plugs in. Everything here composes out of pieces you've already coded.</p>
+
+  <h3><span class="stage">§1 · the skeleton</span>The decoder block, and where the parameters live</h3>
+  <p>A modern (Llama-class) decoder block is two pre-norm residual sub-layers:</p>
+  $$x \leftarrow x + \mathrm{MHA}\big(\mathrm{RMSNorm}(x)\big) \qquad\qquad
+    x \leftarrow x + \mathrm{FFN}\big(\mathrm{RMSNorm}(x)\big)$$
+  <p>and the full model is: token embedding → $L$ blocks → final RMSNorm → unembedding (often weight-tied
+  to the embedding). The <b>parameter accounting</b> is a probe you should do from memory. Per block, with
+  width $d$:</p>
+  <table>
+    <tr><th>Component</th><th>Weights</th><th>Params</th></tr>
+    <tr><td>Attention</td><td>$W_Q, W_K, W_V, W_O$ (each $d{\times}d$; less for K,V under GQA)</td><td>$4d^2$</td></tr>
+    <tr><td>SwiGLU FFN</td><td>$W_g, W_u \in \mathbb{R}^{d \times d_{ff}}$, $W_d \in \mathbb{R}^{d_{ff} \times d}$ with $d_{ff} \approx \tfrac{8}{3}d$</td><td>$3\,d\,d_{ff} \approx 8d^2$</td></tr>
+    <tr><td><b>Total per block</b></td><td></td><td>$\approx 12d^2$ &nbsp;→&nbsp; $N \approx 12\,L\,d^2$</td></tr>
+  </table>
+  <p>Two-thirds of a dense transformer is FFN. Say that sentence and you've already explained why MoE
+  replaces the FFN and not the attention, and why FFN layers are where "knowledge" probing consistently
+  points.</p>
+  <div class="fig">
+    <svg viewBox="0 0 820 240" width="100%" role="img" aria-label="decoder block">
+      <line x1="30" y1="120" x2="790" y2="120" stroke="#6ea8fe" stroke-width="2.5"/>
+      <text x="36" y="108" fill="#6ea8fe" font-size="12">residual stream (d)</text>
+      <rect x="120" y="30" width="70" height="32" rx="7" fill="#16241f" stroke="#2a6a52"/><text x="155" y="51" fill="#7ee0c0" font-size="12" text-anchor="middle">RMSNorm</text>
+      <rect x="210" y="30" width="150" height="32" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="285" y="45" fill="#d7dee8" font-size="12" text-anchor="middle">MHA + RoPE on q,k</text><text x="285" y="58" fill="#8b97a7" font-size="10.5" text-anchor="middle">GQA: H_q heads share H_kv K,V</text>
+      <path d="M 120 120 L 120 46 M 360 46 L 398 116" stroke="#7ee0c0" stroke-width="1.6" fill="none"/>
+      <circle cx="402" cy="120" r="9" fill="none" stroke="#7ee0c0" stroke-width="1.6"/><text x="402" y="124" fill="#7ee0c0" font-size="12" text-anchor="middle">+</text>
+      <rect x="460" y="30" width="70" height="32" rx="7" fill="#16241f" stroke="#2a6a52"/><text x="495" y="51" fill="#7ee0c0" font-size="12" text-anchor="middle">RMSNorm</text>
+      <rect x="550" y="30" width="180" height="32" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="640" y="45" fill="#d7dee8" font-size="12" text-anchor="middle">SwiGLU FFN (or MoE experts)</text><text x="640" y="58" fill="#8b97a7" font-size="10.5" text-anchor="middle">d → 8/3·d → d · ≈ ⅔ of all params</text>
+      <path d="M 460 120 L 460 46 M 730 46 L 768 116" stroke="#7ee0c0" stroke-width="1.6" fill="none"/>
+      <circle cx="772" cy="120" r="9" fill="none" stroke="#7ee0c0" stroke-width="1.6"/><text x="772" y="124" fill="#7ee0c0" font-size="12" text-anchor="middle">+</text>
+      <text x="410" y="170" fill="#8b97a7" font-size="12" text-anchor="middle">× L blocks · embed → blocks → final norm → unembed (often weight-tied)</text>
+      <text x="410" y="192" fill="#8b97a7" font-size="12" text-anchor="middle">N ≈ 12·L·d² — the number your scaling-law fits size against</text>
+    </svg>
+    <div class="cap">The pre-norm decoder block. The residual stream is untouched by anything except additions —
+    every sub-layer reads a normalized copy and writes back a delta.</div>
+  </div>
+<pre><code>def block(x, p):            # composes entirely from chapters 1-2
+    x = x + mha(rmsnorm(x, p.g1), p.Wq, p.Wk, p.Wv, p.Wo, p.n_heads, causal=True)
+    x = x + swiglu_ffn(rmsnorm(x, p.g2), p.Wg, p.Wu, p.Wd)
+    return x
+
+def swiglu_ffn(x, Wg, Wu, Wd):
+    silu = lambda z: z / (1.0 + np.exp(-z))       # z * sigmoid(z)
+    return (silu(x @ Wg) * (x @ Wu)) @ Wd          # gate ⊙ up, then down</code></pre>
+  <details class="probe"><summary>Probe: why SwiGLU over the classic ReLU MLP, and why d_ff = 8/3·d?</summary>
+    <div>The gate makes the FFN's transformation input-dependent (multiplicative interactions the additive path
+    can't express) — consistently better loss at equal params (the GLU-variants result; "we offer no explanation
+    but gratitude" is a fine joke to deploy). 8/3: SwiGLU has three matrices instead of two, so shrinking
+    $d_{ff}$ from $4d$ to $\tfrac{2}{3}\cdot 4d$ keeps the parameter count matched to the classic $4d$ MLP.</div>
+  </details>
+
+  <h3><span class="stage">§2 · position</span>RoPE — rotate, don't add</h3>
+  <p>RoPE encodes position by <b>rotating</b> each (q, k) feature pair $j$ by an angle proportional to its
+  position, with per-pair frequency $\theta_j$:</p>
+  $$\begin{pmatrix} x_{2j} \\ x_{2j+1} \end{pmatrix} \!\leftarrow\!
+  \begin{pmatrix} \cos m\theta_j & -\sin m\theta_j \\ \sin m\theta_j & \cos m\theta_j \end{pmatrix}\!
+  \begin{pmatrix} x_{2j} \\ x_{2j+1} \end{pmatrix},
+  \qquad \theta_j = b^{-2j/d},\;\; b = 10{,}000$$
+  <p>The property that makes it the default — rotations compose, so the attention logit depends only on
+  <b>relative</b> position:</p>
+  $$\big\langle R(m\theta)\,q,\; R(n\theta)\,k \big\rangle = \big\langle q,\; R\big((n{-}m)\theta\big)\,k \big\rangle
+  \;=\; g(q, k, \,n - m)$$
+  <p>Absolute positions cancel; only the offset survives. The frequency spectrum runs from fast
+  ($\theta_0 = 1$: distinguishes adjacent tokens) to glacial ($\theta_{d/2} \approx 1/b$: distinguishes
+  document-scale distances) — a multi-resolution clock. Apply it to <b>q and k only, after projection,
+  never to v</b> — v carries content, and rotating it would corrupt the mixture that attention outputs.</p>
+<pre><code>def rope(x, positions, base=10000.0):
+    d = x.shape[-1]
+    inv_freq = base ** (-np.arange(0, d, 2) / d)     # θ_j per feature pair
+    ang = positions[:, None] * inv_freq[None, :]      # (T, d/2)
+    cos, sin = np.cos(ang), np.sin(ang)
+    x1, x2 = x[:, 0::2], x[:, 1::2]
+    out = np.empty_like(x)
+    out[:, 0::2] = x1 * cos - x2 * sin                # 2-D rotation per pair
+    out[:, 1::2] = x1 * sin + x2 * cos
+    return out
+# usage: q = rope(X @ Wq, pos); k = rope(X @ Wk, pos); v untouched</code></pre>
+  <div class="fig">
+    <div class="chartbox"><canvas id="ropeChart"></canvas></div>
+    <div class="cap">Attention logit between identical q and k as a function of relative distance (d=64,
+    computed live as $\sum_j \cos(\Delta\,\theta_j)$). With base 500 the signal decays and aliases within a few
+    hundred tokens; base 10k holds structure to ~2k; base 500k stays coherent far beyond — which is exactly why
+    long-context models raise the base (or interpolate positions: NTK/YaRN rescale the frequency spectrum so
+    trained phase ranges are never exceeded).</div>
+  </div>
+  <div class="traps"><span class="t">traps &amp; probe fodder</span>
+    <ul>
+      <li>Applying RoPE to v, or before the projections — both wrong; the relative-position property only holds for the q·k inner product.</li>
+      <li>Beyond trained length, phases $m\theta_j$ leave the range the model ever saw → attention garbage. Fixes ranked: raise the base for pretraining; position interpolation / NTK / YaRN for post-hoc extension; with the honest note that all of them trade some short-range resolution.</li>
+      <li>KV-cache interaction: rotate k <em>before</em> caching (standard, cache stores rotated keys keyed to absolute position).</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: derive why RoPE gives relative position (2 lines)</summary>
+    <div>Rotation matrices satisfy $R(a)^\top R(b) = R(b-a)$. So
+    $\langle R(m\theta)q, R(n\theta)k\rangle = q^\top R(m\theta)^\top R(n\theta) k = q^\top R((n{-}m)\theta)k$ —
+    absolute $m, n$ appear only through their difference. Additive learned positions have no such cancellation,
+    and sinusoidal APE only approximates it through the attention matrix.</div>
+  </details>
+
+  <h3><span class="stage">§3 · KV economics</span>GQA / MQA in one table</h3>
+  <p>From the KV-cache chapter: decode is bandwidth-bound on the cache, and the cache scales with the number
+  of <em>KV heads</em>. GQA keeps $H_q$ query heads but shares each K,V across a group:</p>
+  <table>
+    <tr><th></th><th>MHA</th><th>GQA</th><th>MQA</th></tr>
+    <tr><td>KV heads</td><td>$H$</td><td>$H_{kv} \ll H$ (e.g. 8 for 64)</td><td>1</td></tr>
+    <tr><td>Cache size</td><td>1×</td><td>$H_{kv}/H$ (e.g. ⅛)</td><td>$1/H$</td></tr>
+    <tr><td>Quality</td><td>best</td><td>≈ MHA (the point)</td><td>measurable loss</td></tr>
+  </table>
+  <p>Implementation is one broadcast: repeat each KV head across its query group before the batched matmul.
+  The interview one-liner: <em>GQA buys back almost all of MQA's memory savings at almost none of its quality
+  cost — which is why every frontier model ships it.</em></p>
+
+  <h3><span class="stage">§4 · sparse capacity</span>Mixture of Experts</h3>
+  <p>Replace the FFN with $E$ expert FFNs and a learned <b>router</b>; each token runs only its top-$k$
+  (usually 2):</p>
+  $$y = \sum_{i \,\in\, \mathrm{top\text{-}}k(\ell)} g_i \, \mathrm{FFN}_i(x),
+  \qquad g = \mathrm{softmax}\big(\ell_{\mathrm{top\text{-}}k}\big),\quad \ell = x W_r$$
+  <p>This decouples <b>parameters from FLOPs</b>: capacity (knowledge) scales with $E$, compute per token
+  stays at $k$ experts. The catch is that routing is a load-balancing problem: the router self-reinforces
+  (popular experts get more gradient, get better, get more popular — <b>router collapse</b>), so training adds
+  an auxiliary loss. With $f_i$ = fraction of tokens routed to expert $i$ and $P_i$ = mean router probability:</p>
+  $$\mathcal{L}_{\mathrm{aux}} = \alpha \cdot E \sum_{i=1}^{E} f_i \, P_i
+  \qquad \text{(minimized when routing is uniform; } f \text{ is non-differentiable, } P \text{ carries the gradient)}$$
+<pre><code>def moe_ffn(x, W_router, experts, k=2):        # experts: list of (Wg, Wu, Wd)
+    logits = x @ W_router                       # (T, E)
+    out = np.zeros_like(x)
+    for t in range(x.shape[0]):                 # per-token top-k routing
+        idx = np.argsort(-logits[t])[:k]
+        g = softmax(logits[t, idx])             # renormalize over the CHOSEN k
+        for i, w in zip(idx, g):
+            out[t] += w * swiglu_ffn(x[t:t+1], *experts[i])[0]
+    return out                                  # real systems: batched expert-parallel dispatch</code></pre>
+  <div class="fig">
+    <div class="chartbox"><canvas id="moeChart"></canvas></div>
+    <div class="cap">Total vs active parameters. MoE models sit far above the dense diagonal: Mixtral 8×7B holds
+    47B parameters but computes with ~13B per token; DeepSeek-V3 holds 671B and activates 37B. The gap is free
+    capacity at fixed FLOPs — paid for in memory footprint, routing complexity, and expert-parallel communication
+    at inference.</div>
+  </div>
+  <div class="traps"><span class="t">traps &amp; probe fodder</span>
+    <ul>
+      <li>Renormalize the gate over the <em>selected</em> k experts, not all E — otherwise outputs shrink as E grows.</li>
+      <li>Params ≠ capability at equal FLOPs comparisons: an 8×7B MoE is <em>not</em> "a 47B model"; compare against dense models matched on either params or FLOPs and say which.</li>
+      <li>Capacity factor and token dropping: fixed expert buffers mean overflow tokens get dropped or overflow-routed — a real quality/throughput dial.</li>
+      <li>Modern refinements to name: fine-grained experts (more, smaller) + shared always-on experts (DeepSeek), aux-loss-free balancing via per-expert bias (V3), and the deployment reality — all experts must fit in memory, so MoE trades bandwidth for capacity, not memory.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: why does MoE replace the FFN and not attention, and what breaks at inference?</summary>
+    <div>FFN is ⅔ of parameters and per-token (no cross-token interaction), so it shards cleanly into experts;
+    attention is where tokens mix — sparse attention is a different research axis. At inference: all experts must
+    be resident (memory), tokens in a batch fan out to different experts (all-to-all communication, expert
+    parallelism), and small batches under-utilize experts — MoE shines at large-batch serving and hurts
+    latency-sensitive small-batch decode.</div>
+  </details>
+
+  <h3><span class="stage">§5 · vision in</span>ViT → contrastive pretraining → VLM connector</h3>
+  <p><b>Patchify.</b> A ViT is a transformer whose "tokens" are flattened image patches: a $H{\times}W$ image
+  with patch size $P$ becomes $T = HW/P^2$ tokens, each linearly projected from $P^2 C$ pixels to $d$, plus
+  positional embeddings (2-D, or RoPE variants). Patch size is the resolution/compute dial:
+  halving $P$ quadruples tokens — attention cost × 16.</p>
+<pre><code>def patchify(img, P):                 # img: (H, W, C) -> (T, P²·C)
+    H, W, C = img.shape
+    gh, gw = H // P, W // P
+    p = img[:gh*P, :gw*P].reshape(gh, P, gw, P, C).transpose(0, 2, 1, 3, 4)
+    return p.reshape(gh * gw, P * P * C)      # then @ W_proj -> (T, d) tokens</code></pre>
+  <p><b>Contrastive pretraining.</b> CLIP trains image and text encoders so matched pairs score high among a
+  batch of $B$ distractors — symmetric InfoNCE with temperature $\tau$:</p>
+  $$\mathcal{L} = -\tfrac{1}{2}\Big[\log\frac{e^{s_{ii}/\tau}}{\sum_j e^{s_{ij}/\tau}}
+  + \log\frac{e^{s_{ii}/\tau}}{\sum_j e^{s_{ji}/\tau}}\Big]$$
+  <p>The softmax couples every pair to the whole batch — quality depends on huge batches. <b>SigLIP</b> replaces
+  it with independent per-pair sigmoids ($-\log\sigma(z_{ij}\,s_{ij})$, $z$ = ±1 for match/mismatch) — no global
+  normalization, so it trains well at smaller batches and shards trivially. Sound familiar? It's the same
+  logaddexp-stable sigmoid loss as Bradley–Terry in Chapter 4.</p>
+  <p><b>Connecting to the LLM</b> — the design space from your own r1 session, compressed:</p>
+  <table>
+    <tr><th>Connector</th><th>Mechanism</th><th>Trade-off</th></tr>
+    <tr><td>MLP projector (LLaVA-style)</td><td>encoder tokens → linear/MLP → LLM token space</td><td>simple, strong; image tokens consume context budget</td></tr>
+    <tr><td>Cross-attention (Flamingo)</td><td>LLM layers attend to vision tokens via inserted x-attn</td><td>context-free scaling with image count; more surgery, weaker fusion</td></tr>
+    <tr><td>Resampler / pooling (Perceiver, Q-Former)</td><td>learned queries compress N patches → fixed k tokens</td><td>cheap; lossy for dense tasks (OCR suffers)</td></tr>
+    <tr><td>Native patches (Fuyu-style)</td><td>patches straight into the LLM, no separate encoder</td><td>one model, native resolution; forfeits contrastive-pretraining prior</td></tr>
+  </table>
+  <p>Resolution reality: a fixed 224px encoder is legally blind for documents — hence tiling (sub-crops +
+  thumbnail) or native-resolution (NaViT-style) inputs, at hundreds-to-thousands of tokens per image. That token
+  budget is the same sequence-length economics as everything else in this chapter — which is the sentence that
+  ties your whole reading room together.</p>
+  <div class="traps"><span class="t">traps &amp; probe fodder</span>
+    <ul>
+      <li>Patchify reshape: same trap family as the MHA head split — <code>reshape(gh, P, gw, P, C)</code> then transpose; a wrong order scrambles patches silently.</li>
+      <li>CLIP's temperature is <em>learned</em> (initialized ~0.07) and it matters — say why (calibrates the hardness of the softmax over the batch).</li>
+      <li>Contrastive features are bag-of-concepts: great init for semantics, weak for OCR/counting/geometry — the exact gap your capability roadmap (r4) exists to close.</li>
+    </ul>
+  </div>
+  <details class="probe"><summary>Probe: CLIP-init encoder vs training vision from scratch inside the LLM — argue both at frontier scale</summary>
+    <div>CLIP-init: semantic prior for free, converges fast, but ceilings — alt-text supervision biases toward
+    nameable objects, fixed low resolution, and the encoder saturates while the LLM keeps scaling. From-scratch
+    native patches: no ceiling, one architecture, native resolution — but needs far more paired/interleaved data
+    and compute to match the contrastive prior. Frontier answer: hybrids and staged training (init from
+    contrastive, then unfreeze and co-train at scale, raising resolution late), converging toward native as data
+    and compute grow. Anchor with public exemplars: Flamingo/PaLI (frozen-ish), LLaVA (projector), Fuyu (native),
+    Gemini-class (natively multimodal from the start).</div>
+  </details>
+
+  <div class="cta">That's the full reading room — five coding tracks plus the architecture chapter for the
+    research round. Deeper dives live in your own docs:
+    <a href="https://jackgucoolcoolcool.github.io/frontier-ml-prep/Day2_Transformers_and_LLMs.html" target="_blank">Day 2 — Transformers</a> ·
+    <a href="https://jackgucoolcoolcool.github.io/frontier-ml-prep/LLM_Architecture_Frontier.html" target="_blank">LLM Architecture Frontier</a>.
+    Now prove it: <a href="/">take a session cold</a>, then check the <a href="/gap_report">gap report</a>.</div>
+</div>
+
+<script>
+"use strict";
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const C = { accent: "#6ea8fe", accent2: "#7ee0c0", warn: "#ffb454", bad: "#ff7b72", muted: "#8b97a7", grid: "#2a3340" };
+Chart.defaults.color = C.muted;
+Chart.defaults.borderColor = C.grid;
+Chart.defaults.font.size = 12;
+
+/* ---- attention heatmaps (full vs causal), computed from a real softmax ---- */
+(function () {
+  const T = 6, cell = 26, pad = 30;
+  // deterministic pseudo-random scores
+  let seed = 42;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+  const S = Array.from({ length: T }, () => Array.from({ length: T }, () => rand() * 4));
+  const softmaxRow = (row, allow) => {
+    const m = Math.max(...row.map((v, j) => allow(j) ? v : -Infinity));
+    const e = row.map((v, j) => allow(j) ? Math.exp(v - m) : 0);
+    const s = e.reduce((a, b) => a + b, 0);
+    return e.map(v => v / s);
+  };
+  const grid = (title, maskFn) => {
+    let svg = `<svg width="${T * cell + pad + 10}" height="${T * cell + pad + 26}" role="img">`;
+    svg += `<text x="${pad + T * cell / 2}" y="14" fill="${C.muted}" font-size="12" text-anchor="middle">${title}</text>`;
+    for (let i = 0; i < T; i++) {
+      const p = softmaxRow(S[i], j => maskFn(i, j));
+      for (let j = 0; j < T; j++) {
+        const a = p[j];
+        svg += `<rect x="${pad + j * cell}" y="${22 + i * cell}" width="${cell - 2}" height="${cell - 2}" rx="3"
+          fill="rgba(110,168,254,${(a * 1.35).toFixed(3)})" stroke="${C.grid}" stroke-width="0.5"/>`;
+      }
+      svg += `<text x="${pad - 8}" y="${22 + i * cell + cell / 2 + 4}" fill="${C.muted}" font-size="10" text-anchor="end">q${i}</text>`;
+    }
+    for (let j = 0; j < T; j++)
+      svg += `<text x="${pad + j * cell + cell / 2 - 1}" y="${22 + T * cell + 12}" fill="${C.muted}" font-size="10" text-anchor="middle">k${j}</text>`;
+    return svg + "</svg>";
+  };
+  document.getElementById("attnGrids").innerHTML =
+    grid("full self-attention", () => true) + grid("causal (masked before softmax)", (i, j) => j <= i);
+})();
+
+/* ---- einsum wiring grids: V indexed by k (mix) vs by q (no-op) ---- */
+(function () {
+  const AW = [[0.55, 0.15, 0.20, 0.10], [0.10, 0.60, 0.20, 0.10], [0.08, 0.55, 0.25, 0.12], [0.20, 0.15, 0.25, 0.40]];
+  const cols = [[139, 151, 167], [255, 123, 114], [126, 224, 192], [110, 168, 254]];
+  const cell = 32, pad = 34;
+  const rgb = c => `rgb(${c.map(Math.round).join(",")})`;
+  const grid = (title, byRow) => {
+    let svg = `<svg width="${pad + 4 * cell + 66}" height="${4 * cell + 56}" role="img">`;
+    svg += `<text x="${pad + 2 * cell}" y="14" fill="${C.muted}" font-size="12" text-anchor="middle">${title}</text>`;
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        const c = byRow ? cols[i] : cols[j];
+        svg += `<rect x="${pad + j * cell}" y="${24 + i * cell}" width="${cell - 3}" height="${cell - 3}" rx="4"
+          fill="${rgb(c)}" fill-opacity="0.82"/>`;
+        svg += `<text x="${pad + j * cell + cell / 2 - 1}" y="${24 + i * cell + cell / 2 + 2}" fill="#0f1419"
+          font-size="10" text-anchor="middle">${AW[i][j].toFixed(2)}</text>`;
+      }
+      const out = byRow ? cols[i] : [0, 1, 2].map(d => AW[i].reduce((s, w, j) => s + w * cols[j][d], 0));
+      svg += `<rect x="${pad + 4 * cell + 16}" y="${24 + i * cell}" width="${cell - 3}" height="${cell - 3}" rx="7" fill="${rgb(out)}"/>`;
+      svg += `<text x="${pad - 8}" y="${24 + i * cell + cell / 2 + 3}" fill="${C.muted}" font-size="10" text-anchor="end">q${i}</text>`;
+    }
+    svg += `<text x="${pad + 4 * cell + 16 + cell / 2}" y="${24 + 4 * cell + 14}" fill="${C.muted}" font-size="10" text-anchor="middle">out[q]</text>`;
+    return svg + "</svg>";
+  };
+  document.getElementById("einsumGrids").innerHTML =
+    grid("'hqk,khe' — grabs V[k] ✓", false) +
+    grid("'hqk,qhe' — grabs V[q] ✗", true);
+})();
+
+/* ---- KV cache FLOPs chart ---- */
+(function () {
+  const t = Array.from({ length: 32 }, (_, i) => i + 1);
+  new Chart(document.getElementById("kvChart"), {
+    type: "line",
+    data: { labels: t, datasets: [
+      { label: "no cache (recompute all K,V)", data: t.map(x => x * x), borderColor: C.bad, pointRadius: 0, borderWidth: 2 },
+      { label: "KV cache", data: t.map(x => x), borderColor: C.accent2, pointRadius: 0, borderWidth: 2 },
+      { label: "sliding window W=8", data: t.map(x => Math.min(x, 8)), borderColor: C.warn, pointRadius: 0, borderWidth: 2, borderDash: [6, 4] },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { x: { title: { display: true, text: "decode step t" } },
+                y: { title: { display: true, text: "per-step attention cost" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- CE loss & gradient chart ---- */
+(function () {
+  const p = Array.from({ length: 99 }, (_, i) => (i + 1) / 100);
+  new Chart(document.getElementById("ceChart"), {
+    type: "line",
+    data: { labels: p.map(x => x.toFixed(2)), datasets: [
+      { label: "loss  −log p_y", data: p.map(x => -Math.log(x)), borderColor: C.accent, pointRadius: 0, borderWidth: 2 },
+      { label: "gradient magnitude  |p_y − 1|", data: p.map(x => 1 - x), borderColor: C.warn, pointRadius: 0, borderWidth: 2 },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { x: { title: { display: true, text: "probability on the correct class p_y" }, ticks: { maxTicksLimit: 11 } },
+                y: { title: { display: true, text: "value" }, max: 4 } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- temperature chart: real softmax over fixed logits ---- */
+(function () {
+  const logits = [2.6, 2.1, 1.4, 0.9, 0.4, -0.2, -0.9, -1.6];
+  const sm = T => {
+    const z = logits.map(v => v / T), m = Math.max(...z);
+    const e = z.map(v => Math.exp(v - m)), s = e.reduce((a, b) => a + b, 0);
+    return e.map(v => v / s);
+  };
+  new Chart(document.getElementById("tempChart"), {
+    type: "bar",
+    data: { labels: logits.map((_, i) => "tok " + i), datasets: [
+      { label: "T = 0.5", data: sm(0.5), backgroundColor: "rgba(255,123,114,.75)" },
+      { label: "T = 1.0", data: sm(1.0), backgroundColor: "rgba(110,168,254,.75)" },
+      { label: "T = 1.5", data: sm(1.5), backgroundColor: "rgba(126,224,192,.75)" },
+      { label: "T = 2.0", data: sm(2.0), backgroundColor: "rgba(255,180,84,.75)" },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { y: { title: { display: true, text: "probability" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- truncation figure: sorted bars + three cutoffs ---- */
+(function () {
+  const logits = [3.2, 1.9, 1.3, 0.8, 0.1, -0.4, -0.9, -1.3, -1.7, -2.0, -2.3, -2.6];
+  const m = Math.max(...logits);
+  const e = logits.map(v => Math.exp(v - m)), s = e.reduce((a, b) => a + b, 0);
+  const p = e.map(v => v / s);
+  const x0 = 40, w = 56, gap = 8, base = 218, scale = 260;
+  let g = "";
+  // min-p threshold line
+  const thr = 0.1 * p[0];
+  const yThr = base - thr * scale;
+  // top-p cutoff (0.9)
+  let cum = 0, cutP = p.length;
+  for (let i = 0; i < p.length; i++) { cum += p[i]; if (cum >= 0.9) { cutP = i + 1; break; } }
+  p.forEach((v, i) => {
+    const h = v * scale;
+    const inK = i < 4, inP = i < cutP, inM = v >= thr;
+    const fill = inM && inP && inK ? "rgba(110,168,254,.8)" : inP ? "rgba(126,224,192,.55)" : "rgba(139,151,167,.25)";
+    g += `<rect x="${x0 + i * (w + gap)}" y="${base - h}" width="${w}" height="${h}" rx="4" fill="${fill}" stroke="#2a3340" stroke-width="0.5"/>`;
+    g += `<text x="${x0 + i * (w + gap) + w / 2}" y="${base - h - 6}" fill="#8b97a7" font-size="10" text-anchor="middle">${(v * 100).toFixed(1)}%</text>`;
+  });
+  // top-k line after 4th bar
+  const xK = x0 + 4 * (w + gap) - gap / 2;
+  g += `<line x1="${xK}" y1="40" x2="${xK}" y2="${base}" stroke="#6ea8fe" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <text x="${xK}" y="32" fill="#6ea8fe" font-size="11.5" text-anchor="middle">top-k = 4</text>`;
+  // top-p line
+  const xP = x0 + cutP * (w + gap) - gap / 2;
+  g += `<line x1="${xP}" y1="58" x2="${xP}" y2="${base}" stroke="#7ee0c0" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <text x="${xP}" y="52" fill="#7ee0c0" font-size="11.5" text-anchor="middle">top-p = 0.9</text>`;
+  // min-p horizontal line
+  g += `<line x1="${x0}" y1="${yThr}" x2="${x0 + p.length * (w + gap)}" y2="${yThr}" stroke="#ffb454" stroke-width="1.4" stroke-dasharray="4 4"/>
+        <text x="${x0 + p.length * (w + gap) - 4}" y="${yThr - 6}" fill="#ffb454" font-size="11.5" text-anchor="end">min-p = 0.1 × p_max</text>`;
+  document.getElementById("truncBars").innerHTML = g;
+})();
+
+/* ---- Bradley-Terry loss & gradient weight ---- */
+(function () {
+  const m = Array.from({ length: 81 }, (_, i) => -4 + i * 0.1);
+  const softplusNeg = x => x > 30 ? 0 : Math.log(1 + Math.exp(-x));   // -log sigmoid(x)
+  const sig = x => 1 / (1 + Math.exp(-x));
+  new Chart(document.getElementById("rmChart"), {
+    type: "line",
+    data: { labels: m.map(x => x.toFixed(1)), datasets: [
+      { label: "loss  −log σ(m)", data: m.map(softplusNeg), borderColor: C.accent, pointRadius: 0, borderWidth: 2 },
+      { label: "gradient weight  σ(−m)", data: m.map(x => sig(-x)), borderColor: C.warn, pointRadius: 0, borderWidth: 2 },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { x: { title: { display: true, text: "reward margin  m = r_chosen − r_rejected" }, ticks: { maxTicksLimit: 9 } },
+                y: { title: { display: true, text: "value" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- DPO saturation vs IPO parabola ---- */
+(function () {
+  const h = Array.from({ length: 121 }, (_, i) => -2 + i * 0.05);
+  const nls = x => x > 30 ? 0 : Math.log(1 + Math.exp(-x));           // -log sigmoid
+  new Chart(document.getElementById("dpoChart"), {
+    type: "line",
+    data: { labels: h.map(x => x.toFixed(2)), datasets: [
+      { label: "DPO, β=0.1:  −log σ(0.1·h)", data: h.map(x => nls(0.1 * x)), borderColor: C.accent, pointRadius: 0, borderWidth: 2 },
+      { label: "DPO, β=0.5:  −log σ(0.5·h)", data: h.map(x => nls(0.5 * x)), borderColor: C.accent2, pointRadius: 0, borderWidth: 2 },
+      { label: "IPO, β=0.5:  (h − 1)²", data: h.map(x => (x - 1) ** 2), borderColor: C.warn, pointRadius: 0, borderWidth: 2, borderDash: [6, 4] },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { x: { title: { display: true, text: "log-ratio margin  h" }, ticks: { maxTicksLimit: 9 } },
+                y: { title: { display: true, text: "per-pair loss" }, max: 3 } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- PPO clipped objective vs ratio (the canonical figure) ---- */
+(function () {
+  const rho = Array.from({ length: 101 }, (_, i) => i * 0.02);        // 0..2
+  const eps = 0.2;
+  const obj = (r, A) => Math.min(r * A, Math.max(1 - eps, Math.min(1 + eps, r)) * A);
+  new Chart(document.getElementById("ppoChart"), {
+    type: "line",
+    data: { labels: rho.map(x => x.toFixed(2)), datasets: [
+      { label: "A = +1", data: rho.map(r => obj(r, 1)), borderColor: C.accent2, pointRadius: 0, borderWidth: 2 },
+      { label: "A = −1", data: rho.map(r => obj(r, -1)), borderColor: C.bad, pointRadius: 0, borderWidth: 2 },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { x: { title: { display: true, text: "ratio ρ = π/π_old   (band: 0.8 … 1.2)" }, ticks: { maxTicksLimit: 11 } },
+                y: { title: { display: true, text: "objective (maximized)" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- GRPO difficulty bias vs RLOO ---- */
+(function () {
+  const easy = [0.99, 1.0, 1.0, 1.0], hard = [0.1, 0.9, 0.5, 0.3];
+  const grpo = g => { const m = g.reduce((a, b) => a + b) / g.length;
+    const s = Math.sqrt(g.reduce((a, b) => a + (b - m) ** 2, 0) / g.length);
+    return g.map(v => (v - m) / (s + 1e-6)); };
+  const rloo = g => { const S = g.reduce((a, b) => a + b);
+    return g.map(v => v - (S - v) / (g.length - 1)); };
+  const labels = ["easy₁ r=.99", "easy₂ r=1", "easy₃ r=1", "easy₄ r=1", "hard₁ r=.1", "hard₂ r=.9", "hard₃ r=.5", "hard₄ r=.3"];
+  new Chart(document.getElementById("grpoChart"), {
+    type: "bar",
+    data: { labels, datasets: [
+      { label: "GRPO advantage (std-normalized)", data: [...grpo(easy), ...grpo(hard)], backgroundColor: "rgba(255,123,114,.75)" },
+      { label: "RLOO advantage (reward scale)", data: [...rloo(easy), ...rloo(hard)], backgroundColor: "rgba(126,224,192,.75)" },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { y: { title: { display: true, text: "advantage" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- RoPE: attention logit vs relative distance for different bases ---- */
+(function () {
+  const d = 64, pairs = d / 2;
+  const dist = Array.from({ length: 120 }, (_, i) => i * 32);   // 0 .. ~3800
+  const score = (delta, base) => {
+    let s = 0;
+    for (let j = 0; j < pairs; j++) s += Math.cos(delta * Math.pow(base, -2 * j / d));
+    return s / pairs;                                            // normalized: 1 at Δ=0
+  };
+  new Chart(document.getElementById("ropeChart"), {
+    type: "line",
+    data: { labels: dist, datasets: [
+      { label: "base 500", data: dist.map(x => score(x, 500)), borderColor: C.bad, pointRadius: 0, borderWidth: 2 },
+      { label: "base 10,000 (default)", data: dist.map(x => score(x, 10000)), borderColor: C.accent, pointRadius: 0, borderWidth: 2 },
+      { label: "base 500,000 (long-context)", data: dist.map(x => score(x, 500000)), borderColor: C.accent2, pointRadius: 0, borderWidth: 2 },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { x: { title: { display: true, text: "relative distance Δ (tokens)" }, ticks: { maxTicksLimit: 10 } },
+                y: { title: { display: true, text: "normalized logit ⟨q, R(Δθ)q⟩" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- MoE: total vs active parameters ---- */
+(function () {
+  const models = ["Dense 7B", "Dense 70B", "Mixtral 8×7B", "DeepSeek-V3"];
+  new Chart(document.getElementById("moeChart"), {
+    type: "bar",
+    data: { labels: models, datasets: [
+      { label: "total parameters (B)", data: [7, 70, 47, 671], backgroundColor: "rgba(110,168,254,.7)" },
+      { label: "active per token (B)", data: [7, 70, 13, 37], backgroundColor: "rgba(126,224,192,.7)" },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { y: { type: "logarithmic", title: { display: true, text: "parameters (B, log scale)" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- best-of-n Goodhart chart ---- */
+(function () {
+  const ns = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+  const proxy = ns.map(n => Math.log(n + 1) / Math.log(257) * 1.05);
+  const truth = ns.map(n => { const x = Math.log2(n); return (x <= 4) ? x / 4 * 0.8 : 0.8 - (x - 4) * 0.13; });
+  new Chart(document.getElementById("bonChart"), {
+    type: "line",
+    data: { labels: ns, datasets: [
+      { label: "proxy reward (what the RM scores)", data: proxy, borderColor: C.accent, pointRadius: 3, borderWidth: 2 },
+      { label: "true quality (what humans see)", data: truth, borderColor: C.warn, pointRadius: 3, borderWidth: 2 },
+    ]},
+    options: { maintainAspectRatio: false, animation: false,
+      scales: { x: { title: { display: true, text: "n (log-spaced samples)" } },
+                y: { title: { display: true, text: "normalized score (illustrative)" } } },
+      plugins: { legend: { labels: { boxWidth: 18 } } } }
+  });
+})();
+
+/* ---- decode_step interactive walkthrough ---- */
+(function () {
+  const dm = 6, dk = 4, MAX_T = 8;
+  let seed, Wq, Wk, Wv, cache, t;
+  function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return (seed / 4294967296) * 2 - 1; }
+  function mat(r, c) { return Array.from({ length: r }, () => Array.from({ length: c }, rnd)); }
+  function vecmat(x, W) { return W[0].map((_, j) => x.reduce((s, xi, i) => s + xi * W[i][j], 0)); }
+
+  const stepBtn = document.getElementById("dvStep"), resetBtn = document.getElementById("dvReset");
+  const pipe = document.getElementById("dvPipe"), status = document.getElementById("dvStatus");
+
+  function cell(v, color, w, showVal) {
+    const a = Math.min(Math.abs(v) / 1.6, 1) * 0.55 + 0.08;
+    const bg = color === "heat" ? `rgba(126,224,192,${(v * 0.85 + 0.06).toFixed(3)})`
+             : v >= 0 ? `rgba(110,168,254,${a.toFixed(3)})` : `rgba(255,123,114,${a.toFixed(3)})`;
+    return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${w}px;height:20px;` +
+      `border:1px solid var(--border);margin:0 1px 2px 0;border-radius:3px;background:${bg};` +
+      `font-size:9.5px;color:var(--text);">${showVal ? v.toFixed(2).replace("0.", ".") : ""}</span>`;
+  }
+  function row(vals, opts = {}) {
+    return `<span style="white-space:nowrap;">${vals.map(v => cell(v, opts.color, opts.w || 24, opts.vals)).join("")}</span>`;
+  }
+  function line(label, body, note) {
+    return `<div style="display:flex;gap:12px;align-items:flex-start;margin:9px 0;flex-wrap:wrap;">` +
+      `<span style="color:var(--accent-2);min-width:225px;">${label}</span><span>${body}</span>` +
+      (note ? `<span style="color:var(--muted);font-size:11.5px;align-self:center;">${note}</span>` : "") + `</div>`;
+  }
+  function stack(rows, opts = {}) {
+    return rows.map((r, i) => {
+      const isNew = i === rows.length - 1;
+      return `<div style="line-height:1;${isNew ? "outline:1.5px solid var(--warn);outline-offset:1px;border-radius:3px;display:inline-block;" : ""}">` +
+        row(r, opts) + (isNew ? `<span style="color:var(--warn);font-size:10.5px;margin-left:6px;">&#8592; vstacked this step</span>` : "") + `</div>`;
+    }).join("");
+  }
+
+  function reset() {
+    seed = 42; Wq = mat(dm, dk); Wk = mat(dm, dk); Wv = mat(dm, dk);
+    cache = { K: [], V: [] }; t = 0;
+    stepBtn.disabled = false; stepBtn.style.opacity = 1;
+    status.textContent = "cache: None — press decode to run step t=1";
+    pipe.innerHTML = `<div style="color:var(--muted);padding:8px 0;">cache = {"K": None, "V": None} · nothing computed yet</div>`;
+  }
+
+  function step() {
+    if (t >= MAX_T) return;
+    t++;
+    const x = Array.from({ length: dm }, rnd);
+    const q = vecmat(x, Wq), k = vecmat(x, Wk), v = vecmat(x, Wv);
+    cache.K.push(k); cache.V.push(v);
+    const scores = cache.K.map(kr => kr.reduce((s, ki, i) => s + ki * q[i], 0) / Math.sqrt(dk));
+    const m = Math.max(...scores), e = scores.map(s => Math.exp(s - m)), Z = e.reduce((a, b) => a + b, 0);
+    const A = e.map(ei => ei / Z);
+    const out = Array.from({ length: dk }, (_, j) => A.reduce((s, a, i) => s + a * cache.V[i][j], 0));
+
+    pipe.innerHTML =
+      line(`x_t &nbsp;(${dm},)`, row(x), "this step&#8217;s input — a 1-D vector") +
+      line(`q,k,v = (x_t@W&#8226;)[None,:] (1,${dk})`,
+        `<b style="color:var(--accent);">q</b> ${row(q)} &nbsp;<b style="color:var(--accent-2);">k</b> ${row(k)} &nbsp;<b style="color:var(--warn);">v</b> ${row(v)}`,
+        "three ROW matrices — rank promoted") +
+      line(`K = vstack &#8594; (${t},${dk})`, stack(cache.K), t === 1 ? "step 1 seeds the cache: K = k" : `${t - 1} cached rows untouched`) +
+      line(`V = vstack &#8594; (${t},${dk})`, stack(cache.V)) +
+      line(`A = softmax(qK&#7488;/&#8730;${dk}) (1,${t})`, row(A, { color: "heat", w: 34, vals: true }),
+        `sums to 1 over ALL ${t} cached token${t > 1 ? "s" : ""} — last col = attends to itself`) +
+      line(`out = (A@V)[0] &nbsp;(${dk},)`, row(out, { vals: true, w: 34 }), "[0] strips the dummy row back to 1-D");
+    status.textContent = `t=${t} · cache (${t}, ${dk}) · per-step cost grows linearly with t`;
+    if (t >= MAX_T) { stepBtn.disabled = true; stepBtn.style.opacity = 0.4; status.textContent += " · max steps — reset to replay"; }
+  }
+
+  stepBtn.addEventListener("click", step);
+  resetBtn.addEventListener("click", reset);
+  reset();
+})();
+</script>
+</body>
+</html>

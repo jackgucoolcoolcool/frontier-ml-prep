@@ -1,11 +1,16 @@
 # OS junk
 .DS_Store
 
-# Yue Qin personal website — not part of this repo
-index.html
-script.js
-styles.css
-assets/
+# Yue Qin personal website — not part of this repo (root only:
+# mock_interview/index.html must NOT be ignored)
+/index.html
+/script.js
+/styles.css
+/assets/
+
+# mock interview simulator: personal practice logs (dir or symlink) + local launcher config
+mock_interview/sessions
+.claude/
 
 # build script
 _convert.py

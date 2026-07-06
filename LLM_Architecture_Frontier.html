@@ -77,9 +77,80 @@
 <li><strong>Auxiliary load-balancing loss:</strong> penalize imbalance so token assignment spreads across experts. Classic form:</li>
 </ul>
 <pre><code>L_aux = α · n_experts · Σ_i (f_i · P_i)
-  f_i = fraction of tokens routed to expert i
-  P_i = mean router prob mass on expert i</code></pre>
+  f_i = (1/T) Σ_x 1[expert i in top-k(x)]   # HARD count: fraction of tokens actually routed to i
+  P_i = (1/T) Σ_x p_i(x)                    # SOFT mass: mean pre-top-k softmax prob on i</code></pre>
 <p>This is minimized when load is uniform.</p>
+<ul>
+<li><strong>f_i vs P_i — know the difference cold.</strong> <code>f_i</code> is a <em>discrete</em> count taken <strong>after</strong> top-k selection (an argmax result → piecewise-constant → <strong>no gradient</strong>). <code>P_i</code> is the <em>continuous</em> mean of the router softmax taken <strong>before</strong> top-k (fully <strong>differentiable</strong>). Neither works alone: <code>Σ f_i²</code> measures true imbalance but can&#x27;t be backpropped; <code>Σ P_i²</code> is differentiable but the router could keep probs near-uniform while top-k still piles tokens onto one expert.</li>
+<li><strong>Why the product f_i · P_i works:</strong> gradients only flow through <code>P_i</code>; <code>f_i</code> acts as a per-expert <em>weight</em> on that gradient. Since <code>∂L_aux/∂p_i(x) ∝ α·n·f_i</code>, overloaded experts (big <code>f_i</code>) get the strongest push to <em>lower</em> their router probability — a differentiable surrogate where <code>f_i</code> says <em>where</em> the imbalance is and <code>P_i</code> provides the <em>handle</em> to fix it. For top-1 routing <code>E[f_i] ≈ P_i</code>, so the minimum is exactly uniform load.</li>
+<li><strong>Scale sanity check:</strong> at perfect balance <code>f_i = P_i = 1/n</code> → <code>Σ f_i·P_i = 1/n</code> → the leading <code>n_experts</code> factor makes <code>L_aux = 1</code> independent of expert count (so one α works across model sizes).</li>
+</ul>
+<figure style="margin:22px 0;border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:18px 16px 8px;">
+<svg viewBox="0 0 860 470" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;font-family:inherit;">
+  <text x="430" y="20" text-anchor="middle" fill="#eaf0f7" font-size="15" font-weight="700">f_i vs P_i — same expert, two measurements</text>
+  <rect x="20" y="48" width="150" height="52" rx="8" fill="var(--panel-2)" stroke="var(--border)"/>
+  <text x="95" y="70" text-anchor="middle" fill="var(--text)" font-size="13">router softmax</text>
+  <text x="95" y="88" text-anchor="middle" fill="var(--muted)" font-size="12">p(x) ∈ ℝ^E, per token</text>
+  <path d="M170 64 C 230 50, 260 50, 300 58" fill="none" stroke="var(--accent-2)" stroke-width="2" marker-end="url(#arrG)"/>
+  <path d="M170 90 C 230 108, 260 112, 300 118" fill="none" stroke="var(--warn)" stroke-width="2" marker-end="url(#arrW)"/>
+  <defs>
+    <marker id="arrG" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--accent-2)"/></marker>
+    <marker id="arrW" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--warn)"/></marker>
+  </defs>
+  <rect x="302" y="34" width="250" height="54" rx="8" fill="rgba(126,224,192,.08)" stroke="var(--accent-2)"/>
+  <text x="427" y="55" text-anchor="middle" fill="var(--accent-2)" font-size="13" font-weight="700">P_i = mean of softmax (pre-top-k)</text>
+  <text x="427" y="74" text-anchor="middle" fill="var(--muted)" font-size="12">soft · continuous · differentiable ✓</text>
+  <rect x="302" y="98" width="250" height="54" rx="8" fill="rgba(255,180,84,.08)" stroke="var(--warn)"/>
+  <text x="427" y="119" text-anchor="middle" fill="var(--warn)" font-size="13" font-weight="700">f_i = count of top-k winners (post-top-k)</text>
+  <text x="427" y="138" text-anchor="middle" fill="var(--muted)" font-size="12">hard · discrete · no gradient ✗</text>
+  <path d="M552 61 C 600 61, 610 80, 640 88" fill="none" stroke="var(--accent-2)" stroke-width="2" marker-end="url(#arrG)"/>
+  <path d="M552 125 C 600 125, 610 104, 640 96" fill="none" stroke="var(--warn)" stroke-width="2" marker-end="url(#arrW)"/>
+  <rect x="644" y="66" width="196" height="56" rx="8" fill="var(--panel-2)" stroke="var(--accent)"/>
+  <text x="742" y="88" text-anchor="middle" fill="var(--accent)" font-size="13" font-weight="700">L_aux = α·n·Σ f_i·P_i</text>
+  <text x="742" y="107" text-anchor="middle" fill="var(--muted)" font-size="11.5">∇ flows only via P_i; f_i = fixed weight</text>
+  <text x="30" y="192" fill="#eaf0f7" font-size="13.5" font-weight="700">Imbalanced router (4 experts, top-1):</text>
+  <text x="330" y="192" fill="var(--muted)" font-size="12.5">bigger f_i ⇒ bigger ∂L/∂p_i ⇒ strongest push DOWN on that expert's prob</text>
+  <line x1="70" y1="420" x2="620" y2="420" stroke="var(--border)" stroke-width="1.5"/>
+  <line x1="70" y1="210" x2="70" y2="420" stroke="var(--border)" stroke-width="1.5"/>
+  <text x="58" y="424" text-anchor="end" fill="var(--muted)" font-size="11">0</text>
+  <text x="58" y="290" text-anchor="end" fill="var(--muted)" font-size="11">0.4</text>
+  <line x1="70" y1="286" x2="620" y2="286" stroke="var(--border)" stroke-dasharray="3 4" opacity=".5"/>
+  <line x1="70" y1="336" x2="620" y2="336" stroke="var(--accent)" stroke-dasharray="5 4" opacity=".8"/>
+  <text x="626" y="340" fill="var(--accent)" font-size="11.5">1/n = 0.25 (target)</text>
+  <rect x="100" y="235.75" width="42" height="184.25" fill="var(--warn)" opacity=".85" rx="3"/>
+  <rect x="146" y="269.25" width="42" height="150.75" fill="var(--accent-2)" opacity=".85" rx="3"/>
+  <text x="121" y="230" text-anchor="middle" fill="var(--warn)" font-size="11.5">.55</text>
+  <text x="167" y="263" text-anchor="middle" fill="var(--accent-2)" font-size="11.5">.45</text>
+  <text x="144" y="438" text-anchor="middle" fill="var(--text)" font-size="12">expert 1</text>
+  <text x="144" y="456" text-anchor="middle" fill="var(--warn)" font-size="11">⬇ strongest push down</text>
+  <rect x="235" y="336.25" width="42" height="83.75" fill="var(--warn)" opacity=".85" rx="3"/>
+  <rect x="281" y="326.2" width="42" height="93.8" fill="var(--accent-2)" opacity=".85" rx="3"/>
+  <text x="256" y="330" text-anchor="middle" fill="var(--warn)" font-size="11.5">.25</text>
+  <text x="302" y="320" text-anchor="middle" fill="var(--accent-2)" font-size="11.5">.28</text>
+  <text x="279" y="438" text-anchor="middle" fill="var(--text)" font-size="12">expert 2</text>
+  <rect x="370" y="379.8" width="42" height="40.2" fill="var(--warn)" opacity=".85" rx="3"/>
+  <rect x="416" y="369.75" width="42" height="50.25" fill="var(--accent-2)" opacity=".85" rx="3"/>
+  <text x="391" y="374" text-anchor="middle" fill="var(--warn)" font-size="11.5">.12</text>
+  <text x="437" y="364" text-anchor="middle" fill="var(--accent-2)" font-size="11.5">.15</text>
+  <text x="414" y="438" text-anchor="middle" fill="var(--text)" font-size="12">expert 3</text>
+  <rect x="505" y="393.2" width="42" height="26.8" fill="var(--warn)" opacity=".85" rx="3"/>
+  <rect x="551" y="379.8" width="42" height="40.2" fill="var(--accent-2)" opacity=".85" rx="3"/>
+  <text x="526" y="387" text-anchor="middle" fill="var(--warn)" font-size="11.5">.08</text>
+  <text x="572" y="374" text-anchor="middle" fill="var(--accent-2)" font-size="11.5">.12</text>
+  <text x="549" y="438" text-anchor="middle" fill="var(--text)" font-size="12">expert 4</text>
+  <text x="549" y="456" text-anchor="middle" fill="var(--accent-2)" font-size="11">⬆ implicitly gains prob</text>
+  <rect x="672" y="230" width="14" height="14" fill="var(--warn)" rx="3"/>
+  <text x="692" y="242" fill="var(--text)" font-size="12.5">f_i — hard token count</text>
+  <text x="692" y="258" fill="var(--muted)" font-size="11.5">(after top-k, no grad)</text>
+  <rect x="672" y="274" width="14" height="14" fill="var(--accent-2)" rx="3"/>
+  <text x="692" y="286" fill="var(--text)" font-size="12.5">P_i — mean softmax prob</text>
+  <text x="692" y="302" fill="var(--muted)" font-size="11.5">(before top-k, grad ✓)</text>
+  <text x="672" y="336" fill="var(--muted)" font-size="11.5">E[f_i] ≈ P_i for top-1 —</text>
+  <text x="672" y="352" fill="var(--muted)" font-size="11.5">loss is minimized when</text>
+  <text x="672" y="368" fill="var(--muted)" font-size="11.5">both hit the 1/n line.</text>
+</svg>
+<figcaption style="color:var(--muted);font-size:12.5px;margin-top:6px;text-align:center;">The loss pairs a non-differentiable measurement (f_i, orange) with a differentiable handle (P_i, green): ∂L_aux/∂p_i ∝ α·n·f_i, so the most-overloaded expert feels the strongest downward pressure on its router probability.</figcaption>
+</figure>
 <ul>
 <li><strong>Capacity factor:</strong> cap how many tokens each expert takes per batch; overflow tokens are <strong>dropped</strong> (skip the FFN via the residual). Tradeoff: higher capacity = less dropping but more compute/memory.</li>
 <li><strong>Noisy / parameter-free routing:</strong> add noise for exploration, or selection schemes that balance without a learned gate (your interviewer&#x27;s <em>GatePro</em> line — parameter-free expert selection optimization). Be ready to discuss alternatives to the standard learned top-k gate.</li>
@@ -117,6 +188,79 @@
 <li><strong>KV cache grows O(T)</strong> and dominates inference memory.</li>
 </ul>
 <p>Long-context work attacks both.</p>
+<p><strong>Why O(T²):</strong> attention is <em>all-pairs</em> token interaction — T queries each dotted against T keys:</p>
+<pre><code>scores = Q Kᵀ            # (T×d)·(d×T) → T×T matrix
+compute:  T² · d  multiply-adds  per head per layer   (2× context ⇒ 4× FLOPs)
+memory:   naive softmax materializes the T×T matrix per head
+          (T=32k → 1B floats/head — why long context was infeasible pre-Flash)</code></pre>
+<p>FlashAttention computes softmax in tiles and never stores the full matrix → memory O(T), <strong>but compute stays O(T²)</strong> — the dot products still happen. The quadratic is the <em>price of flexibility</em>: every token may attend to every other.</p>
+<p><strong>Why KV cache is O(T) and dominates:</strong> decoding is autoregressive — token T+1&#x27;s query must attend over K,V of all T predecessors. Recomputing prefix K,V each step would be O(T²) <em>per token</em>, so each token&#x27;s K,V is computed <strong>once and cached</strong>:</p>
+<pre><code>KV bytes = 2 (K&amp;V) · n_layers · n_kv_heads · d_head · T · bytes_per_elem
+         ≈ 0.5 MB/token for a 7B (32L · 4096d · fp16)
+         → 128k-token context ≈ 64 GB of cache  vs  ~14 GB of weights</code></pre>
+<p>Everything in the formula is an architecture constant except <strong>T</strong> → linear, per sequence in the batch. Weights are a <em>fixed</em> cost; the cache scales with <strong>T × batch</strong>, so at long context the cache — not the model — fills the GPU. It hurts twice: every decode step must <em>read the whole cache</em> from HBM to emit one token → decode is <strong>memory-bandwidth-bound</strong>. This is precisely what GQA/MQA, MLA, KV quantization, and sliding windows attack (each shrinks a factor: <code>n_kv_heads</code>, <code>d_head</code>, bytes, or <code>T</code>).</p>
+<figure style="margin:22px 0;border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:18px 16px 8px;">
+<svg viewBox="0 0 860 430" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;font-family:inherit;">
+  <text x="430" y="20" text-anchor="middle" fill="#eaf0f7" font-size="15" font-weight="700">The two costs of long context: O(T²) attention vs O(T) KV cache</text>
+  <defs>
+    <marker id="arrB" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--accent)"/></marker>
+  </defs>
+
+  <!-- ===== LEFT: T×T score matrix ===== -->
+  <text x="200" y="52" text-anchor="middle" fill="var(--accent)" font-size="13.5" font-weight="700">① Compute: scores = QKᵀ is a T×T matrix</text>
+  <!-- Q strip (rows) -->
+  <rect x="60" y="90" width="26" height="208" rx="4" fill="rgba(110,168,254,.15)" stroke="var(--accent)"/>
+  <text x="73" y="200" text-anchor="middle" fill="var(--accent)" font-size="12" transform="rotate(-90 73 200)">T queries</text>
+  <!-- K strip (cols) -->
+  <rect x="100" y="64" width="208" height="20" rx="4" fill="rgba(126,224,192,.15)" stroke="var(--accent-2)"/>
+  <text x="204" y="78" text-anchor="middle" fill="var(--accent-2)" font-size="12">T keys</text>
+  <!-- score matrix grid 8x8 -->
+  <g>
+    <rect x="100" y="90" width="208" height="208" rx="6" fill="var(--panel-2)" stroke="var(--border)"/>
+    <g stroke="var(--border)" opacity=".6">
+      <line x1="126" y1="90" x2="126" y2="298"/><line x1="152" y1="90" x2="152" y2="298"/><line x1="178" y1="90" x2="178" y2="298"/><line x1="204" y1="90" x2="204" y2="298"/><line x1="230" y1="90" x2="230" y2="298"/><line x1="256" y1="90" x2="256" y2="298"/><line x1="282" y1="90" x2="282" y2="298"/>
+      <line x1="100" y1="116" x2="308" y2="116"/><line x1="100" y1="142" x2="308" y2="142"/><line x1="100" y1="168" x2="308" y2="168"/><line x1="100" y1="194" x2="308" y2="194"/><line x1="100" y1="220" x2="308" y2="220"/><line x1="100" y1="246" x2="308" y2="246"/><line x1="100" y1="272" x2="308" y2="272"/>
+    </g>
+    <!-- one highlighted cell = one dot product -->
+    <rect x="178" y="168" width="26" height="26" fill="rgba(255,180,84,.5)" stroke="var(--warn)"/>
+  </g>
+  <text x="204" y="318" text-anchor="middle" fill="var(--muted)" font-size="12">every cell = one d-dim dot product</text>
+  <text x="204" y="336" text-anchor="middle" fill="var(--text)" font-size="12.5">T² cells → <tspan fill="var(--warn)" font-weight="700">2× context = 4× FLOPs</tspan></text>
+  <text x="204" y="360" text-anchor="middle" fill="var(--muted)" font-size="11.5">FlashAttention: tiles softmax, never stores T×T</text>
+  <text x="204" y="376" text-anchor="middle" fill="var(--muted)" font-size="11.5">→ memory O(T), <tspan fill="var(--warn)">compute still O(T²)</tspan></text>
+
+  <!-- divider -->
+  <line x1="420" y1="48" x2="420" y2="400" stroke="var(--border)" stroke-dasharray="4 5"/>
+
+  <!-- ===== RIGHT: KV cache growth ===== -->
+  <text x="640" y="52" text-anchor="middle" fill="var(--accent-2)" font-size="13.5" font-weight="700">② Memory: KV cache grows with T, weights don't</text>
+  <!-- axes -->
+  <line x1="470" y1="330" x2="830" y2="330" stroke="var(--border)" stroke-width="1.5"/>
+  <line x1="470" y1="80" x2="470" y2="330" stroke="var(--border)" stroke-width="1.5"/>
+  <text x="650" y="352" text-anchor="middle" fill="var(--muted)" font-size="12">context length T</text>
+  <text x="462" y="90" text-anchor="end" fill="var(--muted)" font-size="11">GB</text>
+  <!-- weights: flat line at 14GB → y ≈ 330 - 14/64*230 ≈ 280 -->
+  <line x1="470" y1="280" x2="830" y2="280" stroke="var(--accent)" stroke-width="2.5"/>
+  <text x="700" y="272" fill="var(--accent)" font-size="12" font-weight="700">weights ≈ 14 GB (fixed)</text>
+  <!-- KV cache: linear from 0 to 64GB at 128k → y from 330 to 330-64/64*230=100 -->
+  <line x1="470" y1="330" x2="810" y2="100" stroke="var(--accent-2)" stroke-width="2.5"/>
+  <text x="702" y="140" fill="var(--accent-2)" font-size="12" font-weight="700">KV cache ≈ 0.5 MB/token</text>
+  <!-- crossover marker: cache = weights at 14GB → x where line hits y=280: t = (330-280)/(230/340)... mark ~28k -->
+  <circle cx="544" cy="280" r="5" fill="var(--warn)"/>
+  <text x="556" y="298" fill="var(--warn)" font-size="11.5">~28k tokens: cache passes weights</text>
+  <!-- endpoint annotation -->
+  <circle cx="810" cy="100" r="5" fill="var(--accent-2)"/>
+  <text x="806" y="88" text-anchor="end" fill="var(--accent-2)" font-size="12" font-weight="700">128k ctx ≈ 64 GB</text>
+  <!-- x ticks -->
+  <text x="470" y="344" text-anchor="middle" fill="var(--muted)" font-size="10.5">0</text>
+  <text x="640" y="344" text-anchor="middle" fill="var(--muted)" font-size="10.5">64k</text>
+  <text x="810" y="344" text-anchor="middle" fill="var(--muted)" font-size="10.5">128k</text>
+  <!-- formula + bandwidth note -->
+  <text x="650" y="376" text-anchor="middle" fill="var(--muted)" font-size="11.5">2 · n_layers · n_kv_heads · d_head · T · bytes — and ×batch;</text>
+  <text x="650" y="392" text-anchor="middle" fill="var(--muted)" font-size="11.5">each decode step re-reads it all → <tspan fill="var(--warn)">bandwidth-bound</tspan> (GQA/MLA/quant/window shrink a factor)</text>
+</svg>
+<figcaption style="color:var(--muted);font-size:12.5px;margin-top:6px;text-align:center;">Left: attention compares all T queries against all T keys — a T×T score matrix, hence quadratic compute (7B-model numbers, fp16). Right: caching one K,V per token per layer is linear in T but scales with context × batch while weights stay fixed — past ~28k tokens the cache is the bigger tenant on the GPU.</figcaption>
+</figure>
 <h3>2.2 Attention-level approaches</h3>
 <ul>
 <li><strong>GQA / MQA:</strong> share K/V across heads → shrink KV cache (Day 2 §3). The standard production lever.</li>

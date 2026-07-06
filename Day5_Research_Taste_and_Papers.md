@@ -66,10 +66,42 @@ What makes the strong answer strong — check your own answers against these:
 
 > **The meta-skill:** for *every* open question, produce a *specific, falsifiable, compute-aware* answer with a named first experiment and an awareness of what could confound it.
 
+### 1.4 The compute-allocation meta-question (master this one)
+
+**"Given X more compute: bigger-dense, MoE, longer context, test-time compute, or better data?"** The expected answer is a **decision procedure**, not a pick.
+
+**Step 0 — clarify before answering (this IS the taste signal):**
+- **Training compute or lifecycle compute?** MoE spends training FLOPs to buy cheap inference; test-time compute is the opposite — free at training, multiplies every query's cost.
+- **Target metric + deployment profile:** general loss vs reasoning vs agentic; latency budget, serving memory, queries over the model's lifetime.
+
+**Step 1 — diagnose the bottleneck (each option fixes a different one):**
+
+| Option | Buys | Loses when |
+|---|---|---|
+| Bigger dense | Predictable scaling-law gains; simplest infra | Inference cost ∝ params; data-bound (Chinchilla: scale params *and* tokens together) |
+| MoE | Quality per training-FLOP (capacity ≠ compute) | Serving memory tight; infra can't do expert-parallel; routing instability |
+| Longer context | New *capabilities* (repos, agents, docs) | Evals don't show truncation failures; O(T²) prefill + KV cache unpaid-for |
+| Test-time compute | Reasoning gains, **no retraining** | No verifier / search doesn't apply; latency-sensitive; cost ∝ usage |
+| Better data | Shifts the scaling curve's *constant* — cheapest FLOP is the one not spent | Gains hard to measure; diversity collapse; engineering-heavy |
+
+Anchor in **eval error analysis**: knowledge misses → capacity/data; reasoning misses → test-time compute; truncation → context; loss still falling fast at train end → under-trained → data.
+
+**Step 2 — cheap proxy experiments, cheapest-first (design to shift a *curve*, not a point):**
+1. **~Free, zero training:** measure **pass@k / best-of-n + verifier** on the *current* model = upper bound on test-time-compute gains before spending anything (Snell et al. 2024: optimal test-time scaling can beat a ~14× bigger model — where a verifier exists).
+2. **Cheap (~1/1000 X):** **data ablation at fixed size** — filtered/reweighted vs baseline, matched tokens. Data quality shows up at small scale.
+3. **Moderate:** **iso-training-FLOP MoE vs dense pair**; note the memory bill. Fine-grained-MoE scaling laws (Krajewski et al. 2024) say the MoE edge *grows* with scale — small-scale wins understate it.
+4. **Decider:** a **scaling ladder** — 3–4 sizes per intervention, fit `L(C) = a·C^(-b) + c`, see which intervention moves the exponent/offset, extrapolate to X. Chinchilla methodology; MM1/multimodal scaling-law papers do the same for data-mixture ratios.
+
+**Step 3 — commit (taste = a default + what would flip it):**
+> "Frontier default: **better data + MoE** for the pretraining spend — data shifts the curve, MoE buys quality-per-training-FLOP — with **test-time compute layered at deployment** for reasoning tasks, since its cost scales with usage, not X. Bigger-dense only if serving simplicity dominates; longer context only if evals show truncation failures. I'd flip to test-time-compute-first if the pass@k gap on our target tasks is large and verifiable."
+
+**One-liner:** clarify training-vs-lifecycle compute → diagnose the bottleneck from eval errors → proxies cheapest-first (pass@k free → data ablation → iso-FLOP MoE pair → scaling ladder decides) → commit to data+MoE at training and test-time compute at deployment, and name the evidence that would flip you.
+
 ### Self-test §1
 1. **Turn a weak answer into a strong one.** → Add: specific intervention, falsifiable metric + success line, controls (contamination/compute-matched), small-scale-first, side-effect awareness.
 2. **"What result do you not believe, and why?"** → Name one; cite the missing control (compute-matched baseline, contamination check, CIs, cherry-picked eval).
 3. **"1,000 GPUs vs 8 GPUs?"** → Big: a scaling/data/post-training bet with a clear hypothesis. Small: proxy/ablation/eval/mechanistic work that informs the big bet cheaply.
+4. **"Given X more compute, where does it go?"** → Clarify training-vs-lifecycle compute → diagnose bottleneck from eval error analysis → proxies cheapest-first (pass@k is free; data ablation; iso-FLOP MoE pair; scaling ladder decides) → commit to a default + the evidence that would flip it.
 
 ---
 

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gap Report — Mock Interview Simulator</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --bad: #ff7b72; --border: #2a3340;
+    --code-bg: #11161d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.6; font-size: 15.5px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 44px 24px 120px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin-bottom: 8px; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 1px 5px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .88em; color: var(--accent-2); }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; line-height: 1.55; }
+  .topline { display: flex; gap: 12px; margin: 18px 0 28px; flex-wrap: wrap; }
+  .stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 18px; font-size: 14px; color: var(--muted); }
+  .stat b { color: var(--text); font-size: 18px; display: block; }
+  .gap { border: 1px solid var(--border); border-left: 4px solid var(--bad);
+    background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 12px; padding: 20px 24px; margin-bottom: 22px; }
+  .gap.mild { border-left-color: var(--warn); }
+  .gap h2 { margin: 0 0 2px; font-size: 19px; }
+  .gap .meta { font-size: 13px; color: var(--warn); margin-bottom: 10px; }
+  .gap .symptom { color: var(--muted); font-style: italic; margin-bottom: 10px; }
+  .yourfails { background: #241518; border: 1px solid #4a2a2e; border-radius: 8px;
+    padding: 10px 14px; font-size: 13.5px; margin: 10px 0; }
+  .yourfails .t { color: var(--bad); font-weight: 700; font-size: 12px; letter-spacing: .06em;
+    text-transform: uppercase; }
+  h4 { margin: 16px 0 6px; color: var(--accent-2); font-size: 14.5px; }
+  details { margin: 6px 0; }
+  summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+  details .ans { margin: 8px 0 4px 16px; color: var(--muted); }
+  .docs a { display: inline-block; margin-right: 14px; font-size: 14px; }
+  .cleanlist { color: var(--accent-2); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0 30px; }
+  th, td { border: 1px solid var(--border); padding: 6px 11px; text-align: left; }
+  th { background: var(--panel-2); }
+  .empty { border: 1px dashed var(--border); border-radius: 12px; padding: 34px; text-align: center;
+    color: var(--muted); margin-top: 30px; }
+  .backlink { font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="backlink" style="display:flex;justify-content:space-between;align-items:center">
+    <a href="/">&larr; back to sessions</a>
+    <span style="display:flex;gap:8px">
+      <button onclick="location.href='/history'" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border);
+        border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer">🗂 Manage history</button>
+      <button id="btnReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border);
+        border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer">🗑 Reset all</button>
+    </span>
+  </div>
+  <h1>Gap Report</h1>
+  <div class="sub">Auto-generated from every submission you've made. Weakest concepts first —
+    read the remediation, do the drills out loud, then re-run the session that exposed the gap.</div>
+  <div class="topline" id="topline"></div>
+  <div id="content"></div>
+</div>
+
+<script>
+"use strict";
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+document.getElementById("btnReset").onclick = async () => {
+  if (!confirm("Archive ALL history (submissions, verbal scores, debriefs)?\n\n" +
+      "Nothing is deleted — it moves to sessions/archive/ — but the gap report, " +
+      "picker stats, and variant rotation start fresh.")) return;
+  const r = await fetch("/clear_history", { method: "POST" }).then(x => x.json());
+  localStorage.removeItem("mock_history");   // picker's "attempted N×" labels
+  alert(r.archived ? `Archived ${r.archived} file(s) to ${r.to}` : "Nothing to archive.");
+  location.reload();
+};
+
+fetch("/gaps").then(r => r.json()).then(d => {
+  const top = document.getElementById("topline");
+  top.innerHTML = `
+    <div class="stat"><b>${d.total_attempts}</b>submissions logged</div>
+    <div class="stat"><b>${d.total_fails}</b>test failures</div>
+    <div class="stat"><b>${d.weak.length}</b>concepts to fix</div>
+    <div class="stat"><b>${d.clean.length}</b>concepts clean</div>`;
+
+  const c = document.getElementById("content");
+  if (d.total_attempts === 0 && !(d.resume || []).length) {
+    c.innerHTML = `<div class="empty">Nothing logged yet.<br>
+      Run a mock session first — every <b>Submit stage</b> and every verbal self-score is recorded here automatically.</div>`;
+    return;
+  }
+
+  let html = "";
+  d.weak.forEach((w, i) => {
+    const r = w.remediation;
+    if (!r) return;
+    const sev = w.fails >= 3 ? "" : "mild";
+    const fails = w.examples.map(e => "• " + esc(e)).join("<br>");
+    const drills = r.drills.map(([q, a]) =>
+      `<details><summary>${esc(q)}</summary><div class="ans">${esc(a)}</div></details>`).join("");
+    const docs = r.docs.map(([t, u]) => `<a href="${u}" target="_blank">${esc(t)} ↗</a>`).join("");
+    html += `
+    <div class="gap ${sev}">
+      <h2>${i + 1}. ${esc(r.title)}</h2>
+      <div class="meta">${w.fails} failed test${w.fails === 1 ? "" : "s"}${w.hints ? ` · ${w.hints} hint${w.hints === 1 ? "" : "s"} used` : ""}
+        · stages: ${w.stages.join(", ") || "—"}${w.last ? " · last miss " + w.last : ""}</div>
+      <div class="symptom">${esc(r.symptom)}</div>
+      ${fails ? `<div class="yourfails"><span class="t">your actual failures</span><br>${fails}</div>` : ""}
+      <p>${esc(r.explain)}</p>
+      <h4>The pattern to memorize</h4>
+      <pre>${esc(r.pattern)}</pre>
+      <h4>Drills — answer out loud before revealing</h4>
+      ${drills}
+      ${docs ? `<h4>Go deeper in your own docs</h4><div class="docs">${docs}</div>` : ""}
+    </div>`;
+  });
+
+  if (d.weak.length === 0 && d.total_attempts > 0) {
+    html += `<div class="empty">No weak coding concepts on record — every logged submission passed.
+      Raise the difficulty: re-run sessions cold, or tighten your time budget.</div>`;
+  }
+  if (d.clean.length) {
+    html += `<p><b>Clean so far:</b> <span class="cleanlist">${d.clean.join(" · ")}</span>
+      <span style="color:var(--muted)">(exercised, zero failures)</span></p>`;
+  }
+  const TOPIC_NAMES = {
+    "mm-pretraining": "Multimodal pretraining", "mm-scaling": "MM scaling laws",
+    "data-science": "Science of Data", "vision-capabilities": "Visual & physical understanding",
+    "mmu-mmgen": "Understanding ↔ Generation", "mm-posttraining": "MM post-training & agentic",
+  };
+  if ((d.resume || []).length) {
+    html += `<h4 style="font-size:17px;color:var(--text)">Resume deep-dive readiness <span style="color:var(--muted);font-weight:400;font-size:13px">(latest self-score per question; weakest topics first)</span></h4>`;
+    html += d.resume.map(r => {
+      const bar = "█".repeat(Math.round(r.avg)) + "░".repeat(5 - Math.round(r.avg));
+      const weak = r.weakest.filter(q => q.score < 4).map(q =>
+        `<div style="margin:3px 0 3px 14px;font-size:13.5px">· ${esc(q.title)} — <b style="color:var(--warn)">${q.score}/5</b>
+         &nbsp;<a href="/?drill=${q.stage_id}">re-drill →</a></div>`).join("");
+      const col = r.avg >= 4 ? "var(--accent-2)" : r.avg >= 3 ? "var(--warn)" : "var(--bad)";
+      return `<div style="margin:10px 0"><b>${esc(TOPIC_NAMES[r.topic] || r.topic)}</b>
+        <span style="font-family:monospace;color:${col}"> ${bar} ${r.avg}/5</span>
+        <span style="color:var(--muted);font-size:13px"> · ${r.n} question${r.n === 1 ? "" : "s"} scored</span>${weak}</div>`;
+    }).join("");
+  }
+  if (d.stage_stats.length) {
+    html += `<h4 style="font-size:17px;color:var(--text)">Submission history by stage</h4>
+      <table><tr><th>Stage</th><th>Submits</th><th>Clean submits</th><th></th></tr>` +
+      d.stage_stats.map(s =>
+        `<tr><td>${esc(s.title)}</td><td>${s.attempts}</td><td>${s.clean}</td>
+         <td><a href="/?drill=${s.stage_id}">practice →</a></td></tr>`).join("") +
+      "</table>";
+  }
+  c.innerHTML = html;
+});
+</script>
+</body>
+</html>

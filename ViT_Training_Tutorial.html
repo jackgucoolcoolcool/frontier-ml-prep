@@ -1,0 +1,373 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How a Vision Transformer is Trained — a full tutorial</title>
+<script>
+MathJax = {tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},svg:{fontCache:'global'}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>
+:root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--red:#e57373;--border:#2a3340;--code-bg:#11161d;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+.layout{display:flex;max-width:1180px;margin:0 auto;}
+nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:270px;min-width:270px;padding:24px 14px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+nav.toc h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+nav.toc a:hover{color:var(--text);background:var(--panel);}
+main{flex:1;min-width:0;padding:38px 46px 120px;}
+header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:26px 30px;margin-bottom:30px;}
+header.hero h1{margin:0 0 10px;font-size:27px;}
+header.hero p{margin:6px 0;color:var(--muted);}
+h2{font-size:23px;margin:50px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border);color:#eaf0f7;scroll-margin-top:16px;}
+h3{font-size:18px;margin:28px 0 8px;color:var(--accent-2);}
+h4{font-size:15.5px;margin:20px 0 6px;color:var(--accent);}
+p{margin:12px 0;}
+code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:15px 17px;overflow-x:auto;}
+pre code{background:none;padding:0;color:#c7d3e0;font-size:13px;line-height:1.55;}
+.box{border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin:18px 0;background:var(--panel);}
+.key{border-color:rgba(126,224,192,.4);background:rgba(126,224,192,.06);}
+.warn{border-color:rgba(255,180,84,.4);background:rgba(255,180,84,.06);}
+.bad{border-color:rgba(229,115,115,.4);background:rgba(229,115,115,.06);}
+.fig{border:1px solid var(--border);border-radius:12px;padding:18px 16px 8px;margin:24px 0;background:var(--panel);}
+.fig .cap{color:var(--muted);font-size:13px;margin:8px 6px 4px;line-height:1.5;}
+strong{color:#f0f4f9;}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top;}
+th{background:var(--panel-2);color:#eaf0f7;}
+mjx-container{color:#dfe7f1;}
+mjx-container[display="true"]{margin:16px 0 !important;overflow-x:auto;overflow-y:hidden;}
+svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+@media (max-width:900px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
+</style></head><body>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2>
+<a href="#arch">0 · Architecture recap</a>
+<a href="#overview">1 · The training loop at a glance</a>
+<a href="#data">2 · Data &amp; augmentation</a>
+<a href="#forward">3 · Forward pass, precisely</a>
+<a href="#loss">4 · The loss</a>
+<a href="#optim">5 · Optimizer &amp; schedule</a>
+<a href="#bias">6 · Why ViT needs scale</a>
+<a href="#pretrain">7 · Pretraining objectives</a>
+<a href="#finetune">8 · Fine-tuning &amp; resolution</a>
+<a href="#loop">9 · The full training step</a>
+<a href="#gotchas">10 · Gotchas checklist</a>
+</nav>
+<main>
+
+<header class="hero">
+<h1>How a Vision Transformer is trained — end to end</h1>
+<p>From raw pixels to a converged model: the data pipeline, the exact forward pass, the loss, the full optimizer recipe, why ViT famously needs scale, the pretraining objectives (supervised / CLIP / MAE / DINO), and transfer. With equations, figures, and runnable PyTorch.</p>
+<p style="font-size:13.5px;">Companion to <code>Coding_Implementations_From_Scratch</code>. ViT-Base/16 is the running example.</p>
+</header>
+
+<h2 id="arch">0 · Architecture recap (what we are training)</h2>
+<p>A ViT is a plain Transformer encoder applied to a sequence of image patches. Three things carry all the "vision-specific" logic; everything else is a standard encoder.</p>
+
+<div class="fig">
+<svg width="100%" viewBox="0 0 820 250" role="img" aria-label="ViT pipeline: image split into patches, linearly embedded, prepended with a cls token, positionally embedded, passed through transformer blocks, classified off the cls token">
+<rect x="20" y="70" width="90" height="90" rx="6" fill="#1c2530" stroke="#2a3340"/>
+<text x="65" y="118" fill="#8b97a7" font-size="12" text-anchor="middle">image</text>
+<text x="65" y="134" fill="#8b97a7" font-size="12" text-anchor="middle">224²×3</text>
+<path d="M 114 115 L 144 115" stroke="#8b97a7" stroke-width="1.4" marker-end="url(#a)"/>
+<g>
+<rect x="148" y="72" width="20" height="20" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<rect x="170" y="72" width="20" height="20" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<rect x="148" y="94" width="20" height="20" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<rect x="170" y="94" width="20" height="20" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<text x="169" y="132" fill="#6ea8fe" font-size="11.5" text-anchor="middle">16×16</text>
+<text x="169" y="147" fill="#6ea8fe" font-size="11.5" text-anchor="middle">patches</text>
+</g>
+<path d="M 196 103 L 226 103" stroke="#8b97a7" stroke-width="1.4" marker-end="url(#a)"/>
+<text x="211" y="95" fill="#8b97a7" font-size="10.5" text-anchor="middle">proj</text>
+<g font-size="11" text-anchor="middle">
+<rect x="230" y="60" width="26" height="20" rx="3" fill="#20301f" stroke="#7ee0c0"/><text x="243" y="74" fill="#7ee0c0">cls</text>
+<rect x="230" y="84" width="26" height="16" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<rect x="230" y="102" width="26" height="16" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<rect x="230" y="120" width="26" height="16" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<rect x="230" y="138" width="26" height="16" rx="3" fill="#12263a" stroke="#6ea8fe"/>
+<text x="243" y="172" fill="#8b97a7">tokens</text>
+</g>
+<text x="243" y="46" fill="#ffb454" font-size="11" text-anchor="middle">+ pos</text>
+<path d="M 262 108 L 292 108" stroke="#8b97a7" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="296" y="60" width="150" height="96" rx="6" fill="#161b22" stroke="#2a3340"/>
+<text x="371" y="100" fill="#d7dee8" font-size="12.5" text-anchor="middle">L × Transformer</text>
+<text x="371" y="118" fill="#8b97a7" font-size="11.5" text-anchor="middle">(pre-norm) block</text>
+<path d="M 450 108 L 480 108" stroke="#8b97a7" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="484" y="86" width="70" height="44" rx="6" fill="#20301f" stroke="#7ee0c0"/>
+<text x="519" y="105" fill="#7ee0c0" font-size="11.5" text-anchor="middle">cls out</text>
+<text x="519" y="121" fill="#8b97a7" font-size="10.5" text-anchor="middle">(row 0)</text>
+<path d="M 558 108 L 588 108" stroke="#8b97a7" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="592" y="86" width="90" height="44" rx="6" fill="#1c2530" stroke="#2a3340"/>
+<text x="637" y="105" fill="#d7dee8" font-size="11.5" text-anchor="middle">Linear head</text>
+<text x="637" y="121" fill="#8b97a7" font-size="10.5" text-anchor="middle">→ logits</text>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+</svg>
+<p class="cap"><strong>Figure 0.</strong> ViT-B/16 forward path. The only non-standard pieces: (a) patchify + linear projection, (b) the learned <code>cls</code> token, (c) additive learned positional embeddings. The rest is a vanilla pre-norm encoder; classification reads off the <code>cls</code> row.</p>
+</div>
+
+<p>ViT-Base/16 concretely: patch $16$, embedding dim $D=768$, depth $L=12$, heads $12$, MLP ratio $4$, $196$ patch tokens $+ 1$ cls $= 197$ tokens, ≈ 86M parameters. We take the architecture as given (see the coding doc for the module code) and focus on <em>training</em> it.</p>
+
+<h2 id="overview">1 · The training loop at a glance</h2>
+<p>Training is the standard supervised-learning loop — the ViT-specific difficulty is not the loop, it is that the recipe (augmentation + regularization + optimizer schedule + <em>data scale</em>) must be right, because ViT has weak built-in visual priors.</p>
+
+<div class="fig">
+<svg width="100%" viewBox="0 0 780 210" role="img" aria-label="Training loop: sample batch, augment, forward, cross-entropy loss, backprop, AdamW update with cosine schedule, EMA of weights">
+<g font-size="12" text-anchor="middle">
+<rect x="14" y="80" width="96" height="50" rx="7" fill="#1c2530" stroke="#2a3340"/><text x="62" y="100" fill="#d7dee8">batch of</text><text x="62" y="116" fill="#8b97a7">(image, label)</text>
+<rect x="132" y="80" width="96" height="50" rx="7" fill="#2b2416" stroke="#ffb454"/><text x="180" y="100" fill="#ffb454">augment</text><text x="180" y="116" fill="#8b97a7" font-size="10.5">RandAug+mixup…</text>
+<rect x="250" y="80" width="88" height="50" rx="7" fill="#12263a" stroke="#6ea8fe"/><text x="294" y="100" fill="#6ea8fe">ViT</text><text x="294" y="116" fill="#8b97a7">→ logits</text>
+<rect x="360" y="80" width="96" height="50" rx="7" fill="#161b22" stroke="#2a3340"/><text x="408" y="100" fill="#d7dee8">cross-ent</text><text x="408" y="116" fill="#8b97a7" font-size="10.5">+ smoothing</text>
+<rect x="478" y="80" width="90" height="50" rx="7" fill="#161b22" stroke="#2a3340"/><text x="523" y="100" fill="#d7dee8">backprop</text>
+<rect x="590" y="80" width="100" height="50" rx="7" fill="#20301f" stroke="#7ee0c0"/><text x="640" y="98" fill="#7ee0c0">AdamW</text><text x="640" y="114" fill="#8b97a7" font-size="10.5">warmup+cosine</text>
+</g>
+<g stroke="#8b97a7" stroke-width="1.3" fill="none">
+<path d="M 111 105 L 130 105" marker-end="url(#b)"/>
+<path d="M 229 105 L 248 105" marker-end="url(#b)"/>
+<path d="M 339 105 L 358 105" marker-end="url(#b)"/>
+<path d="M 457 105 L 476 105" marker-end="url(#b)"/>
+<path d="M 569 105 L 588 105" marker-end="url(#b)"/>
+<path d="M 640 132 L 640 165 L 62 165 L 62 132" marker-end="url(#b)"/>
+</g>
+<text x="350" y="182" fill="#8b97a7" font-size="11.5" text-anchor="middle">update θ, repeat for ~300 epochs (ImageNet) — optionally keep an EMA copy for eval</text>
+<defs><marker id="b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+</svg>
+<p class="cap"><strong>Figure 1.</strong> The loop. Each stage below gets a section: augmentation (§2), forward (§3), loss (§4), optimizer + schedule (§5). Sections 6–8 explain why the recipe looks the way it does and how pretraining/fine-tuning differ.</p>
+</div>
+
+<h2 id="data">2 · Data &amp; augmentation — the part that actually decides success</h2>
+<p>For a CNN you can train ImageNet with light augmentation. For ViT on the <em>same</em> data, that recipe badly overfits — because a Transformer has no built-in translation equivariance or locality, so it must <em>learn</em> those invariances from data. You supply them two ways: more data (§6), or aggressive augmentation + regularization that manufactures the invariances. The DeiT recipe (ViT on ImageNet-1k alone) is the canonical proof that heavy augmentation substitutes for scale.</p>
+
+<h4>The standard strong recipe</h4>
+<table>
+<tr><th>Technique</th><th>What it does</th><th>Why ViT needs it</th></tr>
+<tr><td><strong>RandAugment</strong></td><td>random chain of geometric/color ops</td><td>manufactures the invariances a CNN gets for free</td></tr>
+<tr><td><strong>Mixup</strong> $\tilde x = \lambda x_i + (1{-}\lambda)x_j$</td><td>blends two images <em>and</em> their labels</td><td>strong regularizer; smooths the loss landscape</td></tr>
+<tr><td><strong>CutMix</strong></td><td>paste a patch of image B into A, mix labels by area</td><td>encourages using distributed evidence, not one region</td></tr>
+<tr><td><strong>Random erasing</strong></td><td>zero out a random rectangle</td><td>occlusion robustness, anti-overfit</td></tr>
+<tr><td><strong>Stochastic depth</strong> (drop-path)</td><td>randomly skip whole blocks in training</td><td>the single most important ViT regularizer at depth</td></tr>
+<tr><td><strong>Label smoothing</strong> $\varepsilon{=}0.1$</td><td>soft targets (see §4)</td><td>calibration + anti-overconfidence</td></tr>
+</table>
+
+<pre><code>import torchvision.transforms as T
+train_tf = T.Compose([
+    T.RandomResizedCrop(224, scale=(0.08, 1.0)),   # scale/aspect invariance
+    T.RandomHorizontalFlip(),
+    T.RandAugment(num_ops=2, magnitude=9),         # the workhorse
+    T.ToTensor(),
+    T.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
+    T.RandomErasing(p=0.25),
+])
+# mixup / cutmix are applied per-BATCH (they mix pairs), not per-image:
+#   timm.data.Mixup(mixup_alpha=0.8, cutmix_alpha=1.0, label_smoothing=0.1, num_classes=1000)</code></pre>
+
+<div class="box warn"><strong>Interview point.</strong> "Why does ViT need heavier augmentation than a ResNet?" — because a ResNet's convolutions <em>hard-code</em> locality and translation equivariance, so it generalizes from less data; ViT's attention is a global, permutation-equivariant operation with none of those priors, so the invariances must come from data or from augmentation that synthesizes them. This is the whole inductive-bias story in one sentence.</div>
+
+<h2 id="forward">3 · The forward pass, precisely</h2>
+<p>With input batch $x \in \mathbb{R}^{B\times 3\times 224\times 224}$:</p>
+
+<p><strong>Patchify + project.</strong> A strided conv splits into non-overlapping patches and linearly projects each to $D$ dims — mathematically identical to "flatten each patch, apply one shared linear layer":</p>
+$$
+z_0^{\text{patch}} = \text{Conv}_{k=s=16}(x) \in \mathbb{R}^{B\times 196\times D}
+$$
+
+<p><strong>Prepend cls, add positions.</strong></p>
+$$
+z_0 = [\,x_{\text{cls}};\, z_0^{\text{patch}}\,] + E_{\text{pos}}, \qquad z_0 \in \mathbb{R}^{B\times 197\times D}
+$$
+
+<p><strong>$L$ pre-norm blocks.</strong> For $\ell = 1,\dots,L$:</p>
+$$
+z'_\ell = z_{\ell-1} + \text{MSA}\big(\text{LN}(z_{\ell-1})\big), \qquad
+z_\ell = z'_\ell + \text{MLP}\big(\text{LN}(z'_\ell)\big)
+$$
+
+<p>where multi-head self-attention with $h$ heads and per-head dim $d_h = D/h$ is</p>
+$$
+\text{Attn}(Q,K,V) = \text{softmax}\!\Big(\frac{QK^\top}{\sqrt{d_h}}\Big)V .
+$$
+
+<p><strong>Head.</strong> Read the cls row after a final LayerNorm:</p>
+$$
+\hat y = W_{\text{head}}\;\text{LN}(z_L)_{[:,0]} \in \mathbb{R}^{B\times C}.
+$$
+
+<div class="box"><strong>Three numerical details that are real bugs when wrong.</strong> (i) scale by $1/\sqrt{d_h}$ — the <em>per-head</em> dim, not $D$; (ii) softmax over the key axis (last); (iii) the head reads row 0 (cls), and there is a LayerNorm <em>before</em> the head. Getting the scale wrong makes attention logits blow up and training diverge at large $D$.</div>
+
+<h2 id="loss">4 · The loss</h2>
+<p>Plain multi-class classification: softmax cross-entropy between logits $\hat y$ and target. With <strong>label smoothing</strong> $\varepsilon$, the one-hot target $y$ becomes a soft distribution</p>
+$$
+\tilde y_c = (1-\varepsilon)\,y_c + \frac{\varepsilon}{C},
+\qquad
+\mathcal{L} = -\sum_{c=1}^{C} \tilde y_c \,\log \text{softmax}(\hat y)_c .
+$$
+<p>Smoothing stops the model from driving a single logit to $+\infty$ (it never has a hard target to chase), which improves calibration and generalization. When <strong>mixup/cutmix</strong> is on, the target is <em>already</em> a two-hot mixture $\lambda\,y_i + (1{-}\lambda)\,y_j$, and the same cross-entropy against that soft target is used — so in a strong recipe the "hard label" essentially never appears.</p>
+
+<pre><code># with mixup, targets are soft (B, C); use soft-target cross-entropy:
+loss = torch.sum(-soft_target * torch.log_softmax(logits, dim=-1), dim=-1).mean()
+# without mixup, nn.CrossEntropyLoss(label_smoothing=0.1) does it for you.</code></pre>
+
+<h2 id="optim">5 · Optimizer &amp; schedule — the recipe that makes it converge</h2>
+<p>This is where most "my ViT won't train" problems live. The canonical settings:</p>
+
+<table>
+<tr><th>Knob</th><th>Typical value</th><th>Why</th></tr>
+<tr><td>Optimizer</td><td><strong>AdamW</strong></td><td>Transformers need adaptive LR; SGD underperforms badly here. AdamW ⇒ <em>decoupled</em> weight decay</td></tr>
+<tr><td>Base LR</td><td>$10^{-3}$ (scaled by batch)</td><td>linear scaling: $\text{lr} = 5\times10^{-4}\cdot \text{batch}/512$</td></tr>
+<tr><td>Warmup</td><td>5–20 epochs, linear from 0</td><td><strong>essential</strong> — early Adam steps are noisy; skipping warmup is the #1 divergence cause</td></tr>
+<tr><td>Schedule</td><td>cosine decay to ~0</td><td>smooth annealing outperforms step decay for ViT</td></tr>
+<tr><td>Weight decay</td><td>0.05–0.1</td><td>strong reg; but <strong>exclude</strong> bias, LayerNorm, cls &amp; pos embeddings</td></tr>
+<tr><td>Grad clip</td><td>global norm 1.0</td><td>tames the occasional large step</td></tr>
+<tr><td>Batch size</td><td>1024–4096</td><td>large batch + big data is the ViT regime</td></tr>
+<tr><td>Epochs</td><td>300 (DeiT) / long pretrain</td><td>ViT wants long schedules</td></tr>
+<tr><td>EMA of weights</td><td>decay ~0.9999</td><td>evaluate the EMA copy; noticeably smoother</td></tr>
+</table>
+
+<div class="fig">
+<svg width="100%" viewBox="0 0 720 200" role="img" aria-label="Learning-rate schedule: linear warmup then cosine decay, plotted over training steps">
+<line x1="60" y1="160" x2="680" y2="160" stroke="#8b97a7" stroke-width="1.2"/>
+<line x1="60" y1="160" x2="60" y2="30" stroke="#8b97a7" stroke-width="1.2"/>
+<text x="52" y="40" fill="#8b97a7" font-size="11" text-anchor="end">lr</text>
+<text x="675" y="178" fill="#8b97a7" font-size="11" text-anchor="end">step →</text>
+<path d="M 60 160 L 150 50" stroke="#ffb454" stroke-width="2.4" fill="none"/>
+<path d="M 150 50 C 330 55, 520 150, 680 158" stroke="#7ee0c0" stroke-width="2.4" fill="none"/>
+<line x1="150" y1="50" x2="150" y2="160" stroke="#2a3340" stroke-dasharray="4 4"/>
+<text x="150" y="176" fill="#ffb454" font-size="11" text-anchor="middle">warmup ends</text>
+<text x="105" y="95" fill="#ffb454" font-size="11.5">linear warmup</text>
+<text x="400" y="90" fill="#7ee0c0" font-size="11.5">cosine decay → ~0</text>
+</svg>
+<p class="cap"><strong>Figure 2.</strong> The schedule. Linear warmup from 0 avoids the noisy-early-Adam divergence; cosine decay anneals to near-zero for a clean final convergence. Nearly every modern ViT/transformer uses this shape.</p>
+</div>
+
+<pre><code>import torch, math
+# 1) parameter groups: no weight decay on norms / biases / embeddings
+decay, no_decay = [], []
+for n, p in model.named_parameters():
+    if p.ndim == 1 or n.endswith(("cls_token", "pos_embed")):
+        no_decay.append(p)          # LayerNorm weights, all biases, embeddings
+    else:
+        decay.append(p)
+opt = torch.optim.AdamW(
+    [{"params": decay, "weight_decay": 0.05},
+     {"params": no_decay, "weight_decay": 0.0}],
+    lr=1e-3, betas=(0.9, 0.999))
+
+# 2) warmup + cosine LR (per-step)
+def lr_at(step, warmup, total, base):
+    if step < warmup:
+        return base * step / warmup
+    p = (step - warmup) / max(1, total - warmup)
+    return 0.5 * base * (1 + math.cos(math.pi * p))</code></pre>
+
+<div class="box bad"><strong>Failure mode.</strong> Train ViT with SGD, no warmup, light augmentation on ImageNet-1k → it underperforms a ResNet and may diverge early. Every one of those three is a known ViT pitfall; the recipe above is the accumulated fix.</div>
+
+<h2 id="bias">6 · Why ViT needs scale — the inductive-bias crossover</h2>
+<p>The original ViT paper's central empirical result: on mid-sized data (ImageNet-1k) a ViT <em>underperforms</em> a comparable ResNet, but as pretraining data grows (ImageNet-21k → JFT-300M), ViT overtakes it and keeps scaling. The reason is the missing priors:</p>
+<ul>
+<li>A CNN <strong>hard-codes</strong> locality and translation equivariance — correct visual assumptions, so it generalizes from little data but caps out sooner.</li>
+<li>A ViT <strong>assumes almost nothing</strong> (attention is global + permutation-equivariant). With enough data it <em>learns</em> better, more flexible features than the hand-coded priors — but below a data threshold it has nothing to fall back on and overfits.</li>
+</ul>
+
+<div class="fig">
+<svg width="100%" viewBox="0 0 700 230" role="img" aria-label="Accuracy versus pretraining data size: ResNet higher at small data, ViT overtakes and keeps rising at large data, curves crossing">
+<line x1="60" y1="185" x2="660" y2="185" stroke="#8b97a7" stroke-width="1.2"/>
+<line x1="60" y1="185" x2="60" y2="25" stroke="#8b97a7" stroke-width="1.2"/>
+<text x="360" y="212" fill="#8b97a7" font-size="12" text-anchor="middle">pretraining data (log scale) →</text>
+<text x="34" y="105" fill="#8b97a7" font-size="12" text-anchor="middle" transform="rotate(-90 34 105)">transfer accuracy</text>
+<text x="120" y="200" fill="#8b97a7" font-size="10.5" text-anchor="middle">IN-1k</text>
+<text x="360" y="200" fill="#8b97a7" font-size="10.5" text-anchor="middle">IN-21k</text>
+<text x="600" y="200" fill="#8b97a7" font-size="10.5" text-anchor="middle">JFT-300M</text>
+<path d="M 70 120 C 220 80, 420 66, 650 60" stroke="#e57373" stroke-width="2.6" fill="none"/>
+<path d="M 70 165 C 250 150, 420 78, 650 34" stroke="#6ea8fe" stroke-width="2.6" fill="none"/>
+<circle cx="330" cy="103" r="4" fill="#ffb454"/><text x="330" y="93" fill="#ffb454" font-size="11" text-anchor="middle">crossover</text>
+<text x="120" y="70" fill="#e57373" font-size="12">ResNet (strong priors)</text>
+<text x="470" y="120" fill="#6ea8fe" font-size="12">ViT (weak priors)</text>
+</svg>
+<p class="cap"><strong>Figure 3.</strong> Schematic of the ViT paper's finding. Below the crossover, hand-coded conv priors win; above it, ViT's flexibility wins and keeps scaling. Two ways to get to the right of the crossover: (a) more pretraining data, or (b) manufacture the priors with heavy augmentation + distillation (DeiT) so IN-1k alone suffices.</p>
+</div>
+
+<div class="box key"><strong>The takeaway that drives every ViT recipe:</strong> you must supply the missing inductive bias somehow — through <em>data scale</em>, through <em>augmentation/regularization</em>, or through <em>distillation from a CNN teacher</em> (DeiT's extra "distillation token"). Modern practice usually combines large-scale (often self-supervised) pretraining with strong augmentation.</div>
+
+<h2 id="pretrain">7 · Pretraining objectives — how the weights are actually learned at scale</h2>
+<p>"Training a ViT" almost never means supervised ImageNet from scratch anymore. It means <em>pretrain on a large corpus with some objective, then transfer</em>. The four dominant objectives, all training the same encoder, differ only in the loss and the data:</p>
+
+<table>
+<tr><th>Objective</th><th>Signal</th><th>Loss (sketch)</th><th>What you get</th></tr>
+<tr><td><strong>Supervised</strong> (ViT, DeiT)</td><td>class labels</td><td>cross-entropy on cls token</td><td>strong classifier; needs labels</td></tr>
+<tr><td><strong>Contrastive / CLIP, SigLIP</strong></td><td>image–text pairs</td><td>InfoNCE between image &amp; text embeddings</td><td>open-vocab, language-aligned features — the VLM backbone</td></tr>
+<tr><td><strong>Masked image modeling (MAE, BEiT)</strong></td><td>the image itself</td><td>reconstruct masked patches (pixels/tokens)</td><td>label-free; great fine-tuning init</td></tr>
+<tr><td><strong>Self-distillation (DINO/v2)</strong></td><td>the image itself</td><td>match student/teacher views, no labels</td><td>strong <em>frozen</em> features, emergent segmentation</td></tr>
+</table>
+
+<h4>CLIP-style contrastive (the VLM-relevant one)</h4>
+<p>Given a batch of $N$ image–text pairs, encode both sides to unit vectors and pull matched pairs together, push mismatched apart, with a learned temperature $\tau$:</p>
+$$
+\mathcal{L} = \tfrac{1}{2}\big(\mathcal{L}_{\text{img}\to\text{txt}} + \mathcal{L}_{\text{txt}\to\text{img}}\big),
+\quad
+\mathcal{L}_{\text{img}\to\text{txt}} = -\frac1N\sum_{i}\log\frac{\exp(\langle u_i,v_i\rangle/\tau)}{\sum_j \exp(\langle u_i,v_j\rangle/\tau)}
+$$
+<p>The image encoder here <em>is</em> a ViT; the softmax is over the other captions in the batch (in-batch negatives). This is how the vision tower of most VLMs is trained.</p>
+
+<h4>Masked image modeling (MAE)</h4>
+<p>Mask a high fraction of patches (~75%), encode only the visible ones, and a lightweight decoder reconstructs the missing patches under an $\ell_2$ pixel loss:</p>
+$$
+\mathcal{L}_{\text{MAE}} = \frac{1}{|\mathcal{M}|}\sum_{p\in\mathcal{M}} \big\lVert \hat x_p - x_p\big\rVert_2^2 .
+$$
+<p>Because the encoder sees only 25% of tokens, pretraining is cheap; the encoder learns rich features that fine-tune extremely well. No labels required.</p>
+
+<div class="box"><strong>Résumé-relevant framing.</strong> For a multimodal model the ViT is usually pretrained <em>contrastively or self-supervised</em>, then either (a) fine-tuned end-to-end, or (b) frozen and connected to an LLM via a projector. "How do you train the vision tower of a VLM" = "CLIP/SigLIP contrastive pretraining on web image–text, optionally + MIM, then connect" — the whole of §7 is the answer.</div>
+
+<h2 id="finetune">8 · Fine-tuning &amp; the resolution gotcha</h2>
+<p>Transfer = replace the head for the new task and continue training (full fine-tune) or freeze the backbone and train only a linear probe. Fine-tuning uses a <em>smaller</em> LR (e.g. $10^{-4}$ down to $10^{-5}$), shorter schedule, and often <strong>layer-wise LR decay</strong> (earlier layers get smaller LR, since they hold general features).</p>
+
+<h4>Changing input resolution → you must interpolate positional embeddings</h4>
+<p>Fine-tuning at higher resolution (a common accuracy trick) changes the number of patches, so the learned $E_{\text{pos}}$ — one vector per <em>original</em> grid position — no longer matches. Fix: reshape the patch-position embeddings to the old 2D grid, bilinearly interpolate to the new grid, and keep the cls position separate.</p>
+<pre><code>def interpolate_pos_embed(pos_embed, old_grid, new_grid):
+    # pos_embed: (1, 1 + old_grid**2, D)  -> (1, 1 + new_grid**2, D)
+    cls, patch = pos_embed[:, :1], pos_embed[:, 1:]
+    D = patch.shape[-1]
+    patch = patch.reshape(1, old_grid, old_grid, D).permute(0, 3, 1, 2)
+    patch = torch.nn.functional.interpolate(
+        patch, size=(new_grid, new_grid), mode="bicubic", align_corners=False)
+    patch = patch.permute(0, 2, 3, 1).reshape(1, new_grid * new_grid, D)
+    return torch.cat([cls, patch], dim=1)</code></pre>
+<div class="box warn"><strong>Interview point.</strong> "You trained at 224 and want to fine-tune at 384 — what breaks?" → the positional embeddings. Interpolate them. This is the single most-asked ViT deployment detail.</div>
+
+<h2 id="loop">9 · The full training step (putting it together)</h2>
+<pre><code>model.train()
+for step, (imgs, targets) in enumerate(loader):
+    imgs, targets = imgs.cuda(), targets.cuda()
+    imgs, soft_targets = mixup_fn(imgs, targets)     # mixup/cutmix -> soft labels
+
+    for g in opt.param_groups:                        # warmup + cosine
+        g["lr"] = lr_at(step, warmup_steps, total_steps, base_lr)
+
+    with torch.cuda.amp.autocast():                   # mixed precision
+        logits = model(imgs)
+        loss = torch.sum(-soft_targets * torch.log_softmax(logits, -1), -1).mean()
+
+    opt.zero_grad(set_to_none=True)
+    scaler.scale(loss).backward()
+    scaler.unscale_(opt)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)   # grad clip
+    scaler.step(opt); scaler.update()
+
+    ema.update(model)                                 # EMA of weights for eval</code></pre>
+<p>That is a production-grade ViT training step: mixup soft targets, per-step LR schedule, AMP, gradient clipping, EMA. Everything else (distributed data-parallel, checkpointing, logging) wraps around this unchanged.</p>
+
+<h2 id="gotchas">10 · Gotchas checklist</h2>
+<table>
+<tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td>Diverges in first epochs</td><td>no LR warmup / LR too high</td><td>linear warmup 5–20 epochs; scale LR by batch</td></tr>
+<tr><td>Overfits, val ≪ train</td><td>too little augmentation for the data scale</td><td>RandAug + mixup + cutmix + stochastic depth; or more data</td></tr>
+<tr><td>Underperforms a ResNet</td><td>training IN-1k from scratch, weak recipe</td><td>DeiT recipe (distillation + heavy aug) or pretrain bigger</td></tr>
+<tr><td>NaNs at large model</td><td>attention logits overflow</td><td>correct $1/\sqrt{d_h}$ scale; AMP + grad clip; pre-norm</td></tr>
+<tr><td>Weight decay hurts</td><td>decaying norms/embeddings</td><td>exclude bias, LayerNorm, cls &amp; pos embed from WD</td></tr>
+<tr><td>Accuracy drops at new resolution</td><td>positional embeddings mismatched</td><td>interpolate <code>pos_embed</code> to the new grid</td></tr>
+<tr><td>Eval noisier than expected</td><td>evaluating raw weights</td><td>evaluate the EMA copy</td></tr>
+</table>
+
+<div class="box key"><strong>One-paragraph summary.</strong> Training a ViT is standard supervised (or self-supervised) learning wrapped around a plain Transformer encoder — but because attention lacks the conv priors of locality and translation equivariance, success hinges on supplying that inductive bias externally: through <em>data scale</em> (the JFT crossover), <em>heavy augmentation + regularization</em> (RandAug/mixup/cutmix/stochastic-depth/label-smoothing, the DeiT recipe), and a <em>Transformer-appropriate optimizer schedule</em> (AdamW, linear warmup, cosine decay, decoupled weight decay excluding norms/embeddings). At scale the encoder is usually pretrained contrastively (CLIP/SigLIP) or by masked/self-distillation (MAE/DINO), then transferred — and the recurring deployment detail is interpolating positional embeddings when resolution changes.</div>
+
+</main></div></body></html>

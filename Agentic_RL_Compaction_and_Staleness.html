@@ -1,0 +1,232 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic RL — Compaction &amp; Staleness, formalized</title>
+<script>
+MathJax = {tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},svg:{fontCache:'global'}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>
+:root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--red:#e57373;--border:#2a3340;--code-bg:#11161d;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+main{max-width:900px;margin:0 auto;padding:40px 32px 120px;}
+h1{font-size:28px;margin:0 0 8px;}
+h2{font-size:22px;margin:48px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border);color:#eaf0f7;}
+h3{font-size:18px;margin:28px 0 8px;color:var(--accent-2);}
+p{margin:12px 0;}
+.sub{color:var(--muted);margin:0 0 28px;}
+code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+.box{border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin:18px 0;background:var(--panel);}
+.key{border-color:rgba(126,224,192,.4);background:rgba(126,224,192,.06);}
+.warn{border-color:rgba(255,180,84,.4);background:rgba(255,180,84,.06);}
+.bad{border-color:rgba(229,115,115,.4);background:rgba(229,115,115,.06);}
+.fig{border:1px solid var(--border);border-radius:12px;padding:20px 16px 10px;margin:26px 0;background:var(--panel);}
+.fig .cap{color:var(--muted);font-size:13.5px;margin:10px 6px 4px;line-height:1.5;}
+strong{color:#f0f4f9;}
+table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+th{background:var(--panel-2);color:#eaf0f7;}
+mjx-container{color:#dfe7f1;}
+mjx-container[display="true"]{margin:18px 0 !important;overflow-x:auto;overflow-y:hidden;}
+.eqlabel{color:var(--muted);font-size:13px;}
+svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+</style></head><body><main>
+
+<h1>Agentic RL, formalized</h1>
+<p class="sub">Per-call trajectories, why compaction breaks the flat-sequence objective, and how asynchronous staleness is corrected. Companion to Post_Training_and_RL_Deep_Dive §2–§3.</p>
+
+<h2>1 &nbsp;Setup: the per-call decomposition</h2>
+
+<p>An agentic episode is a sequence of $K$ LLM calls. At call $k$ the model reads a context $c_k$ and generates a block of tokens $y_k = (y_{k,1},\dots,y_{k,T_k})$ (thought + tool call); the environment then executes and returns an observation $o_k$ (tool output). Only the $y_k$ are actions; the $o_k$ are dynamics.</p>
+
+$$
+\tau \;=\; \big(c_1,\, y_1,\, o_1,\; c_2,\, y_2,\, o_2,\;\dots,\; c_K,\, y_K\big),
+\qquad R(\tau) \in \{0,1\} \text{ at the end (task success)}
+$$
+
+<p>The policy's total log-probability — the only thing the gradient ever touches — is a sum over <strong>policy-generated tokens only</strong>, each conditioned on the context <em>actually seen at generation time</em>:</p>
+
+$$
+\log \pi_\theta(\tau) \;=\; \sum_{k=1}^{K} \sum_{t=1}^{T_k} \log \pi_\theta\!\big(y_{k,t}\,\big|\; c_k \oplus y_{k,\lt t}\big)
+\tag{1}
+$$
+
+<p>where $\oplus$ is concatenation. Tool outputs $o_k$ contribute <strong>no terms</strong> — exactly as the environment dynamics $p(s'|s,a)$ cancelled out of $\nabla_\theta \log P(\tau|\theta)$ in the REINFORCE derivation. Masking is that cancellation, implemented.</p>
+
+<h3>When flattening is legal</h3>
+<p>Implementations like to flatten the episode into one long token sequence with a trainability mask. Equation (1) is equivalent to the flat form <em>if and only if</em> contexts are <strong>append-only</strong>:</p>
+
+$$
+c_{k+1} \;=\; c_k \oplus y_k \oplus o_k
+\qquad \text{(prefix property)}
+\tag{2}
+$$
+
+<p>Then every conditioning context is a literal prefix of the flat sequence, one forward pass scores the whole episode, and the mask selects which positions contribute loss terms. All standard multi-turn RL training relies on (2).</p>
+
+<h2>2 &nbsp;Compaction breaks the prefix property</h2>
+
+<p>With long horizons the scaffold applies a compaction operator $\varphi$ (summarize / truncate) somewhere mid-episode:</p>
+
+$$
+c_{k+1} \;=\; \varphi\big(c_k \oplus y_k \oplus o_k\big),
+\qquad \varphi \;\neq\; \mathrm{id}
+\tag{3}
+$$
+
+<div class="fig">
+<svg width="100%" viewBox="0 0 840 330" role="img" aria-label="Append-only context growth versus compacted context, showing where the prefix property breaks">
+<text x="20" y="30" fill="#7ee0c0" font-size="15" font-weight="600">append-only (prefix property holds)</text>
+<g font-size="13">
+<rect x="20" y="45" width="70" height="34" rx="5" fill="#1c2530" stroke="#2a3340"/><text x="55" y="67" fill="#d7dee8" text-anchor="middle">c1</text>
+<rect x="94" y="45" width="56" height="34" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="122" y="67" fill="#6ea8fe" text-anchor="middle">y1</text>
+<rect x="154" y="45" width="56" height="34" rx="5" fill="#1a2430" stroke="#8b97a7"/><text x="182" y="67" fill="#8b97a7" text-anchor="middle">o1</text>
+<rect x="214" y="45" width="56" height="34" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="242" y="67" fill="#6ea8fe" text-anchor="middle">y2</text>
+<rect x="274" y="45" width="56" height="34" rx="5" fill="#1a2430" stroke="#8b97a7"/><text x="302" y="67" fill="#8b97a7" text-anchor="middle">o2</text>
+<rect x="334" y="45" width="56" height="34" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="362" y="67" fill="#6ea8fe" text-anchor="middle">y3</text>
+<text x="410" y="67" fill="#8b97a7">… one flat sequence, one mask, one forward pass</text>
+<path d="M 20 92 L 330 92" stroke="#7ee0c0" stroke-width="1.5"/>
+<text x="20" y="110" fill="#7ee0c0" font-size="12.5">c3 = literal prefix ✓</text>
+</g>
+<text x="20" y="165" fill="#ffb454" font-size="15" font-weight="600">with compaction (prefix property broken at call 3)</text>
+<g font-size="13">
+<rect x="20" y="180" width="70" height="34" rx="5" fill="#1c2530" stroke="#2a3340"/><text x="55" y="202" fill="#d7dee8" text-anchor="middle">c1</text>
+<rect x="94" y="180" width="56" height="34" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="122" y="202" fill="#6ea8fe" text-anchor="middle">y1</text>
+<rect x="154" y="180" width="56" height="34" rx="5" fill="#1a2430" stroke="#8b97a7"/><text x="182" y="202" fill="#8b97a7" text-anchor="middle">o1</text>
+<rect x="214" y="180" width="56" height="34" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="242" y="202" fill="#6ea8fe" text-anchor="middle">y2</text>
+<rect x="274" y="180" width="56" height="34" rx="5" fill="#1a2430" stroke="#8b97a7"/><text x="302" y="202" fill="#8b97a7" text-anchor="middle">o2</text>
+<path d="M 340 197 L 388 197" stroke="#ffb454" stroke-width="2" marker-end="none"/>
+<text x="364" y="188" fill="#ffb454" text-anchor="middle" font-size="12.5">φ</text>
+<rect x="392" y="180" width="110" height="34" rx="5" fill="#2b2416" stroke="#ffb454"/><text x="447" y="202" fill="#ffb454" text-anchor="middle">c3 = summary</text>
+<rect x="506" y="180" width="56" height="34" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="534" y="202" fill="#6ea8fe" text-anchor="middle">y3</text>
+<rect x="566" y="180" width="56" height="34" rx="5" fill="#1a2430" stroke="#8b97a7"/><text x="594" y="202" fill="#8b97a7" text-anchor="middle">o3</text>
+<rect x="626" y="180" width="56" height="34" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="654" y="202" fill="#6ea8fe" text-anchor="middle">y4</text>
+</g>
+<path d="M 392 228 L 502 228" stroke="#e57373" stroke-width="1.5"/>
+<text x="20" y="250" fill="#e57373" font-size="12.5">c3 is NOT a prefix of (c1 ⊕ y1 ⊕ o1 ⊕ y2 ⊕ o2) — flat scoring of y3, y4 against the raw history computes the WRONG log-probs</text>
+<text x="20" y="285" fill="#8b97a7" font-size="12.5">fix: score each call against the context it actually saw — segment (c3, y3), (c4, y4) separately; equation (1) taken literally</text>
+<rect x="20" y="298" width="16" height="12" rx="2" fill="#12263a" stroke="#6ea8fe"/><text x="42" y="309" fill="#8b97a7" font-size="12">policy tokens (trainable)</text>
+<rect x="210" y="298" width="16" height="12" rx="2" fill="#1a2430" stroke="#8b97a7"/><text x="232" y="309" fill="#8b97a7" font-size="12">tool output (masked)</text>
+<rect x="400" y="298" width="16" height="12" rx="2" fill="#2b2416" stroke="#ffb454"/><text x="422" y="309" fill="#8b97a7" font-size="12">compacted context</text>
+</svg>
+<p class="cap"><strong>Figure 1.</strong> Top: append-only contexts make the episode one flat maskable sequence. Bottom: after $\varphi$, call 3's true conditioning context is the summary — replaying the raw history would score different (wrong) log-probs. The episode must be stored and scored as per-call (context, generation) pairs.</p>
+</div>
+
+<h3>What stays true, what changes</h3>
+
+<div class="box key">
+<p><strong>The gradient stays valid.</strong> $\varphi$ contains no $\theta$, so it is part of the environment transition. Writing the trajectory density with compaction,</p>
+$$
+P(\tau|\theta) \;=\; \prod_{k=1}^{K}\;\underbrace{\pi_\theta(y_k \mid c_k)}_{\text{policy}}\;\cdot\;\underbrace{p(o_k \mid \text{history})\; \mathbb{1}\!\big[c_{k+1} = \varphi(c_k \oplus y_k \oplus o_k)\big]}_{\text{dynamics: no }\theta\ \Rightarrow\ \text{vanishes from } \nabla_\theta \log P}
+\tag{4}
+$$
+<p>so the policy-gradient estimator is unchanged in form:
+$\displaystyle \nabla_\theta J = \mathbb{E}\Big[\hat A \cdot \sum_k \nabla_\theta \log \pi_\theta(y_k|c_k)\Big]$ — with $c_k$ the <em>compacted</em> context. Model-free means compaction-free gradients.</p>
+
+<h3 style="margin-top:18px;">Intuition: the ledger audit</h3>
+<p>The $\log$ turns the trajectory product (4) into a <strong>ledger</strong> — one entry per event. $\nabla_\theta$ walks the ledger asking each entry one question: <em>did $\theta$ have any say in this?</em></p>
+<table>
+<tr><th>Ledger entry</th><th>Who acted</th><th>$\nabla_\theta$ contribution</th></tr>
+<tr><td>$\log \pi_\theta(y_k \mid c_k)$</td><td>the policy chose</td><td>a gradient term — $\theta$ signed this line</td></tr>
+<tr><td>$\log p(o_k \mid \cdot)$</td><td>tool / sandbox / web</td><td>zero — no $\theta$ inside</td></tr>
+<tr><td>$\log \mathbb{1}[c_{k+1} = \varphi(\cdot)]$</td><td>the scaffold's compactor</td><td>zero — same summary for every $\theta$</td></tr>
+</table>
+<p>Compaction is a clerk who replaces the case file with a summary mid-trial: it changes what happens next, but the clerk wasn't following $\theta$, so no change to $\theta$ changes what the clerk did — its derivative is zero <em>by definition, not approximation</em>. The policy is audited only on: <em>given the (summarized) file you were handed, was your next move good?</em> This is the same cancellation that makes REINFORCE model-free — tool outputs and compaction are both just "the world moved."</p>
+<p><strong>Valid gradient — of which objective?</strong> The estimator is exactly unbiased for $J(\theta) = \mathbb{E}[R]$ <em>with $\varphi$ in the loop</em> — the reward of the policy living with this compactor — not for the hypothetical full-memory objective. Three consequences: (i) the optimum of the compacted game can be worse than the full-context optimum; that gap is the POMDP cost and no gradient closes it — only a better $\varphi$ does; (ii) the policy can legitimately <em>adapt to</em> the compactor (e.g. learn to restate key facts so they survive summarization) — that optimization flows entirely through the $\pi_\theta$ ledger lines; (iii) if the policy writes its own summaries, those entries switch from "clerk" to "choice," acquire $\theta$, and become trainable actions (previous box).</p>
+</div>
+
+<div class="box warn">
+<p><strong>But the problem becomes a POMDP.</strong> If $\varphi$ is lossy, $c_k$ no longer determines the true environment state $s_k$; the policy acts on an observation:</p>
+$$
+\underbrace{s_k \xrightarrow{\;\varphi\;} c_k}_{\text{lossy observation}},
+\qquad \pi_\theta(y_k \mid c_k) \;\neq\; \pi_\theta(y_k \mid s_k)
+$$
+<p>Two practical corollaries. (i) The <em>critic</em> also only sees $c_k$ — value estimates inherit the information loss, further weakening PPO's credit assignment on long horizons. (ii) No gradient can recover a fact $\varphi$ deleted; if performance is capped by compaction, the fix is $\varphi$, not the RL.</p>
+</div>
+
+<div class="box">
+<p><strong>If the policy writes its own summaries, compaction becomes an action.</strong> Suppose the summary is generated by the policy: $c_{k+1} = y^{\text{sum}}_k \sim \pi_\theta(\cdot \mid c_k \oplus y_k \oplus o_k)$. Then the summary tokens enter (1) as ordinary action tokens — unmasked, weighted by $\hat A$ — and the terminal reward trains <em>what to remember</em>. Same theorem, one more action block per compaction. (Learned-memory research; not standard practice yet.)</p>
+
+<h3 style="margin-top:16px;">Intuition: the clerk becomes a defendant</h3>
+<p>In ledger terms, the compaction line flips category. It used to read $\mathbb{1}[c_{k+1}=\varphi(\cdot)]$ — deterministic, $\theta$-free, gradient zero. Now it reads $\pi_\theta(y^{\text{sum}}_k \mid \cdot)$ — a policy factor like any other, auditable by $\nabla_\theta$.</p>
+<p><strong>What the reward teaches — with no summarization labels anywhere.</strong> The supervision is indirect: <em>episode succeeded → what you kept was sufficient → keep like that more often; episode failed → your actions were bad, or you forgot the thing that mattered — both get pushed down.</em> Concretely: the agent notes a config path at call 12; compaction fires at call 15; the path is needed at call 25. Runs whose summaries kept the path succeed → positive $\hat A$ flows to those summary tokens; runs that dropped it flail → negative $\hat A$. Across episodes the gradient performs <strong>credit assignment over memory decisions</strong> — it discovers from task outcomes alone which facts are load-bearing.</p>
+<p><strong>The POMDP escape hatch.</strong> With fixed $\varphi$ we said: if $\varphi$ deletes the fact, no gradient can recover it. Learned compaction moves the observation function <em>inside the action space</em> — the agent partially controls what it will later get to observe. It is learning its own state representation: the RNN's "what to carry in the hidden state" question, at the scale of language and tools, with the memory as readable text instead of an opaque vector.</p>
+<p><strong>Why it isn't standard yet.</strong> (i) <em>Ultra-long credit assignment:</em> a summary affects reward only through decisions dozens of calls later; under GRPO broadcast (5) the memory-specific signal arrives only statistically over many episodes — very low SNR. (ii) <em>Confounding:</em> bad actions and bad memory are punished together; disentangling needs counterfactual groups (same prefix, different summaries) or a process reward on summaries — which reintroduces "what is a good summary" as a labeling problem. (iii) <em>Degenerate memory:</em> under pure outcome reward, summaries can drift toward self-serving reports (if a judge reads them) or dense private shorthand — performant but unauditable. (iv) <em>Exploration:</em> RL only reweights what the base model's summarization prior already samples; a memory strategy never tried is never reinforced.</p>
+</div>
+
+<h3>Credit assignment on the per-call trajectory</h3>
+<p>With the episode as calls $k=1..K$, the two estimators differ only in the weight given to call $k$'s tokens:</p>
+
+$$
+\text{GRPO:}\quad \hat A^{(i)}_{k,t} \;=\; \frac{R_i - \mathrm{mean}(R_{1..G})}{\mathrm{std}(R_{1..G})}
+\;\;\;\forall k,t
+\qquad \text{(one scalar per episode, broadcast)}
+\tag{5}
+$$
+
+$$
+\text{PPO+critic:}\quad \hat A_{k,t} \;=\; \sum_{l\ge 0} (\gamma\lambda)^l\, \delta_{k,t+l},
+\qquad \delta_{k,t} = r_{k,t} + \gamma V_\phi(\cdot_{k,t+1}) - V_\phi(\cdot_{k,t})
+\qquad \text{(per-token, needs a trainable } V_\phi)
+\tag{6}
+$$
+
+<p>(5) gives every token in every call the same credit — one bit of signal per episode, robust, critic-free. (6) localizes credit inside the episode but requires $V_\phi$ to predict success from mid-trajectory (compacted!) contexts. The trade is unresolved; turn-level baselines (e.g. grouping calls that share a state) are the active middle ground.</p>
+
+<h2>3 &nbsp;Asynchronous rollouts: staleness and its correction</h2>
+
+<p>Episodes take minutes–hours (tool latency), so rollout workers and the learner run concurrently. An episode begun under policy version $\theta_{v}$ finishes while the learner is at $\theta_{v+n}$ — the data is <em>stale</em> beyond what PPO's single $\theta_\text{old}$ snapshot assumes.</p>
+
+<div class="fig">
+<svg width="100%" viewBox="0 0 840 300" role="img" aria-label="Timeline of learner policy versions and overlapping rollout episodes with increasing staleness">
+<g font-size="13">
+<text x="20" y="30" fill="#d7dee8" font-weight="600">learner</text>
+<rect x="90" y="14" width="170" height="26" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="175" y="32" fill="#6ea8fe" text-anchor="middle">θ v1</text>
+<rect x="264" y="14" width="170" height="26" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="349" y="32" fill="#6ea8fe" text-anchor="middle">θ v2</text>
+<rect x="438" y="14" width="170" height="26" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="523" y="32" fill="#6ea8fe" text-anchor="middle">θ v3</text>
+<rect x="612" y="14" width="170" height="26" rx="5" fill="#12263a" stroke="#6ea8fe"/><text x="697" y="32" fill="#6ea8fe" text-anchor="middle">θ v4</text>
+</g>
+<line x1="90" y1="52" x2="800" y2="52" stroke="#2a3340"/>
+<g font-size="12.5">
+<text x="20" y="90" fill="#d7dee8" font-weight="600">worker A</text>
+<rect x="90" y="74" width="240" height="24" rx="5" fill="#16241f" stroke="#7ee0c0"/><text x="210" y="91" fill="#7ee0c0" text-anchor="middle">episode: started @v1, ends @v2</text>
+<text x="345" y="91" fill="#7ee0c0">staleness 1 — mild</text>
+<text x="20" y="140" fill="#d7dee8" font-weight="600">worker B</text>
+<rect x="90" y="124" width="450" height="24" rx="5" fill="#2b2416" stroke="#ffb454"/><text x="315" y="141" fill="#ffb454" text-anchor="middle">long episode: started @v1, ends @v3</text>
+<text x="555" y="141" fill="#ffb454">staleness 2 — correct via IS</text>
+<text x="20" y="190" fill="#d7dee8" font-weight="600">worker C</text>
+<rect x="90" y="174" width="660" height="24" rx="5" fill="#2a1717" stroke="#e57373"/><text x="420" y="191" fill="#e57373" text-anchor="middle">very long episode: started @v1, ends @v4</text>
+<text x="758" y="191" fill="#e57373">drop /</text>
+<text x="758" y="205" fill="#e57373">truncate</text>
+</g>
+<text x="20" y="245" fill="#8b97a7" font-size="12.5">every generated token is scored and logged with the behavior policy μ = θ-version that generated it;</text>
+<text x="20" y="263" fill="#8b97a7" font-size="12.5">the learner corrects each token by the ratio π_current / μ (truncated), and drops data beyond a staleness cap.</text>
+</svg>
+<p class="cap"><strong>Figure 2.</strong> Asynchronous training. Long episodes straddle learner updates; the batch mixes data from several behavior-policy versions. Staleness is handled per token: log $\log\mu(y_{k,t}|\cdot)$ at generation time, importance-correct against the current policy, truncate the ratio, cap the allowed version gap.</p>
+</div>
+
+<h3>The corrected objective</h3>
+<p>Let $\mu$ denote the <strong>behavior policy</strong> — the exact parameter version that generated a given token (logged at rollout time). The off-policy policy gradient re-weights each token by how the current policy differs from $\mu$:</p>
+
+$$
+\nabla_\theta J \;\approx\; \mathbb{E}_{\tau\sim\mu}\Big[\;\sum_{k,t}\;
+\underbrace{\min\!\Big(\frac{\pi_\theta(y_{k,t}\mid \cdot)}{\mu(y_{k,t}\mid \cdot)},\; \bar c\Big)}_{\text{truncated IS ratio}}
+\;\nabla_\theta \log \pi_\theta(y_{k,t}\mid\cdot)\;\hat A_{k,t}\Big]
+\tag{7}
+$$
+
+<p>Three deliberate approximations, each trading bias for variance:</p>
+<table>
+<tr><th>Choice</th><th>Exact alternative</th><th>Why we don't</th></tr>
+<tr><td><strong>Per-token ratios</strong>, not the product over the trajectory</td><td>$\prod_{k,t} \frac{\pi_\theta}{\mu}$ (true trajectory IS)</td><td>a product of thousands of ratios explodes or vanishes — unusable variance; per-token is biased but bounded</td></tr>
+<tr><td><strong>Truncation at $\bar c$</strong> (V-trace / truncated IS, $\bar c \approx 1$–$2$)</td><td>untruncated ratio (unbiased)</td><td>caps the variance of rare huge ratios; bias vanishes as $\pi_\theta \to \mu$</td></tr>
+<tr><td><strong>Staleness cap</strong>: drop data with version gap $> n_{\max}$</td><td>keep everything</td><td>beyond a gap, $\hat A$ computed under old $\mu$ is meaningless (the stale-advantage problem, magnified)</td></tr>
+</table>
+
+<p>PPO's clipped objective is the special case where $\mu = \pi_{\theta_\text{old}}$ is a single recent snapshot and the truncation is the two-sided clip. Asynchronous agentic RL generalizes it: many $\mu$'s per batch (decoupled behavior/proximal policies, as in IMPALA/V-trace and recent decoupled-PPO variants), one-sided truncation, explicit staleness budget.</p>
+
+<div class="box key">
+<p><strong>One sentence to retain:</strong> per-call segmentation makes compaction representable ((1) + (3)); the $\theta$-free-ness of $\varphi$ keeps the gradient valid (4); lossiness makes it a POMDP (fix $\varphi$, not the loss); and asynchrony is handled by logging the behavior policy per token and applying truncated importance ratios under a staleness cap (7) — the CPI/trust-region story, stretched across time.</p>
+</div>
+
+</main></body></html>

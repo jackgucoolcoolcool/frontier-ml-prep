@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock Coding Interview — CoderPad Simulator</title>
+<!-- served from ~/Library/Application Support/mock-interview, auto-synced by a Claude Code hook -->
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --bad: #ff7b72; --border: #2a3340;
+    --code-bg: #11161d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; }
+  button { font-family: inherit; font-size: 13.5px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel-2); color: var(--text); padding: 7px 14px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: #1d3557; border-color: #2f5d8a; color: #cfe3ff; font-weight: 600; }
+  button.good { background: #14342a; border-color: #2a6a52; color: #a9f0d1; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .9em; color: var(--accent-2); }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    overflow-x: auto; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; }
+
+  /* ---------- picker ---------- */
+  #picker { height: 100vh; overflow-y: auto; padding: 48px 24px; }
+  #picker .wrap { max-width: 980px; margin: 0 auto; }
+  #picker h1 { font-size: 26px; margin: 0 0 4px; }
+  #picker .sub { color: var(--muted); margin-bottom: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  .card { border: 1px solid var(--border); background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 12px; padding: 18px; cursor: pointer; transition: border-color .15s; }
+  .card:hover { border-color: var(--accent); }
+  .card .tag { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+  .tag.W { color: var(--accent); } .tag.F { color: var(--accent-2); } .tag.A { color: var(--warn); }
+  .tag.R { color: #d2a8ff; }
+  #focus { display: none; border: 1px solid var(--border); border-left: 3px solid var(--warn);
+    background: var(--panel); border-radius: 10px; padding: 10px 16px; margin-bottom: 22px; font-size: 14px; }
+  #focus a { color: var(--accent); }
+  .scorebtns button { min-width: 40px; font-weight: 700; }
+  .card h3 { margin: 6px 0 8px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .card .hist { margin-top: 10px; font-size: 12px; color: var(--warn); }
+
+  /* ---------- interview ---------- */
+  #room { display: none; height: 100vh; flex-direction: column; }
+  #topbar { display: flex; align-items: center; gap: 16px; padding: 10px 18px;
+    border-bottom: 1px solid var(--border); background: var(--panel); }
+  #topbar .title { font-weight: 600; }
+  #topbar .stage-pills { display: flex; gap: 6px; }
+  .pill { width: 26px; height: 8px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); }
+  .pill.cur { background: var(--accent); }
+  .pill.done { background: var(--accent-2); }
+  .pill.skip { background: var(--warn); }
+  #clock { margin-left: auto; font-family: "SF Mono", Menlo, monospace; font-size: 20px; font-weight: 700;
+    color: var(--accent-2); }
+  #clock.low { color: var(--warn); } #clock.crit { color: var(--bad); }
+  #main { flex: 1; display: flex; min-height: 0; }
+
+  #chat { width: 400px; min-width: 320px; border-right: 1px solid var(--border); display: flex;
+    flex-direction: column; background: #121820; }
+  #msgs { flex: 1; overflow-y: auto; padding: 16px; }
+  .msg { margin-bottom: 14px; max-width: 95%; }
+  .msg .who { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .msg .bubble { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 13px; font-size: 14px; line-height: 1.55; }
+  .msg.interviewer .bubble { border-left: 3px solid var(--accent); }
+  .msg.system .bubble { border-left: 3px solid var(--warn); background: #1d1a12; }
+  .msg .bubble pre { margin: 8px 0; }
+  .msg .bubble details { margin-top: 8px; }
+  .msg .bubble summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+  .msg .actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  #right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #editor { flex: 1; min-height: 0; }
+  #editor textarea { width: 100%; height: 100%; background: var(--code-bg); color: var(--text); border: 0;
+    padding: 14px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 14px; line-height: 1.55;
+    resize: none; outline: none; tab-size: 4; }
+  #controls { display: flex; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--border);
+    background: var(--panel); align-items: center; }
+  #controls .spacer { flex: 1; }
+  #console { height: 210px; border-top: 1px solid var(--border); background: var(--code-bg);
+    overflow-y: auto; padding: 10px 14px; font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; }
+  #console .ok { color: var(--accent-2); } #console .fail { color: var(--bad); }
+  #console .dim { color: var(--muted); } #console .err { color: var(--warn); }
+
+  /* ---------- debrief ---------- */
+  #debrief { display: none; position: fixed; inset: 0; background: rgba(8, 11, 15, .88); z-index: 50;
+    overflow-y: auto; padding: 40px 20px; }
+  #debrief .box { max-width: 860px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 30px 34px; }
+  #debrief h2 { margin: 0 0 4px; }
+  #debrief table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  #debrief th, #debrief td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; }
+  #debrief th { background: var(--panel-2); }
+  .rubric { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 26px; margin: 14px 0 6px; }
+  .rubric label { font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+  .rubric input { flex: 1; }
+  .rubric .val { width: 14px; text-align: center; color: var(--text); font-weight: 700; }
+  #notes { width: 100%; min-height: 90px; background: var(--code-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-family: inherit; font-size: 14px; }
+  #debrief details { margin: 8px 0; }
+  #debrief summary { cursor: pointer; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="picker">
+  <div class="wrap">
+    <h1>Mock Coding Interview — CoderPad Simulator</h1>
+    <div class="sub">45 minutes, layered extensions, hidden tests, a clock that does not care about your feelings.
+      Speak your reasoning <b>out loud</b> the entire time — that habit is half the score.</div>
+    <div style="margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="primary" onclick="location.href='/study'">📖 Reading room — attention · norms &amp; backprop · sampling</button>
+      <button class="primary" onclick="location.href='/gap_report'">📉 Gap report — targeted study from your logged errors</button>
+      <button onclick="location.href='/history'">🗂 History</button>
+    </div>
+    <div id="focus"></div>
+    <div class="cards" id="cards"></div>
+  </div>
+</div>
+
+<div id="room">
+  <div id="topbar">
+    <span class="title" id="roomTitle"></span>
+    <span class="stage-pills" id="pills"></span>
+    <span id="clock">45:00</span>
+  </div>
+  <div id="main">
+    <div id="chat">
+      <div id="msgs"></div>
+    </div>
+    <div id="right">
+      <div id="editor"></div>
+      <div id="controls">
+        <button class="primary" id="btnRun" title="Cmd/Ctrl+Enter">&#9654; Run</button>
+        <button class="good" id="btnSubmit">Submit stage</button>
+        <button id="btnHint">I'm stuck</button>
+        <span class="spacer"></span>
+        <button id="btnSkip">Skip stage</button>
+        <button id="btnEnd">End interview</button>
+      </div>
+      <div id="console"><span class="dim">// output appears here — Run executes your code, Submit runs the hidden tests</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="debrief"><div class="box" id="debriefBox"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+let SESSIONS = [], S = null, si = 0, meta = [], stageT0 = 0, t0 = 0, timerId = null, over = false;
+let warned = { half: false, ten: false, five: false };
+let ed = null;  // editor API: {get, set}
+
+/* ---------------- editor (Monaco with textarea fallback) ---------------- */
+function makeFallbackEditor() {
+  const ta = document.createElement("textarea");
+  ta.spellcheck = false;
+  $("#editor").appendChild(ta);
+  ta.addEventListener("keydown", e => {
+    if (e.key === "Tab") { e.preventDefault();
+      const s = ta.selectionStart; ta.setRangeText("    ", s, ta.selectionEnd, "end"); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); runCode(); }
+  });
+  ed = { get: () => ta.value, set: v => { ta.value = v; } };
+}
+function initEditor(cb) {
+  if (!window.require) { makeFallbackEditor(); return cb(); }
+  window.require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs" } });
+  const bail = setTimeout(() => { if (!ed) { makeFallbackEditor(); cb(); } }, 6000);
+  window.require(["vs/editor/editor.main"], () => {
+    if (ed) return;
+    clearTimeout(bail);
+    const m = monaco.editor.create($("#editor"), {
+      value: "", language: "python", theme: "vs-dark", fontSize: 14, minimap: { enabled: false },
+      quickSuggestions: false, suggestOnTriggerCharacters: false, wordBasedSuggestions: "off",
+      parameterHints: { enabled: false }, hover: { enabled: false }, tabSize: 4,
+      automaticLayout: true, scrollBeyondLastLine: false, contextmenu: false,
+    });
+    m.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, runCode);
+    ed = { get: () => m.getValue(), set: v => m.setValue(v) };
+    cb();
+  });
+}
+
+/* ---------------- chat ---------------- */
+function fmt(t) {
+  let h = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  h = h.replace(/```([\s\S]*?)```/g, (_, c) => "<pre>" + c.replace(/^\n|\n$/g, "") + "</pre>");
+  h = h.replace(/`([^`]+)`/g, "<code>$1</code>");
+  h = h.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  return h.replace(/\n/g, "<br>");
+}
+function say(who, text, actionsEl) {
+  const d = document.createElement("div");
+  d.className = "msg " + (who === "Interviewer " + S.interviewer ? "interviewer" : "system");
+  d.innerHTML = `<div class="who">${who} · ${clockNow()}</div><div class="bubble">${fmt(text)}</div>`;
+  if (actionsEl) d.querySelector(".bubble").appendChild(actionsEl);
+  $("#msgs").appendChild(d);
+  $("#msgs").scrollTop = $("#msgs").scrollHeight;
+}
+function interviewer(text, actionsEl) { say("Interviewer " + S.interviewer, text, actionsEl); }
+function clockNow() {
+  const s = Math.max(0, Math.floor((Date.now() - t0) / 1000));
+  return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+}
+
+/* ---------------- console ---------------- */
+function cline(html, cls) {
+  const sp = document.createElement("span");
+  if (cls) sp.className = cls;
+  sp.textContent = html;
+  $("#console").appendChild(sp);
+  $("#console").appendChild(document.createTextNode("\n"));
+  $("#console").scrollTop = $("#console").scrollHeight;
+}
+function cclear() { $("#console").innerHTML = ""; }
+
+/* ---------------- picker ---------------- */
+const TRACK = { W: "Interviewer W · rigor / efficiency", F: "Interviewer F · post-training / RL", A: "Warm-up · algorithms", R: "Resume deep-dive · Google / Gemini" };
+function history() { try { return JSON.parse(localStorage.getItem("mock_history") || "[]"); } catch { return []; } }
+function renderPicker() {
+  const h = history();
+  $("#cards").innerHTML = "";
+  SESSIONS.forEach(s => {
+    const att = h.filter(x => x.session_id === s.id);
+    const best = att.length ? Math.max(...att.map(x => x.passed)) : null;
+    const c = document.createElement("div");
+    c.className = "card";
+    const desc = s.mode === "verbal"
+      ? `${s.stages.length} questions · ${s.minutes} min · answer out loud, self-scored`
+      : `${s.stages.length} stages · ${s.minutes} min · hidden tests per stage`;
+    c.innerHTML = `<div class="tag ${s.interviewer}">${TRACK[s.interviewer]}</div>
+      <h3>${s.title}</h3><p>${desc}</p>
+      <div class="hist">${att.length ? `attempted ${att.length}× · best ${best}/${s.stages.length} ${s.mode === "verbal" ? "strong answers" : "stages"}` : "not attempted yet"}</div>`;
+    c.onclick = () => start(s);
+    $("#cards").appendChild(c);
+  });
+}
+
+/* ---------------- interview flow ---------------- */
+// variant view: vi = 0 is the base stage; vi >= 1 merges the variant's overrides
+function V(st, vi) {
+  return vi > 0 && st.variants && st.variants[vi - 1] ? { ...st, ...st.variants[vi - 1] } : st;
+}
+function pickVariant(st) {
+  const nvar = 1 + (st.variants ? st.variants.length : 0);
+  if (nvar === 1) return 0;
+  const count = (GAPS && GAPS.counts && GAPS.counts[st.id]) || 0;
+  return count % nvar;   // rotate: each attempt of this stage sees the next flavor
+}
+function start(sess, at = 0) {
+  S = sess; si = at; over = false;
+  warned = { half: false, ten: false, five: false };
+  meta = S.stages.map((st, i) => ({ hints: 0, submits: 0, passed: false, skipped: i < at, seconds: 0, fu: 0, vi: pickVariant(st) }));
+  $("#picker").style.display = "none";
+  $("#room").style.display = "flex";
+  $("#roomTitle").textContent = S.title + (at > 0 ? " · drill" : "");
+  $("#msgs").innerHTML = ""; cclear();
+  const verbal = S.mode === "verbal";
+  ["btnRun", "btnSubmit", "btnHint"].forEach(id => $("#" + id).style.display = verbal ? "none" : "");
+  $("#console").style.display = verbal ? "none" : "";
+  if (verbal) {
+    ed.set("# Scratch pad — bullet your spoken answer here if it helps.\n# You are graded on what you SAY OUT LOUD, not what you type.\n\n");
+  } else {
+    const v0 = V(S.stages[at], meta[at].vi);
+    ed.set(v0.starter || S.stages[0].starter || "import numpy as np\n\n");
+  }
+  t0 = Date.now();
+  timerId = setInterval(tick, 250);
+  renderPills();
+  interviewer(S.intro);
+  if (at > 0 && !verbal) {
+    say("System", "Drill mode: jumping straight to stage " + (at + 1) + ". Write any helpers you need from earlier stages (softmax, etc.) yourself.");
+  }
+  setTimeout(() => stagePrompt(), 700);
+}
+function renderPills() {
+  $("#pills").innerHTML = S.stages.map((_, i) => {
+    let cls = "pill";
+    if (meta[i].passed) cls += " done";
+    else if (meta[i].skipped) cls += " skip";
+    else if (i === si) cls += " cur";
+    return `<span class="${cls}" title="Stage ${i + 1}"></span>`;
+  }).join("");
+}
+function tick() {
+  const total = S.minutes * 60, el = (Date.now() - t0) / 1000, rem = Math.max(0, total - el);
+  const c = $("#clock");
+  c.textContent = String(Math.floor(rem / 60)).padStart(2, "0") + ":" + String(Math.floor(rem % 60)).padStart(2, "0");
+  c.className = rem < 300 ? "crit" : rem < 600 ? "low" : "";
+  if (!warned.half && el > total / 2) { warned.half = true;
+    interviewer("We're about halfway — doing fine on time, keep going."); }
+  if (!warned.ten && rem < 600) { warned.ten = true;
+    interviewer("Ten minutes left. If you're mid-stage, tell me your plan for finishing it."); }
+  if (!warned.five && rem < 300) { warned.five = true;
+    interviewer("Five minutes — let's aim to wrap up what you have."); }
+  if (rem <= 0 && !over) endInterview("We're at time — thanks, that's a good place to stop.");
+}
+function stagePrompt() {
+  const st = S.stages[si];
+  const v = V(st, meta[si].vi);
+  const varTag = meta[si].vi > 0 ? ` (variation: ${v.label || meta[si].vi})` : "";
+  stageT0 = Date.now();
+  renderPills();
+  if (S.mode === "verbal") {
+    interviewer(`**Question ${si + 1} of ${S.stages.length} — ${st.title}${varTag}**\n\n${v.prompt}\n\n*Answer out loud, 3–5 minutes.*`);
+    addActionButton("I've answered out loud →", verbalAdvance);
+  } else {
+    interviewer(`**Stage ${si + 1} of ${S.stages.length} — ${st.title}${varTag}**\n\n${v.prompt}`);
+    // debug-style variants carry their own starter mid-session: append it once
+    if (si > 0 && meta[si].vi > 0 && v.starter && !ed.get().includes(v.starter.trim().slice(0, 40))) {
+      ed.set(ed.get().trimEnd() + "\n\n" + v.starter.replace(/^import numpy as np\n+/, ""));
+    }
+  }
+}
+
+function addActionButton(label, fn, cls) {
+  const act = document.createElement("div");
+  act.className = "actions";
+  const b = document.createElement("button");
+  b.className = cls || "good";
+  b.textContent = label;
+  b.onclick = () => { b.disabled = true; fn(); };
+  act.appendChild(b);
+  $("#msgs").lastChild.querySelector(".bubble").appendChild(act);
+  $("#msgs").scrollTop = $("#msgs").scrollHeight;
+}
+
+function verbalAdvance() {
+  const st = S.stages[si], m = meta[si];
+  const fus = V(st, m.vi).followups || [];
+  if (m.fu < fus.length) {
+    interviewer(fus[m.fu]);
+    m.fu++;
+    addActionButton(m.fu < fus.length ? "Answered →" : "Answered — show me the bar →", verbalAdvance);
+    return;
+  }
+  interviewer("Here's the bar. Compare it honestly against what you actually **said** — not what you knew but didn't say.\n\n**Score yourself:** 1 = missed it · 3 = partial, needed the follow-ups · 5 = nailed it including follow-ups.");
+  const bubble = $("#msgs").lastChild.querySelector(".bubble");
+  const d = document.createElement("details");
+  d.open = true;
+  d.innerHTML = `<summary>what a strong answer covers</summary><div style="margin-top:6px;color:var(--muted)">${fmt(st.strong)}</div>`;
+  bubble.appendChild(d);
+  const act = document.createElement("div");
+  act.className = "actions scorebtns";
+  for (let n = 1; n <= 5; n++) {
+    const b = document.createElement("button");
+    b.textContent = n;
+    if (n >= 4) b.className = "good";
+    b.onclick = () => { [...act.children].forEach(x => x.disabled = true); scoreVerbal(n); };
+    act.appendChild(b);
+  }
+  bubble.appendChild(act);
+  $("#msgs").scrollTop = $("#msgs").scrollHeight;
+}
+
+async function scoreVerbal(n) {
+  const st = S.stages[si], m = meta[si];
+  m.score = n;
+  m.passed = n >= 4;
+  m.seconds = Math.round((Date.now() - stageT0) / 1000);
+  renderPills();
+  fetch("/log_verbal", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: S.id, stage_id: st.id, topic: S.topic, title: st.title, score: n }) });
+  interviewer(n >= 4 ? "Good. Next question." : "Noted — that one goes on your drill list. Next question.");
+  setTimeout(nextStage, 500);
+}
+
+async function runCode() {
+  if (over) return;
+  cclear(); cline("// running…", "dim");
+  const r = await fetch("/run", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: ed.get() }) }).then(x => x.json());
+  cclear();
+  if (r.stdout) cline(r.stdout.trimEnd());
+  if (r.stderr) cline(r.stderr.trimEnd(), "err");
+  if (!r.stdout && !r.stderr) cline("// ran clean, no output", "dim");
+}
+
+async function submitStage() {
+  if (over) return;
+  const st = S.stages[si], m = meta[si];
+  m.submits++;
+  cclear(); cline("// running hidden tests…", "dim");
+  const r = await fetch("/submit", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: S.id, stage_id: st.id, code: ed.get(), variant: m.vi }) }).then(x => x.json());
+  cclear();
+  if (!r.ok) {
+    cline("// your code crashed before the tests could run:", "fail");
+    if (r.stdout) cline(r.stdout.trimEnd());
+    cline((r.stderr || "").trimEnd(), "err");
+    interviewer("Hm, that doesn't run yet — check the console. Walk me through what the error is telling you.");
+    return;
+  }
+  if (r.stdout) cline(r.stdout.trimEnd(), "dim");
+  let fails = 0;
+  r.results.forEach(t => {
+    if (t.ok) cline("  ✓ " + t.name, "ok");
+    else { fails++; cline("  ✗ " + t.name, "fail"); if (t.msg) cline("      " + t.msg.split("\n").slice(-2).join(" · "), "err"); }
+  });
+  if (fails === 0) return stagePassed();
+  // interviewer nudges escalate with failed submits
+  const vh = V(st, m.vi).hints;
+  if (m.submits === 1) {
+    interviewer("Not quite — " + fails + (fails === 1 ? " test fails" : " tests fail") +
+      ". Read the failure message carefully and try a tiny example by hand. What do you *expect* it to return?");
+  } else if (m.hints < 1) {
+    m.hints = 1;
+    interviewer("Let me give you a nudge: " + vh[0]);
+  } else if (m.hints < 2) {
+    m.hints = 2;
+    interviewer("Okay, bigger hint: " + vh[1]);
+  } else {
+    interviewer("Still failing " + fails + " — feel free to keep at it, or skip the stage and we'll move on. In the real thing I'd steer us along by now.");
+  }
+}
+
+function stagePassed() {
+  const st = S.stages[si], m = meta[si];
+  m.passed = true;
+  m.seconds = Math.round((Date.now() - stageT0) / 1000);
+  renderPills();
+  cline("\n  all tests pass ✓", "ok");
+  const praise = m.submits === 1 && m.hints === 0 ? "Clean, first try. " : "Good, that's working. ";
+  // probe question with reveal + continue
+  const act = document.createElement("div");
+  act.className = "actions";
+  const details = document.createElement("details");
+  details.innerHTML = `<summary>what a strong answer covers</summary><div style="margin-top:6px;color:var(--muted)">${fmt(st.probe.a)}</div>`;
+  const btn = document.createElement("button");
+  btn.textContent = si + 1 < S.stages.length ? "Continue →" : "Finish interview →";
+  btn.className = "good";
+  btn.onclick = () => { btn.disabled = true; nextStage(); };
+  act.appendChild(btn);
+  interviewer(praise + "Before we extend it — answer this **out loud**, like I'm sitting across from you:\n\n" + st.probe.q);
+  const last = $("#msgs").lastChild.querySelector(".bubble");
+  last.appendChild(details); last.appendChild(act);
+}
+function giveHint() {
+  if (over) return;
+  const st = S.stages[si], m = meta[si];
+  const vh = V(st, m.vi).hints;
+  if (m.hints >= vh.length) { interviewer("I've given you everything I can here — try a tiny example by hand, or skip the stage."); return; }
+  interviewer((m.hints === 0 ? "Sure — think about it this way: " : "Bigger hint: ") + vh[m.hints]);
+  m.hints++;
+}
+function skipStage() {
+  if (over) return;
+  const m = meta[si];
+  if (!m.passed) { m.skipped = true; m.seconds = Math.round((Date.now() - stageT0) / 1000); }
+  interviewer("No problem — let's move on. (You'll see the model solution in the debrief.)");
+  nextStage();
+}
+function nextStage() {
+  if (si + 1 < S.stages.length) { si++; stagePrompt(); }
+  else endInterview(S.closing);
+}
+function endInterview(msg) {
+  if (over) return;
+  over = true;
+  clearInterval(timerId);
+  const cur = meta[si];
+  if (!cur.passed && !cur.skipped) cur.seconds = Math.round((Date.now() - stageT0) / 1000);
+  interviewer(msg);
+  setTimeout(showDebrief, 900);
+}
+
+/* ---------------- debrief ---------------- */
+const RUBRIC = [
+  ["communication", "Narrated shapes / reasoning out loud"],
+  ["clarify", "Asked clarifying questions up front"],
+  ["debugging", "Debugged from evidence, not guessing"],
+  ["speed", "Pace (would this fit a real 45 min?)"],
+  ["concepts", "Probe-question answers (the out-loud parts)"],
+];
+function showDebrief() {
+  const verbal = S.mode === "verbal";
+  const passed = meta.filter(m => m.passed).length;
+  const head = verbal
+    ? "<tr><th>Question</th><th>Self-score</th><th>Time</th></tr>"
+    : "<tr><th>Stage</th><th>Status</th><th>Time</th><th>Hints</th><th>Submits</th></tr>";
+  const rows = S.stages.map((st, i) => {
+    const m = meta[i];
+    const t = m.seconds ? Math.floor(m.seconds / 60) + "m " + (m.seconds % 60) + "s" : "—";
+    if (verbal) {
+      const sc = m.score ? m.score + " / 5" : m.skipped ? "⏭ skipped" : "⬜ not reached";
+      return `<tr><td>${i + 1}. ${st.title}</td><td>${sc}</td><td>${t}</td></tr>`;
+    }
+    const status = m.passed ? "✅ passed" : m.skipped ? "⏭ skipped" : "⬜ not reached";
+    return `<tr><td>${i + 1}. ${st.title}</td><td>${status}</td><td>${t}</td><td>${m.hints}</td><td>${m.submits}</td></tr>`;
+  }).join("");
+  const sols = S.stages.map((st, i) => {
+    const v = V(st, meta[i].vi);
+    const varTag = meta[i].vi > 0 ? ` · variation: ${v.label || meta[i].vi}` : "";
+    return verbal
+      ? `<details><summary>Q${i + 1} — ${st.title}${varTag} (strong answer)</summary>
+         <div style="color:var(--muted);font-size:13.5px;margin-top:6px">${fmt(v.strong)}</div></details>`
+      : `<details><summary>Stage ${i + 1} — ${st.title}${varTag} (model solution)</summary><pre>${v.solution.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</pre>
+       <div style="color:var(--muted);font-size:13.5px"><b>Probe:</b> ${fmt(st.probe.q)}<br><b>Strong answer:</b> ${fmt(st.probe.a)}</div></details>`;
+  }).join("");
+  const rub = RUBRIC.map(([k, label]) =>
+    `<label>${label}<input type="range" min="1" max="5" value="3" data-k="${k}"
+       oninput="this.nextElementSibling.textContent=this.value"><span class="val">3</span></label>`).join("");
+  $("#debriefBox").innerHTML = `
+    <h2>Debrief — ${S.title}</h2>
+    <div style="color:var(--muted)">${verbal ? passed + "/" + S.stages.length + " strong answers (4+)" : passed + "/" + S.stages.length + " stages passed"} · ${clockNow()} elapsed</div>
+    <table>${head}${rows}</table>
+    <h3>Self-score (the parts ${verbal ? "question scores" : "tests"} can't grade)</h3>
+    <div class="rubric">${rub}</div>
+    <h3>${verbal ? "Strong answers" : "Model solutions"}</h3>${sols}
+    <h3>Your top gaps <span style="color:var(--muted);font-weight:400;font-size:13px">(auto-updated from every submission)</span></h3>
+    <div id="gapSummary" style="color:var(--muted)">analyzing…</div>
+    <h3>Notes for next session</h3>
+    <textarea id="notes" placeholder="What broke? What was slow? What will you drill before the next mock?"></textarea>
+    <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+      <button class="good" id="btnSave">Save self-scores &amp; notes</button>
+      <button id="btnGaps" onclick="location.href='/gap_report'">📉 Full gap report</button>
+      <button id="btnMenu">Back to sessions</button>
+      <span id="saveState" style="color:var(--muted);font-size:13px"></span>
+    </div>`;
+  $("#btnSave").onclick = () => saveDebrief(false);
+  $("#btnMenu").onclick = () => location.reload();
+  $("#debrief").style.display = "block";
+  saveDebrief(true);      // auto-save immediately; button just updates in place
+  loadGapSummary();
+}
+let debriefFile = null;
+function debriefRecord() {
+  const rubric = {};
+  document.querySelectorAll(".rubric input").forEach(i => rubric[i.dataset.k] = +i.value);
+  return {
+    session_id: S.id, title: S.title, date: new Date().toISOString(),
+    passed: meta.filter(m => m.passed).length, total: S.stages.length, elapsed: clockNow(),
+    stages: S.stages.map((st, i) => ({ id: st.id, title: st.title, ...meta[i] })),
+    rubric, notes: $("#notes") ? $("#notes").value : "", code: ed.get(),
+  };
+}
+async function saveDebrief(auto) {
+  const rec = debriefRecord();
+  if (debriefFile) rec._file = debriefFile;
+  if (auto) {   // history entry only once, on the auto-save
+    const h = history();
+    h.push({ session_id: S.id, title: S.title, date: rec.date, passed: rec.passed, total: rec.total });
+    localStorage.setItem("mock_history", JSON.stringify(h));
+  }
+  const r = await fetch("/save_session", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rec) }).then(x => x.json());
+  debriefFile = r.saved;
+  $("#saveState").textContent = auto ? "auto-saved ✓ (" + r.saved + ")" : "updated ✓";
+}
+const TOPIC_NAMES = {
+  "mm-pretraining": "Multimodal pretraining", "mm-scaling": "MM scaling laws",
+  "data-science": "Science of Data", "vision-capabilities": "Visual & physical understanding",
+  "mmu-mmgen": "Understanding ↔ Generation", "mm-posttraining": "MM post-training & agentic",
+};
+async function loadGapSummary() {
+  const d = await fetch("/gaps").then(x => x.json());
+  const el = $("#gapSummary");
+  let html = "";
+  if (d.weak.length) {
+    html += d.weak.slice(0, 3).map((w, i) =>
+      `<div style="margin:4px 0"><b style="color:var(--warn)">${i + 1}. ${w.remediation ? w.remediation.title : w.tag}</b>
+       <span style="font-size:13px"> — ${w.fails} failed test${w.fails === 1 ? "" : "s"}${w.hints ? `, ${w.hints} hints` : ""} (${w.stages.join(", ")})</span></div>`).join("");
+  }
+  const weakTopics = (d.resume || []).filter(r => r.avg < 4);
+  if (weakTopics.length) {
+    html += weakTopics.slice(0, 2).map(r =>
+      `<div style="margin:4px 0"><b style="color:#d2a8ff">Resume: ${TOPIC_NAMES[r.topic] || r.topic}</b>
+       <span style="font-size:13px"> — avg ${r.avg}/5 over ${r.n} question${r.n === 1 ? "" : "s"}</span></div>`).join("");
+  }
+  if (!html) { el.innerHTML = "no weak spots on record 🎉"; return; }
+  el.innerHTML = html + `<div style="font-size:13px;margin-top:6px">Details and drills in the full gap report ↑</div>`;
+}
+let GAPS = null;   // cached /gaps payload; also drives variant rotation
+async function renderFocus() {
+  try {
+    const d = await fetch("/gaps").then(x => x.json());
+    GAPS = d;
+    const parts = [];
+    if (d.weak.length) {
+      const w = d.weak[0];
+      const drill = w.stages.length ? ` — <a href="/?drill=${w.stages[0]}">drill it now</a>` : "";
+      parts.push(`weakest concept: <b>${w.remediation ? w.remediation.title : w.tag}</b> (${w.fails} fails)${drill}`);
+    }
+    const rt = (d.resume || []).filter(r => r.avg < 4)[0];
+    if (rt) parts.push(`weakest resume topic: <b>${TOPIC_NAMES[rt.topic] || rt.topic}</b> (avg ${rt.avg}/5)`);
+    if (parts.length) {
+      $("#focus").innerHTML = "🎯 Focus today — " + parts.join(" · ") + ` · <a href="/gap_report">full report</a>`;
+      $("#focus").style.display = "block";
+    }
+  } catch (e) { /* focus banner is best-effort */ }
+}
+
+/* ---------------- boot ---------------- */
+$("#btnRun").onclick = runCode;
+$("#btnSubmit").onclick = submitStage;
+$("#btnHint").onclick = giveHint;
+$("#btnSkip").onclick = skipStage;
+$("#btnEnd").onclick = () => endInterview("Sure, let's stop here.");
+window.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && S && !over) { e.preventDefault(); runCode(); }
+});
+fetch("/problems").then(r => r.json()).then(d => {
+  SESSIONS = d;
+  renderPicker();
+  renderFocus();
+  // deep-link: /?drill=<stage_id> jumps straight into that stage (from the gap report)
+  const drill = new URLSearchParams(location.search).get("drill");
+  if (drill) {
+    const sess = SESSIONS.find(s => s.stages.some(st => st.id === drill));
+    if (sess) {
+      const idx = sess.stages.findIndex(st => st.id === drill);
+      const wait = setInterval(() => { if (ed) { clearInterval(wait); start(sess, idx); } }, 150);
+    }
+  }
+});
+initEditor(() => {});
+</script>
+</body>
+</html>

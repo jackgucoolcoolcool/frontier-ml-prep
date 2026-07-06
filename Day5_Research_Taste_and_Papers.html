@@ -183,9 +183,80 @@
       <li><strong>Calibration:</strong> you say how confident you are and why; you distinguish "I know" from "I'd bet" from "I'd test."</li>
     </ul>
 
+    <h3>1.3 The compute-allocation meta-question (master this one)</h3>
+    <p><strong>"Given X more compute: bigger-dense, MoE, longer context, test-time compute, or better data?"</strong> The expected answer is a <strong>decision procedure</strong>, not a pick. Four steps:</p>
+    <p><strong>Step 0 — clarify before answering (this IS the taste signal).</strong> Is X <em>training</em> compute or <em>lifecycle</em> compute? MoE spends training FLOPs to buy cheap inference; test-time compute is the opposite trade — free at training, multiplies every query's cost. Pin the target metric (loss vs reasoning vs agentic) and the deployment profile (latency, serving memory, queries over the model's lifetime).</p>
+    <p><strong>Step 1 — diagnose the bottleneck.</strong> Each option fixes a different failure:</p>
+    <table>
+      <thead><tr><th>Option</th><th>Buys</th><th>Loses when</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Bigger dense</strong></td><td>Predictable scaling-law gains; simplest infra</td><td>Inference cost ∝ params; data-bound (Chinchilla: scale $N$ and $D$ together)</td></tr>
+        <tr><td><strong>MoE</strong></td><td>Quality per training-FLOP (capacity ≠ compute)</td><td>Serving memory tight; no expert-parallel infra; routing instability</td></tr>
+        <tr><td><strong>Longer context</strong></td><td>New <em>capabilities</em> (repos, agents, docs)</td><td>Evals show no truncation failures; O(T²) prefill + KV cache unpaid-for</td></tr>
+        <tr><td><strong>Test-time compute</strong></td><td>Reasoning gains, <strong>no retraining</strong></td><td>No verifier / search inapplicable; latency-sensitive; cost ∝ usage</td></tr>
+        <tr><td><strong>Better data</strong></td><td>Shifts the scaling curve's <em>constant</em> — cheapest FLOP is the one not spent</td><td>Gains hard to measure; diversity collapse; engineering-heavy</td></tr>
+      </tbody>
+    </table>
+    <p>Ground the diagnosis in <strong>eval error analysis</strong>: knowledge misses → capacity/data; reasoning misses → test-time compute; truncation → context; loss still falling fast at train end → under-trained → data.</p>
+    <p><strong>Step 2 — cheap proxies, cheapest-first</strong> — and design each to shift a <em>curve</em>, not a point (one point can lie; a fitted curve mostly can't):</p>
+    <div style="overflow-x:auto;">
+    <svg viewBox="0 0 760 430" xmlns="http://www.w3.org/2000/svg" role="img" width="100%" style="max-width:760px">
+      <title>Compute-allocation decision procedure</title>
+      <desc>Pipeline: clarify, diagnose, run proxy ladder cheapest first, commit. Below: four proxy experiments ordered by cost.</desc>
+      <style>.t3{fill:#eaf0f7;font:700 12px -apple-system,sans-serif;text-anchor:middle;} .s3{fill:#8b97a7;font:10.5px -apple-system,sans-serif;text-anchor:middle;} .lv3{fill:#eaf0f7;font:700 11.5px -apple-system,sans-serif;} .sx{fill:#8b97a7;font:10.5px -apple-system,sans-serif;} .ar3{stroke:#8b97a7;stroke-width:1.4;fill:none;marker-end:url(#a3);}</style>
+      <defs>
+        <marker id="a3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#8b97a7"/></marker>
+        <marker id="up3" markerWidth="8" markerHeight="8" refX="4" refY="2" orient="auto"><path d="M0,6 L4,0 L8,6 Z" fill="#2a3340"/></marker>
+      </defs>
+      <!-- top pipeline -->
+      <rect x="10" y="30" width="168" height="62" rx="8" fill="#1c2530" stroke="#6ea8fe"/>
+      <text x="94" y="52" class="t3">0 · Clarify</text>
+      <text x="94" y="68" class="s3">training vs lifecycle compute?</text>
+      <text x="94" y="82" class="s3">metric + deployment profile</text>
+      <path class="ar3" d="M178 61 L200 61"/>
+      <rect x="202" y="30" width="168" height="62" rx="8" fill="#1c2530" stroke="#6ea8fe"/>
+      <text x="286" y="52" class="t3">1 · Diagnose</text>
+      <text x="286" y="68" class="s3">eval error analysis:</text>
+      <text x="286" y="82" class="s3">knowledge / reasoning / truncation?</text>
+      <path class="ar3" d="M370 61 L392 61"/>
+      <rect x="394" y="30" width="168" height="62" rx="8" fill="#16241f" stroke="#7ee0c0"/>
+      <text x="478" y="52" class="t3">2 · Proxy ladder</text>
+      <text x="478" y="68" class="s3">cheapest-first; fit curves,</text>
+      <text x="478" y="82" class="s3">not single points</text>
+      <path class="ar3" d="M562 61 L584 61"/>
+      <rect x="586" y="30" width="164" height="62" rx="8" fill="#231c30" stroke="#c7a4ff"/>
+      <text x="668" y="52" class="t3">3 · Commit</text>
+      <text x="668" y="68" class="s3">a default + the evidence</text>
+      <text x="668" y="82" class="s3">that would flip you</text>
+      <!-- cost ladder -->
+      <text x="380" y="130" class="t3">The proxy ladder (cost ↑, run bottom-up)</text>
+      <line x1="46" y1="392" x2="46" y2="150" stroke="#2a3340" stroke-width="1.5" marker-end="url(#up3)"/>
+      <text x="24" y="280" class="s3" transform="rotate(-90 24 280)">cost →</text>
+      <rect x="62" y="356" width="686" height="42" rx="6" fill="#16241f" stroke="#7ee0c0"/>
+      <text x="78" y="374" class="lv3">~Free · pass@k / best-of-n + verifier</text>
+      <text x="78" y="390" class="sx">zero training — upper bound on test-time-compute gains (Snell '24: can beat a ~14× bigger model)</text>
+      <rect x="62" y="306" width="686" height="42" rx="6" fill="#16241f" stroke="#7ee0c0"/>
+      <text x="78" y="324" class="lv3">Cheap (~1/1000 X) · data ablation at fixed size</text>
+      <text x="78" y="340" class="sx">filtered / reweighted vs baseline, matched tokens — quality effects show at small scale</text>
+      <rect x="62" y="256" width="686" height="42" rx="6" fill="#1c2530" stroke="#6ea8fe"/>
+      <text x="78" y="274" class="lv3">Moderate · iso-training-FLOP MoE vs dense pair</text>
+      <text x="78" y="290" class="sx">match FLOPs, compare loss + memory bill — MoE edge grows with scale (Krajewski '24), so small wins understate</text>
+      <rect x="62" y="206" width="686" height="42" rx="6" fill="#231c30" stroke="#c7a4ff"/>
+      <text x="78" y="224" class="lv3">Decider · scaling ladder</text>
+      <text x="78" y="240" class="sx">3–4 sizes per intervention, fit L(C)=a·C^(−b)+c, extrapolate whichever moves exponent/offset (Chinchilla, MM1)</text>
+      <rect x="62" y="156" width="686" height="42" rx="6" fill="#1c2530" stroke="#ffb454" stroke-dasharray="5 4"/>
+      <text x="78" y="174" class="lv3">Only then · spend X</text>
+      <text x="78" y="190" class="sx">on the intervention whose fitted curve wins at X-scale — not the one that won a single small-scale point</text>
+    </svg>
+    </div>
+    <div class="callout practice">
+      <span class="label">⚙ Step 3 — the commit line (say it, then give the flip condition)</span>
+      <em>"Frontier default: <strong>better data + MoE</strong> for the pretraining spend — data shifts the curve, MoE buys quality-per-training-FLOP — with <strong>test-time compute layered at deployment</strong> for reasoning tasks, since its cost scales with usage, not X. Bigger-dense only if serving simplicity dominates; longer context only on truncation evidence. I'd flip to test-time-compute-first if the pass@k gap on our target tasks is large and verifiable."</em>
+    </div>
     <h4>Self-test §1</h4>
     <div class="qa"><div class="q">What are the five habits research taste decomposes into?<span class="chev">▶</span></div><div class="a">Problem selection (worth doing now?), hypothesis quality (falsifiable + mechanism), experimental design (cheapest decisive test, compute-matched), evidence standards (do I believe this number?), and knowing the next move (scale/ablate/pivot/ship by information-per-compute).</div></div>
     <div class="qa"><div class="q">Take any answer two rungs higher — what do you add?<span class="chev">▶</span></div><div class="a">Add <strong>tradeoffs</strong> (L3), a concrete <strong>compute-matched experiment</strong> (L4), and a <strong>falsification condition</strong> + scale check (L5). Close with "the cheapest test is X; I'd believe it if Y, else Z."</div></div>
+    <div class="qa"><div class="q">"Given X more compute, where does it go?"<span class="chev">▶</span></div><div class="a">Clarify <strong>training vs lifecycle</strong> compute → diagnose the bottleneck from <strong>eval error analysis</strong> (knowledge → capacity/data; reasoning → test-time compute; truncation → context) → proxies <strong>cheapest-first</strong> (pass@k is free → data ablation → iso-FLOP MoE pair → scaling ladder decides) → <strong>commit</strong>: data + MoE at training, test-time compute at deployment, plus the evidence that would flip you.</div></div>
 
     <!-- ===================== §2 ===================== -->
     <h2 class="section" id="s2">§2 — The 5-point paper deep-dive frame</h2>

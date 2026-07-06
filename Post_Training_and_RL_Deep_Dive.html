@@ -76,12 +76,49 @@
 <p>For a token sequence, $\log π_θ(y) = Σ_t \log π_θ(a_t\mid s_t)$, so:</p>
 <pre><code>∇θ J = E[ R(x,y) · Σ_t ∇θ log π_θ(a_t | s_t) ]</code></pre>
 <p><strong>Intuition:</strong> scale the gradient of each token&#x27;s log-prob by the reward. High-reward sequences → push their tokens up; low-reward → push down. This is REINFORCE.</p>
+<h3>Why the trick? Both sides are integrals — only one is an <em>expectation</em></h3>
+<p>Before the trick: $∇θ J = ∫ ∇θ P(τ|θ)·R(τ)\,dτ$. After: $∫ P(τ|θ)·∇θ\log P(τ|θ)·R(τ)\,dτ$. <strong>Same integral, same value</strong> — but only the second has the shape <em>density × function</em>, i.e. an expectation $E_{τ\sim π_θ}[·]$. That&#x27;s the whole point:</p>
+<ul>
+<li>$∇θ P(τ|θ)$ is <strong>not a probability distribution</strong> (can be negative, doesn&#x27;t sum to 1) — there is nothing to sample from, so the first form can only be evaluated by enumerating the exponential trajectory space. Intractable.</li>
+<li>The trick moves $P(τ|θ)$ from being <em>differentiated</em> to being the <em>density out front</em> → Monte Carlo: sample rollouts from the policy, average $∇θ\log π·R$. Unbiased for any N (LLN).</li>
+<li>Bonus: $\log$ turns the trajectory product $p(s_0)\prod_t π_θ(a_t|s_t)p(s_{t+1}|s_t,a_t)$ into a <strong>sum</strong>, and the environment dynamics terms have no θ → they <strong>vanish</strong>. This cancellation is <em>why REINFORCE is model-free</em>.</li>
+</ul>
+<p><strong>One-liner:</strong> &quot;the log-derivative trick converts an un-samplable integral into a samplable expectation — and cancels the dynamics, making the method model-free.&quot;</p>
+<p><strong>Naming:</strong> $J(θ) = E_{τ\sim π_θ}[R(τ)]$ is the <strong>expected return / performance objective</strong> (the letter J is old control-theory convention for a cost functional). $∇θ J$ is the <strong>policy gradient</strong>; the identity is the <strong>Policy Gradient Theorem</strong>; REINFORCE is its <em>vanilla</em> estimator. REINFORCE ⊂ policy-gradient methods: all members (A2C, TRPO, PPO, GRPO…) estimate the <strong>same</strong> $∇θ J$ and differ only in the weight $Ψ$ multiplying $∇θ\log π$: $Ψ = R(τ)$ (REINFORCE) → $R−b(s)$ (baseline) → $A(s,a)$ (actor-critic) → clipped-ratio·$A$ (PPO).</p>
 <h3>The variance problem → baselines &amp; advantage</h3>
 <p>REINFORCE is <strong>high variance</strong> (reward magnitudes are noisy and absolute). Subtract a <strong>baseline</strong> $b$ that doesn&#x27;t depend on the action — it reduces variance without biasing the gradient:</p>
 <pre><code>∇θ J = E[ (R - b) · ∇θ log π_θ(y) ]</code></pre>
 <p>Best baseline ≈ the expected reward, i.e. a <strong>value function</strong> $V(s)$. Define the <strong>advantage</strong>:</p>
 <pre><code>A(s,a) = Q(s,a) - V(s)    ≈  &quot;how much better was this action than average&quot;</code></pre>
 <p>Using advantage instead of raw reward is the core variance-reduction idea behind actor-critic / PPO. <strong>Be ready to say:</strong> &quot;we subtract a baseline (the value function) so the gradient uses <em>advantage</em> — how much better than expected — which cuts variance.&quot;</p>
+<h3>Why the baseline is unbiased (derive this — 3 lines)</h3>
+<p>Rests on one fact: <strong>the expected score is zero.</strong> For fixed $s$:</p>
+<pre><code>E_{a~π}[∇θ log π(a|s)] = Σ_a π·(∇θπ/π) = ∇θ Σ_a π(a|s) = ∇θ 1 = 0</code></pre>
+<p>So the extra term $E[∇θ\log π(a|s)·b(s)] = E_s[\,b(s)·0\,] = 0$ — <strong>any</strong> function of the state alone adds exactly zero to the expected gradient. Conditions &amp; consequences:</p>
+<ul>
+<li>$b$ must not take the action <strong>as an input</strong> ($b(s_t)$, not $b(s_t,a_t)$) — else it can&#x27;t be pulled out of $E_a$ and you get bias.</li>
+<li>&quot;Action-independent&quot; is about <strong>input signature, not training provenance</strong>: a value head sharing the policy&#x27;s transformer trunk, trained on action-generated data, is still legal — at use time $V_φ(s_t)$ is computed from the prefix only, before $a_t$ is sampled, so it&#x27;s constant w.r.t. $E_{a_t}$.</li>
+<li><strong>Accuracy of $b$ affects only variance, never bias.</strong> $b(s)=42$ is unbiased; $b≈V(s)$ is the variance-minimizing choice.</li>
+<li>Why it helps: recenters returns around zero — the signal becomes &quot;better or worse than average <em>for this state</em>&quot; instead of huge all-positive numbers.</li>
+</ul>
+<h3>Reward-to-go = Q, baseline = V, difference = advantage</h3>
+<p>Combine the two variance reductions and the value-function names fall out:</p>
+<ul>
+<li><strong>Reward-to-go</strong> $\hat R_t = Σ_{t&#x27;≥t} γ^{t&#x27;−t} r_{t&#x27;}$ is a single-sample unbiased MC estimate of $Q^π(s_t,a_t)$ — conditioned on state <strong>and the action taken</strong>. The gradient weight <em>must</em> carry the action&#x27;s info, so the signal is Q-like.</li>
+<li><strong>Baseline</strong> must be action-independent → the most informative legal choice is the action-average of Q, which <strong>is</strong> $V^π(s) = E_{a\sim π}[Q^π(s,a)]$.</li>
+<li>$\hat A_t = \hat R_t − V_φ(s_t) ≈ Q − V = A$. The pairing is forced, not a convention.</li>
+</ul>
+<h3>Why learn V (not A or Q directly)? — the three-part answer</h3>
+<ol>
+<li><strong>Only V has an unbiased regression target.</strong> Training pairs are $(s_t,\; \hat R_t)$ — the return actually observed from $s_t$ in that rollout. Each target is a sample of $Q(s_t,a_t)$ for the sampled action, but across visits actions are drawn from π, so targets scatter around $E_a[Q] = V(s)$ — and <strong>MSE regression converges to the mean of its targets</strong>. The action-randomness becomes label noise; $V_φ$ learns the action-average without ever branching. There is <strong>no observable sample of A</strong>: the advantage is a difference of expectations, nothing you collect <em>is</em> one.</li>
+<li><strong>A learned action-dependent weight breaks unbiasedness.</strong> Plug a trained $A_ψ(s,a)$ into the gradient and its approximation errors correlate with actions → bias (the illegal $b(s,a)$ case). In $\hat R_t − V_φ(s_t)$, the action-dependence comes entirely from the <em>sampled</em> return (unbiased) and the <em>learned</em> part is action-independent (safe).</li>
+<li><strong>Identifiability + cost.</strong> $Q = V + A$ is only identified under the constraint $E_{a\sim π}[A(s,·)] = 0$ — enforcing it <em>is</em> computing V (dueling DQN has to bolt on exactly this mean-subtraction). And a direct A/Q target would require rolling out <strong>every action from the same state</strong>: $O(|A|)$ full rollouts per state (50k+ tokens for an LLM), needing state resets — exponential over the horizon. The standard estimator replaces &quot;branch over all actions at this state&quot; with &quot;regress to the mean over many states&quot; — the value net <strong>amortizes the exponential branching</strong>.</li>
+</ol>
+<p><strong>GRPO is the brute-force version made affordable:</strong> for LLMs the state (prompt) is resettable for free and the whole response is one action, so sample a group of G responses and use $\hat A_i = (r_i − \text{mean}_G)/\text{std}_G$ — the group mean is an <em>empirical</em> V(s) computed by actual branching (G ≈ 8–64, not $|A|^T$). When branching is cheap and one-step, the critic becomes optional; RLOO is the leave-one-out variant of the same idea.</p>
+<h3>Training the value function</h3>
+<p>Supervised MSE against a return target, jointly with the policy: $L(φ) = E_t[(V_φ(s_t) − \hat R_t^{target})^2]$. The target choice is the bias/variance dial:</p>
+<table><thead><tr><th>Target</th><th>Formula</th><th>Bias</th><th>Variance</th></tr></thead><tbody><tr><td>Monte Carlo</td><td>$Σ_{t&#x27;≥t} γ^{t&#x27;−t} r_{t&#x27;}$</td><td>none</td><td>high</td></tr><tr><td>TD(0) bootstrap</td><td>$r_t + γV_φ(s_{t+1})$</td><td>some (self-referential)</td><td>low</td></tr><tr><td>GAE / TD(λ)</td><td>λ-blend of n-step returns</td><td>tunable</td><td>tunable</td></tr></tbody></table>
+<p>In PPO/RLHF: <strong>GAE</strong> computes $\hat A_t$ and the value target $\hat R_t = \hat A_t + V_φ(s_t)$ in one sweep. Practical notes: targets are computed once per batch and treated as constants (stop-gradient — bootstrap targets otherwise chase their own tail); the critic is usually a <strong>linear value head on the shared trunk</strong> (total loss $L_{policy} − c_1 L_{value} + c_2 H[π]$; watch for the two objectives fighting over features); PPO often <strong>clips the value update</strong> too.</p>
 <hr>
 <h2 class="section" id="s3">§3 — PPO (Proximal Policy Optimization)</h2>
 <p>PPO is the RL algorithm in classic RLHF. The problem it solves: vanilla policy gradient takes one noisy step per sample and can <strong>destructively over-update</strong>. PPO lets you take <strong>multiple optimization steps on the same batch</strong> while preventing the policy from moving too far — a cheap &quot;trust region.&quot;</p>
@@ -148,6 +185,41 @@
 <li><strong>GRPO (Group Relative Policy Optimization):</strong> PPO variant used in recent reasoning models (e.g. DeepSeek). <strong>Drops the value/critic model</strong> — instead samples a <em>group</em> of responses per prompt and uses the <strong>group&#x27;s mean reward as the baseline</strong>, normalizing advantages within the group. Cheaper (no critic) and well-suited to verifiable rewards. Worth knowing as the current reasoning-RL workhorse.</li>
 <li><strong>Verifiable-reward RL (RLVR):</strong> for math/code, reward = an <strong>automatic checker</strong> (tests pass / answer correct). Clean, ungameable signal → strong RL; behind recent reasoning gains. No RM needed.</li>
 <li><strong>Process vs outcome supervision:</strong> reward each reasoning <em>step</em> (process, denser, better reasoning, costlier to label) vs only the final answer (outcome).</li>
+</ul>
+<h3>The landscape map (two axes)</h3>
+<p>Plot every method on: <strong>x = on-policy-ness</strong> (fresh rollouts → replay → fixed offline dataset) and <strong>y = machinery</strong> (reward model + critic → direct/critic-free). Three clusters:</p>
+<div style="border:1px solid var(--border);border-radius:12px;padding:18px 14px;margin:18px 0;background:var(--panel);">
+<svg width="100%" viewBox="0 0 680 452" role="img" aria-label="Map of RL and alignment methods by on-policy-ness and machinery">
+<line x1="360" y1="70" x2="360" y2="378" stroke="#4a5568" stroke-width="1" stroke-dasharray="4 5"/>
+<line x1="120" y1="250" x2="632" y2="250" stroke="#4a5568" stroke-width="1" stroke-dasharray="4 5"/>
+<line x1="120" y1="388" x2="632" y2="388" stroke="#8b97a7" stroke-width="1.2"/>
+<line x1="112" y1="380" x2="112" y2="66" stroke="#8b97a7" stroke-width="1.2"/>
+<text x="122" y="406" fill="#8b97a7" font-size="12">on-policy (fresh rollouts)</text>
+<text x="372" y="406" fill="#8b97a7" font-size="12" text-anchor="middle">off-policy (replay)</text>
+<text x="632" y="406" fill="#8b97a7" font-size="12" text-anchor="end">offline (fixed dataset)</text>
+<text transform="rotate(-90 100 155)" x="100" y="155" fill="#8b97a7" font-size="12" text-anchor="middle">reward model + critic</text>
+<text transform="rotate(-90 100 320)" x="100" y="320" fill="#8b97a7" font-size="12" text-anchor="middle">direct / critic-free</text>
+<g fill="#6ea8fe"><circle cx="170" cy="108" r="6"/><circle cx="250" cy="138" r="6"/><circle cx="322" cy="112" r="6"/><circle cx="198" cy="292" r="6"/><circle cx="168" cy="332" r="6"/><circle cx="300" cy="330" r="6"/></g>
+<g fill="#d7dee8" font-size="13" font-weight="600"><text x="182" y="112">PPO / RLHF</text><text x="262" y="142">A2C / A3C</text><text x="334" y="116">TRPO</text><text x="210" y="296">GRPO</text><text x="180" y="336">REINFORCE</text><text x="312" y="334">RLOO</text></g>
+<g fill="#7ee0c0"><circle cx="446" cy="106" r="6"/><circle cx="522" cy="140" r="6"/><circle cx="600" cy="108" r="6"/></g>
+<g fill="#d7dee8" font-size="13" font-weight="600"><text x="458" y="110">SAC</text><text x="534" y="144">TD3 / DDPG</text><text x="590" y="112" text-anchor="end">DQN</text></g>
+<g fill="#ffb454"><circle cx="446" cy="312" r="6"/><circle cx="524" cy="298" r="6"/><circle cx="606" cy="330" r="6"/><circle cx="470" cy="360" r="6"/><circle cx="560" cy="366" r="6"/></g>
+<g fill="#d7dee8" font-size="13" font-weight="600"><text x="458" y="316">DPO</text><text x="536" y="302">IPO</text><text x="596" y="334" text-anchor="end">KTO</text><text x="482" y="364">SimPO</text><text x="572" y="370">ORPO</text></g>
+<g fill="#8b97a7" font-size="12" opacity="0.8"><text x="128" y="84">on-policy RL</text><text x="628" y="84" text-anchor="end">off-policy actor-critic</text><text x="128" y="372">critic-free PG</text><text x="628" y="372" text-anchor="end">offline preference (*PO)</text></g>
+<circle cx="132" cy="432" r="6" fill="#6ea8fe"/><text x="144" y="436" fill="#8b97a7" font-size="12">on-policy policy gradient</text>
+<circle cx="322" cy="432" r="6" fill="#7ee0c0"/><text x="334" y="436" fill="#8b97a7" font-size="12">off-policy actor-critic</text>
+<circle cx="502" cy="432" r="6" fill="#ffb454"/><text x="514" y="436" fill="#8b97a7" font-size="12">offline preference (*PO)</text>
+</svg>
+<p style="margin:8px 0 0;color:var(--muted);font-size:13px;">Diagonal opposites: GRPO (keep rollouts, drop the critic) vs DPO (drop rollouts and the reward model). A third, orthogonal axis — model-free vs model-based (world models, CEM/MPPI) — is described below.</p>
+</div>
+<table><thead><tr><th>Cluster</th><th>Methods</th><th>Character</th></tr></thead><tbody><tr><td>On-policy policy gradient</td><td>PPO/RLHF, TRPO, A2C (with critic); GRPO, RLOO, REINFORCE (critic-free)</td><td>sample-hungry, directly optimizes reward; samples go stale when θ moves</td></tr><tr><td>Off-policy actor-critic</td><td>SAC, TD3/DDPG, DQN</td><td>replay buffer reuses old data — possible <em>because</em> a bootstrapped Q-critic can evaluate stale transitions (off-policy ⟹ you need a critic)</td></tr><tr><td>Offline preference (*PO)</td><td>DPO, IPO, KTO, SimPO, ORPO</td><td>zero rollouts, no RM, no critic — closed-form supervised loss on preference pairs</td></tr></tbody></table>
+<p><strong>The correlation to remember:</strong> top-left → bottom-right = shedding machinery <em>and</em> on-policy sampling together. RLHF-PPO (RM + critic + rollouts) → GRPO (drop the critic, keep rollouts) → DPO/<em>PO (drop the RM </em>and* the rollouts). DPO and GRPO are diagonal opposites — both &quot;simpler than PPO&quot;, in opposite directions; that&#x27;s the current frontier debate.</p>
+<p><strong>*PO family differences (one line each):</strong> IPO — regularizes DPO against overfitting deterministic preferences; KTO — unpaired good/bad labels (prospect-theory utility), no pairs needed; ORPO — drops the reference model, folds preference odds into the SFT loss (single stage); SimPO — also reference-free, length-normalized average log-prob as the implicit reward. Trend within the family: shed even more models (the same gradient that separates GRPO from PPO).</p>
+<h3>The orthogonal axis: model-based / world-model methods</h3>
+<p>Everything above is <strong>model-free</strong> — recall the dynamics $p(s&#x27;|s,a)$ <em>cancelled out</em> of $∇θ\log P(τ|θ)$; that cancellation is the definition. World-model methods (Dreamer, PlaNet, TD-MPC, JEPA-style planners) learn $\hat p(s&#x27;|s,a)$ and roll out <strong>in imagination</strong>. Planning there is often <strong>zeroth-order reward-weighted sampling</strong> (CEM / MPPI): sample action sequences, reweight by $\exp(R/η)$, refit, repeat — a fixed-point iteration that concentrates on high-return trajectories.</p>
+<ul>
+<li><strong>Deep connection (RL-as-inference):</strong> policy gradient and reward-weighted refitting optimize the <em>same</em> $J = E[R]$ — first-order (differentiate) vs zeroth-order (reweight samples); the reward-weighted update is the EM view whose gradient recovers the PG form.</li>
+<li><strong>Hybrids:</strong> Dreamer/TD-MPC = learn a world model, run actor-critic PG <em>inside</em> imagined rollouts (model gives cheap data, PG gives an amortized fast policy). Pure CEM planning = no policy at all, optimize actions online at inference.</li>
 </ul>
 <hr>
 <h2 class="section" id="s7">§7 — Failure modes &amp; knobs (bring these up unprompted)</h2>

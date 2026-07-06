@@ -133,6 +133,14 @@ L = −log( e^{z₂_c} / Σ_j e^{z₂_j} ) = −z₂_c + log Σ_j e^{z₂_j}
 ```
 Differentiate w.r.t. `z₂_i`: the `−z₂_c` term gives `−1` at `i=c` else `0` (= `−y_i`); the log-sum-exp term differentiates back into softmax itself (`= ŷ_i`). Add → `∂L/∂z₂_i = ŷ_i − y_i`. Clean because log-sum-exp is the function whose gradient *is* the softmax.
 
+*Why does LSE differentiate back into softmax?* It's just the chain rule on a log-of-a-sum — nothing softmax-specific is assumed:
+```
+∂/∂z_i  log Σ_j e^{z_j}  =  (1 / Σ_j e^{z_j}) · ∂/∂z_i Σ_j e^{z_j}   [d/dx log u = (1/u)·du/dx]
+                          =  e^{z_i} / Σ_j e^{z_j}                    [only the j=i term of the sum survives]
+                          =  ŷ_i                                     [that quotient IS the softmax]
+```
+The `1/Σ` from the outer log is exactly the softmax denominator, and the surviving `e^{z_i}` is its numerator — so the derivative reassembles softmax by construction. Stated cleanly: **LSE is the antiderivative (scalar potential) of softmax**, `∇_z LSE(z) = softmax(z)`. (It's the smooth relaxation of `max`; its gradient is the "soft-argmax.") That is the whole reason the loss splits into `−z_c + LSE(z)` and the messy softmax Jacobian never appears in Method 1 — the LSE term *regenerates* `ŷ_i`, and the linear `−z_c` term supplies the `−y_i`.
+
 *The chain rule (reminder).* It differentiates a composition by multiplying local derivatives along the path. Single-variable: if `L=f(u)`, `u=g(z)`, then `dL/dz = (dL/du)(du/dz)`. Multivariable: if `z_i` reaches `L` through several intermediates `ŷ_1..ŷ_K`, multiply along each path **and sum over all paths** — the sum appears because softmax is coupled (nudging one logit `z_i` changes every `ŷ_k`), so there are K paths from `z_i` to `L`. Backprop = this rule applied across the whole computation graph.
 
 *Method 2 — full chain rule.* `∂L/∂z_i = Σ_k (∂L/∂ŷ_k)(∂ŷ_k/∂z_i)` with `∂L/∂ŷ_k = −y_k/ŷ_k` and softmax Jacobian `∂ŷ_k/∂z_i = ŷ_k(δ_{ki} − ŷ_i)` (diagonal `ŷ_i(1−ŷ_i)`, off-diagonal `−ŷ_k ŷ_i`). The `ŷ_k` cancels → `−Σ_k y_k(δ_{ki} − ŷ_i) = −y_i + ŷ_i·Σ_k y_k = ŷ_i − y_i`, using `Σ_k y_k δ_{ki} = y_i` and `Σ_k y_k = 1`. Either way: the output error is **prediction minus truth**.
@@ -186,11 +194,40 @@ Every §3–§5 trick just keeps `r ≈ 1`: **init** (Xavier/He) sets `‖W‖�
 
 > **In Practice — frameworks fuse softmax+CE for stability.** Computing `softmax` then `log` separately can overflow (`e^{large}`) or underflow (`log(0) = −inf`). Libraries use a fused, log-sum-exp-stabilized `cross_entropy_with_logits`. **Symptom that you got this wrong:** loss is `inf`/`NaN` from step 0, or only when a logit gets large. **Look at:** whether you're double-applying softmax (e.g. softmax in the model *and* a loss that expects raw logits) — an extremely common real bug.
 
+### 2.5 Coding it: stable cross-entropy in two lines (the interview implementation)
+
+This is exactly what the fused op above does internally — be ready to write it and defend every token:
+
+```python
+def cross_entropy(logits, targets):
+    # logits: (B, C), targets: (B,) int class indices
+    logp = logits - torch.logsumexp(logits, dim=-1, keepdim=True)  # log-softmax, stable
+    return -logp[torch.arange(len(targets)), targets].mean()
+```
+
+**Line 1 is log-softmax, computed via an identity — not `log(softmax(x))`.** Take the log of softmax and split it:
+```
+log softmax(z)_i = log( e^{z_i} / Σ_j e^{z_j} ) = z_i − log Σ_j e^{z_j} = z_i − LSE(z)
+```
+So log-softmax is just **each logit minus the logsumexp of all logits** — one subtraction. Why it must be written this way:
+- Naive `log(softmax(z))`: a logit of ~90 in fp32 (or ~11 in fp16) makes `e^z` overflow → `inf/inf = nan`; a very negative logit underflows softmax to exact `0.0` → `log(0) = −inf`. Broken in **both** directions.
+- `torch.logsumexp` applies the **max trick**: `LSE(z) = m + log Σ_j e^{z_j − m}` with `m = max_j z_j`. After subtracting `m`, every exponent is ≤ 0 (no overflow) and the largest term is `e^0 = 1` (the sum is ≥ 1, so no `log(0)`). Same value, mathematically identical, finite in floating point.
+- Shapes: `dim=-1` reduces over classes; `keepdim=True` keeps the result `(B, 1)` so `(B, C) − (B, 1)` broadcasts the per-example normalizer across its row. Each row of `logp` is a valid log-distribution (its logsumexp is 0 ⇔ its probabilities sum to 1).
+
+**Line 2 is NLL via advanced indexing.** With hard labels, CE collapses to `−log ŷ_c` (§2.1), so per example we need `logp[b, targets[b]]`. `logp[torch.arange(B), targets]` pairs row indices `[0..B−1]` with the target column of each row → shape `(B,)` of "log-prob assigned to the true class". Negate (log-probs are ≤ 0, we minimize) and mean over the batch:
+```
+L = −(1/B) Σ_b logp[b, y_b]
+```
+The `gather` spelling (generalizes to extra dims, e.g. `(B, T, V)` next-token loss): `-logp.gather(-1, targets[..., None]).squeeze(-1).mean()`.
+
+**Probe-depth follow-ups:** (1) gradient w.r.t. logits of this whole thing is `(softmax(z) − onehot(y))/B` — the §2.2 identity, which is why the fused backward is one subtraction. (2) `F.cross_entropy` = exactly this + `ignore_index` (masking pad tokens) + optional label smoothing/weights — and it expects **raw logits**, never softmaxed probs. (3) Quick sanity check in a debug session: `logp.logsumexp(-1)` should be ~0 per row; uniform logits must give loss `= log C`.
+
 ### Self-test §2
 1. **Derive backprop for a 2-layer net.** → Reproduce §2.2–§2.3 from memory. The three rules: weight grad = `δ aᵀ`; backward through linear = `Wᵀδ`; backward through activation = `⊙ φ'`.
 2. **What's `∂L/∂(logits)` for softmax-cross-entropy?** → `ŷ − y`. Be ready to sketch why (softmax Jacobian × CE grad telescopes).
 3. **Explain vanishing/exploding gradients from the backprop equations.** → The layer-1 gradient is a product of many `Wᵀ` and `φ'` factors; consistently <1 → vanish, >1 → explode. Geometric in depth.
 4. **Why is ReLU's backward pass essentially a mask?** → `φ'(z)=1` for z>0 else 0, so it passes the incoming gradient unchanged or zeros it — no shrinking on the active path.
+5. **Why is `logits − logsumexp(logits)` the right way to get log-probs?** → It *is* log-softmax (split the log of the softmax quotient), and `logsumexp` max-shifts internally so nothing overflows (`e^{≤0}`) or hits `log(0)` (sum ≥ 1). Naive `log(softmax)` breaks in both directions. See §2.5.
 
 ---
 
@@ -245,6 +282,43 @@ Normalization layers **re-center and re-scale activations** so each layer sees a
 **Why BN stats are noisy:** they're *sample estimates* of feature mean/variance from only B examples; standard error of the mean ∝ 1/√B (variance noisier), so with small B they jump batch-to-batch — each example's normalization depends on which random examples shared its batch (coupling + noise). Worse for transformers: small effective batch (long sequences), ragged variable-length batches, and B=1 decoding (batch stats undefined). LN/RMSNorm use the d features of one example (d large, fixed) → batch-independent, deterministic, identical train/inference (BN uses batch stats at train but running EMA at test → different function in each mode → bugs).
 
 **Why does RMSNorm match LN — theory or empirical?** Both. LN does re-center (−μ) + re-scale (/σ); RMSNorm keeps only re-scaling. Hypothesis (Zhang & Sennrich 2019): LN's benefit comes mainly from **re-scaling invariance, not re-centering** — normalization helps by controlling activation/gradient *magnitude* (smoother landscape, stable per-layer LR), which is the /RMS part. Mean subtraction is near-redundant: the learned affine + next linear layer absorb a constant offset, and in high-dim the mean is small vs scale. Both LN & RMSNorm are scale-invariant (`f(αx)=f(x)`) → self-stabilizing gradient; RMSNorm keeps this, only drops shift-invariance. Verdict: well-motivated hypothesis + strong empirical parity (faster, used by LLaMA/T5/Gemma). Not a theorem, more than "just empirical."
+
+#### 4.2b RMSNorm, precisely: geometry + code
+
+**The equation, one token at a time.** For one token's feature vector `x ∈ ℝ^d` (RMSNorm never looks at other tokens or the batch):
+
+- `RMS(x) = √(1/d Σᵢ xᵢ² + ε)` — the root-mean-square of this token's `d` features.
+- `yᵢ = γᵢ · xᵢ / RMS(x)` — divide every feature by that one scalar, then apply a learned per-feature gain `γ` (init 1). No `μ`, no `β`.
+
+**The geometric picture (best way to "see" it).** `RMS(x) = ‖x‖₂/√d`, so `x/RMS(x) = √d · x/‖x‖₂`. RMSNorm is a **radial projection of every token vector onto the hypersphere of radius √d** — direction preserved exactly, magnitude forced to a constant. (γ then stretches per-axis → learned ellipsoid.) LayerNorm does one extra thing first: it projects x onto the hyperplane `Σᵢxᵢ = 0` (mean-centering) *before* the sphere projection. Consequences you can read off the picture:
+
+- `RMS(y) = 1` and `‖y‖ = √d` for every token, always → the residual stream enters each sublayer at a fixed magnitude.
+- Scale-invariance is visually obvious: `x` and `2x` lie on the same ray → same projection point → identical output.
+- Shift is NOT removed: `x + c·1` changes direction → different output (LN would remove it). This is exactly the invariance RMSNorm gives up.
+
+**Implementation (LLaMA-style, the version to write in interviews):**
+
+```python
+class RMSNorm(nn.Module):
+    def __init__(self, d, eps=1e-6):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(d))    # gamma only — no beta
+
+    def forward(self, x):                            # x: (B, T, d)
+        x32 = x.float()                              # stats in fp32 (bf16-safe)
+        inv = torch.rsqrt(x32.pow(2).mean(-1, keepdim=True) + self.eps)
+        return self.weight * (x32 * inv).type_as(x)
+```
+
+NumPy, if asked to strip it down: `y = g * x / np.sqrt((x**2).mean(-1, keepdims=True) + eps)`.
+
+**Details interviewers probe:**
+1. **Why fp32 inside?** Squaring bf16 activations under/overflows and the mean loses precision; LLaMA/T5 compute the statistic in fp32 and cast back (`type_as`).
+2. **ε inside the sqrt**, typical `1e-6` (LLaMA) or `1e-5` — guards the all-zero vector.
+3. **Cost:** vs LN it drops one reduction (no mean pass), the subtraction, and `β` (d fewer params/layer) — ~10–60% faster norm kernel; at LLM scale the norm is memory-bound so fewer passes matter.
+4. **Where it sits:** pre-norm (`x + Sublayer(RMSNorm(x))`) in LLaMA/Mistral/Qwen; Gemma adds post-sublayer norms too. `torch.nn.RMSNorm` exists since PyTorch 2.4.
+5. **Gradient fact:** since `f(αx)=f(x)`, `⟨∇ₓf, x⟩`-direction growth is suppressed — gradient w.r.t. x is orthogonal to x (project-then-scale), which self-limits activation blow-up.
 
 Several reasons, all worth saying:
 1. **Batch dependence is a liability for sequences.** BN's statistics are computed across the batch, so they're noisy with small batches and ill-defined for variable-length sequences / autoregressive decoding where you process one token at a time. LN normalizes *within a single example*, so it's independent of batch size and sequence position.
