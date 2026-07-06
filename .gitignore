@@ -17,3 +17,6 @@ _convert.py
 
 # private interview strategy (never publish)
 _PRIVATE_*
+
+# personal (immigration / non-ML plans) — never publish
+ProofSmith_*
