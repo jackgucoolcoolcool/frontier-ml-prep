@@ -751,7 +751,7 @@ loss = L_text + lam * L_reg</pre>
 </div>
 
 <h4>8.4.1 The load-bearing subtlety: how does a query point <em>q</em> map into <em>H</em>?</h4>
-<p>The whole head hinges on getting a backbone feature "at" each point. Whether that is even well-defined depends on how the backbone tokenizes — three regimes:</p>
+<p>The whole head hinges on getting a backbone feature "at" each point. Whether that is even well-defined depends on how the backbone tokenizes — two regimes, then the fix that survives both:</p>
 <div class="grid2">
 <div class="card"><h4>(i) Per-frame latent patches — map is a computable affine (but soft)</h4><p class="muted">Single-image Transfusion-style tokenization (VAE latents → patchify → grid): <code>q_pixel → /vae_downsample → /patch_size → (row,col) → token</code>. The correspondence <em>exists</em>. Two things make it soft, not wrong: <strong>receptive-field spread</strong> (VAE latents integrate a pixel neighborhood — sub-patch motion lives below the grid) and <strong>contextual mixing</strong> (after attention, <code>H[:,i]</code> keeps patch i's <em>position</em> but its <em>content</em> is globally contaminated). Bilinear-sampling the position is fine here; treating the value as purely local is not.</p></div>
 <div class="card"><h4>(ii) Spatiotemporal tubes / perceiver tokens — map does not exist</h4><p class="muted">A 3D-VAE token is a spacetime <em>volume</em> (e.g. 4 frames × 8×8 px → 1 token), so "q at frame t" has no 2D slice to land on. Any real video backbone is likely here — which is exactly why naive <code>bilinear_sample(H, q)</code> is hand-wavy.</p></div>

@@ -261,10 +261,23 @@ Diffusing in the video model's own space (joint video+motion fine-tune) is a pro
 
 Setup: K query points \(q\) on the last context frame; target \(\tau \in \mathbb{R}^{K\times T\times 2}\) = future per-step deltas (CoTracker pseudo-labels, visibility-masked). Head ≈ 15M params on a frozen backbone.
 
+**8.4.1 — how does a query point \(q\) map into \(H\)?** The whole head hinges on getting a backbone feature "at" each point; whether that is well-defined depends on tokenization:
+
+- **(i) Per-frame latent patches (Transfusion-image-style) — computable affine, but soft.** `q_pixel → /vae_downsample → /patch_size → (row,col) → token`. The map exists; it is *soft* because of (a) VAE **receptive-field spread** (sub-patch motion lives below the grid) and (b) **contextual mixing** (post-attention `H[:,i]` keeps patch i's position but its content is globally contaminated). Bilinear-sampling position is fine; treating the value as purely local is not.
+- **(ii) Spatiotemporal tubes / perceiver tokens — no clean map.** A 3D-VAE token is a spacetime *volume*, so "q at frame t" has no 2D slice. Any real video backbone is likely here — which is why naive `bilinear_sample(H, q)` is hand-wavy.
+
+**Robust fix — attend, don't index.** Make q a *query token* with a space-time positional embedding; cross-attend over all of H, whose keys carry their own space-time coordinates. Uses position *and* content, tokenizer-agnostic, degrades gracefully — exactly what CoTracker/TAPIR do (correlate against a cost volume, never index). Reuse the backbone's position scheme (RoPE) so query and keys share coordinates. **Cleaner still — decouple roles:** take local precision from a *pixel-aligned* encoder with a guaranteed clean map (small CNN, or the tracker's own cost volume) and use H **only via cross-attention** for the global prior; the indexing problem then vanishes from the precision-critical path. **M-D0 is the arbiter:** probe H at q's nominal location for q's own current velocity — if that fails, the naive map is dead, go straight to attention readout.
+
 ```python
+# ---- q → H readout: cross-attention lookup, NOT naive indexing (see 8.4.1) ----
+q_tok   = mlp_q(cat(fourier(q), time_embed(t_query)))     # [K,512] "a point here, at this time"
+H_kv    = h_proj + posemb(H_positions)                    # [N,512] keys tagged w/ space-time coords (reuse RoPE)
+f_local = cross_attention(q_tok, key=H_kv, val=H_kv)      # [K,512] soft learned lookup (pos + content)
+#         ↑ decoupled variant: f_local = bilinear_sample(E, q) from a pixel-aligned encoder E,
+#           keeping H for global cross-attention only
+
 # ---- K track tokens: each knows where it is, what the backbone believes there,
 #      and what its noisy trajectory currently looks like ----
-f_local = bilinear_sample(H, q)          # [K, d]  backbone belief AT each query point
 e_pos   = fourier(q)                     # [K, 64] position (Fourier beats raw xy — spectral bias)
 e_traj  = mlp_in(tau_noisy.flatten(1))   # [K,256] current noisy trajectory (T*2 -> 256)
 e_t     = timestep_embed(t)              # [256]   flow-matching time, broadcast-added
@@ -287,7 +300,7 @@ for t in linspace(0, 1, 10):
 tracks = q[:,None,:] + cumsum(tau, dim=1)                  # deltas -> absolute positions
 ```
 
-**Load-bearing details:** `bilinear_sample(H, q)` — point-local backbone belief (concatenate 2–3 layers if the patch grid is coarse); temporal span of `h` — motion is invisible in one frame, so feed ≥2 context frames' hiddens or difference consecutive feature maps. **Multimodality mechanism:** at low *t* the model predicts the average velocity; as *t* grows, \(\tau_t\) leaks which mode the sample is in and the model commits. **Inpainting = planning:** after each Euler step overwrite clamped entries (goal endpoint / known past) renoised to level *t*.
+**Load-bearing details:** the q→H readout (§8.4.1) — cross-attention lookup or a decoupled pixel-aligned encoder, *not* naive indexing into a possibly-tubed grid; temporal span of `h` — motion is invisible in one frame, so feed ≥2 context frames' hiddens or difference consecutive feature maps. **Multimodality mechanism:** at low *t* the model predicts the average velocity; as *t* grows, \(\tau_t\) leaks which mode the sample is in and the model commits. **Inpainting = planning:** after each Euler step overwrite clamped entries (goal endpoint / known past) renoised to level *t*.
 
 **Gates (extend the D-ladder):** M-D0 layer/timestep probe sweep + three-way conditioning comparison (backbone hiddens vs. V-JEPA vs. DINO — publishable alone); M-D1 copy-last-velocity baseline; M-D2 same head with diffusion deleted (direct L2) — flow matching must beat it on min-ADE where futures are multimodal.
 
