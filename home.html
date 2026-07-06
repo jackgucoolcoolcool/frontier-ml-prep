@@ -74,25 +74,31 @@
     </a>
   </div>
 
-  <h2>Personalized</h2>
+  <h2>Strategy &amp; Practice</h2>
   <div class="grid">
     <a class="card" href="Resume_Interview_Prep.html">
       <div class="day">RESUME</div>
       <div class="title">Resume Deep-Dive — Interview Prep</div>
       <div class="desc">Per-résumé-line Q&amp;A — implementation, problems &amp; future, technical nuggets — plus mock "what I did" narratives for each project. (Adapt with your real specifics.)</div>
     </a>
-  </div>
-
-  <h2>Round Strategy</h2>
-  <div class="grid">
     <a class="card" href="Interview_Round_Strategy.html">
       <div class="day">STRATEGY</div>
       <div class="title">Frontier-Lab Loop — Round Strategy</div>
       <div class="desc">A 4-day plan + per-round tactics for a 3-round RS loop (two coding rounds, one research round).</div>
     </a>
+    <a class="card" href="mock_interview/index.html">
+      <div class="day">SIMULATOR</div>
+      <div class="title">Mock Interview Simulator</div>
+      <div class="desc">Interactive practice app: timed problems with variants, session history, gap report, and targeted remediation — run locally via <code style="color:var(--accent-2);background:none;">python app.py</code>.</div>
+    </a>
+    <a class="card" href="Coding_Implementations_From_Scratch.html">
+      <div class="day">CODE REFERENCE</div>
+      <div class="title">ML Coding From Scratch</div>
+      <div class="desc">Clean PyTorch for attention, cross-attention, transformer block, DPO/reward/PPO losses, sampling.</div>
+    </a>
   </div>
 
-  <h2>Deep Dives</h2>
+  <h2>Deep Dives · RL &amp; Post-Training</h2>
   <div class="grid">
     <a class="card" href="Fundamentals_Sampling_and_RL.html">
       <div class="day">FUNDAMENTALS</div>
@@ -109,20 +115,19 @@
       <div class="title">Agentic RL — Compaction &amp; Staleness</div>
       <div class="desc">Long multi-turn/tool-call trajectories formalized: per-call log-prob decomposition, loss masking, why compaction breaks the prefix property (POMDP consequences, compaction-as-action), GRPO vs critic credit assignment, and async rollouts with truncated importance sampling. 2 figures, 7 equations.</div>
     </a>
-    <a class="card" href="Coding_Implementations_From_Scratch.html">
-      <div class="day">CODE REFERENCE</div>
-      <div class="title">ML Coding From Scratch</div>
-      <div class="desc">Clean PyTorch for attention, cross-attention, transformer block, DPO/reward/PPO losses, sampling.</div>
+  </div>
+
+  <h2>Deep Dives · Architecture, Vision &amp; Multimodal</h2>
+  <div class="grid">
+    <a class="card" href="LLM_Architecture_Frontier.html">
+      <div class="day">DEEP DIVE</div>
+      <div class="title">LLM Architecture Frontier</div>
+      <div class="desc">MoE, long-context &amp; memory layers, test-time compute, model merging, unified multimodal.</div>
     </a>
     <a class="card" href="ViT_Training_Tutorial.html">
       <div class="day">TUTORIAL</div>
       <div class="title">How a ViT is Trained — End to End</div>
       <div class="desc">Full training walkthrough: data &amp; augmentation (RandAug/mixup/CutMix/stochastic depth), the exact forward pass &amp; loss, the AdamW+warmup+cosine recipe, the inductive-bias/data-scale crossover, pretraining objectives (supervised/CLIP/MAE/DINO), fine-tuning + pos-embed interpolation, and a production training step. 4 figures, runnable code, gotchas table.</div>
-    </a>
-    <a class="card" href="LLM_Architecture_Frontier.html">
-      <div class="day">DEEP DIVE</div>
-      <div class="title">LLM Architecture Frontier</div>
-      <div class="desc">MoE, long-context &amp; memory layers, test-time compute, model merging, unified multimodal.</div>
     </a>
     <a class="card" href="VLM_VLA_Unified_Omni.html">
       <div class="day">DEEP DIVE</div>
@@ -134,6 +139,10 @@
       <div class="title">Self-Improving VLMs &amp; the MM Web-Scraper Data Engine</div>
       <div class="desc">The full Generate&rarr;Verify&rarr;Update map (vision / pretraining / post-training &times; agent / data / model), verifier hierarchy, six data-side verbs, deep insights (KL budgets &amp; nats, entropy accounting, verifier decay, elicitation vs creation) &mdash; plus the Gemini-setting mock scraper project: problems P1&ndash;P15, the render-vs-extraction critic, "only doers know" field notes, 7 figures, 15 equations.</div>
     </a>
+  </div>
+
+  <h2>Deep Dives · Science of Data &amp; Scaling</h2>
+  <div class="grid">
     <a class="card" href="Science_of_MM_Data_Master.html">
       <div class="day">DEEP DIVE &middot; MASTER</div>
       <div class="title">Science of (MM) Data &mdash; Master Doc</div>
@@ -154,6 +163,10 @@
       <div class="title">Scaling-Law Development Mechanics</div>
       <div class="desc">How the laws were actually fit: the four-layer stack, isoFLOP vs parametric fits, &mu;P + WSD, repetition/quality laws, the MM joint law, run matrix, confounds, speakable model card, and future agenda.</div>
     </a>
+  </div>
+
+  <h2>Research Proposal</h2>
+  <div class="grid">
     <a class="card" href="Proposal_JEPA_Latent_VLM.html">
       <div class="day">RESEARCH PROPOSAL &middot; v0.5</div>
       <div class="title">LatentFusion &mdash; Predicting in Frozen SSL Latent Spaces</div>
