@@ -1,6 +1,6 @@
 # LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces
 
-**Research Proposal** · July 2026 · Status: draft v0.5
+**Research Proposal** · July 2026 · Status: draft v0.6
 
 > **Figure 1 (see HTML version):** a language model reads interleaved text + CLIP-encoded visuals and, at every visual span, predicts the *frozen* DINOv2/V-JEPA latents of the *next* visual content — text keeps its ordinary cross-entropy; no pixels are ever generated; no collapse is possible because targets are frozen.
 
@@ -222,6 +222,79 @@ Each gate is an order of magnitude cheaper than the next; each has an explicit k
 | 11–14 | Video/V-JEPA arm; target-space swap (H2) |
 | 15–18 | Scaling ladder (H4), write-up |
 
+## 8. Extension M — Motion as a target space, predicted by a diffusion head
+
+*Added in v0.6.* Motion (point tracks / flow) is the middle rung between pixels (too much) and symbolic laws (too hard): it is where the physics lives with appearance factored out. This adds **target space M** to the A2 axis.
+
+### 8.1 Why motion targets
+
+- **Physics lives in motion, not appearance** — a trajectory *is* the law's consequence; no symbolic grounding problem.
+- **Frozen targets, same recipe** — frozen trackers (CoTracker, TAPIR) and flow models (RAFT) give precomputed pseudo-labels; A5 unchanged, no collapse.
+- **Low-dim, multimodal, plannable** — \(K\times T\times 2\) track tensors are ~10³ dims; futures genuinely multimodal; diffusion inpainting turns predictor into goal-conditioned planner for free.
+- **Verifiable** — predicted tracks → motion-prompted video generation → re-track → consistency; and fitting laws to predicted tracks is trivial, making physics-consistency measurable without symbols.
+
+**Prior-work slots:** Diffusion Policy (trajectory diffusion beats regression *because* multimodality), MotionDiffuser, MDM/PhysDiff (physics projection inside sampling), DDVM (diffusion on flow fields), Diffuser (inpainting-as-planning), ATM/Track2Act (tracks as manipulation interface), Motion Prompting (tracks as *input* conditioning for video gen). Open slot: **language-conditioned predictive direction** — interleaved text+video in → future motion out.
+
+### 8.2 Diffusion head vs. track tokens
+
+| | track tokens (c′) | flow-matching head (d) |
+| --- | --- | --- |
+| Precision | quantization error | continuous |
+| Joint coherence (rigid bodies) | factorized AR order | denoised jointly |
+| Multimodal futures | categorical | full continuous |
+| Inpainting / planning | no | **free (clamp & denoise)** |
+| Infra | plain LM training | small extra head |
+
+**Call:** diffusion wins for motion — inpainting alone justifies it. Run (c′) as the baseline; tokens matching diffusion on min-ADE would itself be a reportable surprise.
+
+### 8.3 Spending a pretrained video model (Veo/omni/Transfusion-class)
+
+**Decision rule: denoise in the smallest space that contains the answer; condition on the richest space you can get frozen.** The answer (~10³-dim motion) sets the diffusion arena; the base model's dynamics prior enters three ways:
+
+1. **Features as conditioning.** In a Transfusion-style unified model *the backbone transformer is the encoder*: middle-layer hidden states at visual positions are the feature bank (DIFT: mid-network diffusion features encode correspondence; Marigold: generative priors transfer). Sweep layer index and noise level *t* with a linear probe for next-step velocity (the D0 gate here). Retrospective features (context positions) are the default; *prospective* features (append noised future span, partial denoise, read future positions — the model's imagination) are the compute-vs-prior ablation.
+2. **Rollouts as teacher.** Sample continuations, re-track, add as pseudo-labels — distills the base model's physics prior into the cheap head at training time only. Student-on-real vs. student-on-rollouts *measures* how physical the base model's imagination is.
+3. **Renderer for verification** (closed loop above).
+
+Diffusing in the video model's own space (joint video+motion fine-tune) is a product path for controllable generation, not this research program.
+
+### 8.4 The motion head, concretely
+
+Setup: K query points \(q\) on the last context frame; target \(\tau \in \mathbb{R}^{K\times T\times 2}\) = future per-step deltas (CoTracker pseudo-labels, visibility-masked). Head ≈ 15M params on a frozen backbone.
+
+```python
+# ---- K track tokens: each knows where it is, what the backbone believes there,
+#      and what its noisy trajectory currently looks like ----
+f_local = bilinear_sample(H, q)          # [K, d]  backbone belief AT each query point
+e_pos   = fourier(q)                     # [K, 64] position (Fourier beats raw xy — spectral bias)
+e_traj  = mlp_in(tau_noisy.flatten(1))   # [K,256] current noisy trajectory (T*2 -> 256)
+e_t     = timestep_embed(t)              # [256]   flow-matching time, broadcast-added
+tokens  = mlp_fuse(cat(f_local, e_pos, e_traj)) + e_t      # [K, 512]
+
+# ---- denoiser: self-attn couples points (rigidity); cross-attn reads scene + text ----
+z      = dit_blocks(tokens, context=h_proj)                # h_proj = linear(h): [N, 512]
+v_pred = mlp_out(z).reshape(K, T, 2)     # velocity field, NOT the trajectory itself
+
+# ---- training: flow matching — target velocity along a straight path is constant ----
+tau0, t = randn_like(tau1), rand()
+tau_t   = (1-t)*tau0 + t*tau1            # noise→data interpolation point
+loss    = (vis_mask * (head(tau_t,t,q,h) - (tau1-tau0))**2).mean()   # occlusions masked
+
+# ---- sampling: 10 Euler steps, CFG w≈2; rerun with fresh noise = another future ----
+tau = randn(K, T, 2)
+for t in linspace(0, 1, 10):
+    v_c, v_u = head(tau,t,q,h), head(tau,t,q,null)         # conditioned / unconditional
+    tau += dt * (v_u + w*(v_c - v_u))                      # amplify what conditioning changes
+tracks = q[:,None,:] + cumsum(tau, dim=1)                  # deltas -> absolute positions
+```
+
+**Load-bearing details:** `bilinear_sample(H, q)` — point-local backbone belief (concatenate 2–3 layers if the patch grid is coarse); temporal span of `h` — motion is invisible in one frame, so feed ≥2 context frames' hiddens or difference consecutive feature maps. **Multimodality mechanism:** at low *t* the model predicts the average velocity; as *t* grows, \(\tau_t\) leaks which mode the sample is in and the model commits. **Inpainting = planning:** after each Euler step overwrite clamped entries (goal endpoint / known past) renoised to level *t*.
+
+**Gates (extend the D-ladder):** M-D0 layer/timestep probe sweep + three-way conditioning comparison (backbone hiddens vs. V-JEPA vs. DINO — publishable alone); M-D1 copy-last-velocity baseline; M-D2 same head with diffusion deleted (direct L2) — flow matching must beat it on min-ADE where futures are multimodal.
+
+**Risks:** tracker labels noisy under occlusion (confidence weighting, visibility flags); camera motion contaminates object motion (stabilize / camera-compensated coordinates); backbone hiddens optimized to *render* may over-represent appearance (measured by M-D0); K×T token budget in interleaved sequences.
+
+**Eval:** min-over-N ADE/FDE, sample diversity, rigid-body coherence, CFG-sweep of language influence on physics, closed rendering loop — plus law-fitting on predicted tracks: "does error grow exactly where physics is violated?", measurable without symbols.
+
 ## References (non-exhaustive)
 
-I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022) · CLIP (Radford et al. 2021) · CoCa (Yu et al. 2022) · SigLIP (Zhai et al. 2023) · iBOT (Zhou et al. 2022) · MMVP / Eyes Wide Shut (Tong et al. 2024)
+I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022) · CLIP (Radford et al. 2021) · CoCa (Yu et al. 2022) · SigLIP (Zhai et al. 2023) · iBOT (Zhou et al. 2022) · MMVP / Eyes Wide Shut (Tong et al. 2024) · Diffusion Policy (Chi et al. 2023) · Diffuser (Janner et al. 2022) · MotionDiffuser (Jiang et al. 2023) · MDM (Tevet et al. 2023) · PhysDiff (Yuan et al. 2023) · DDVM (Saxena et al. 2023) · CoTracker (Karaev et al. 2023) · TAPIR (Doersch et al. 2023) · ATM (Wen et al. 2024) · Motion Prompting (Geng et al. 2024) · DIFT (Tang et al. 2023) · Marigold (Ke et al. 2024) · Genie (Bruce et al. 2024)

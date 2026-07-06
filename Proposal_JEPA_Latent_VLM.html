@@ -47,7 +47,7 @@ MathJax = { tex: { inlineMath: [['\\(','\\)'], ['$','$']], displayMath: [['\\[',
 
 <header class="hero">
   <h1>LatentFusion: Multimodal Language Models that Predict in Frozen Self-Supervised Latent Spaces</h1>
-  <div class="meta">Research Proposal · July 2026 · draft v0.5</div>
+  <div class="meta">Research Proposal · July 2026 · draft v0.6</div>
   <div class="badges">
     <span class="badge">see in CLIP space</span>
     <span class="badge">predict in DINO/JEPA space</span>
@@ -660,8 +660,145 @@ loss = L_text + lam * L_reg</pre>
 </svg>
 </div>
 
+<h2>8. Extension M — Motion as a target space, predicted by a diffusion head</h2>
+<p class="muted">Added in v0.6. Motion (point tracks / flow) is the middle rung between pixels (too much) and symbolic laws (too hard): it is where the physics lives with appearance factored out. This section adds <strong>target space M</strong> to the A2 axis and works the design all the way down to code.</p>
+
+<h3>8.1 Why motion targets</h3>
+<div class="grid2">
+<div class="card"><h4>Physics lives in motion</h4><p class="muted">A falling ball's texture is irrelevant; its trajectory <em>is</em> the physics. Predicting motion predicts the law's consequences without deriving symbols — sidestepping the grounding problem of "extract F=ma from latents."</p></div>
+<div class="card"><h4>Frozen targets, same recipe</h4><p class="muted">Off-the-shelf trackers (CoTracker, TAPIR) and flow models (RAFT) give pseudo-labels at scale. A frozen tracker plays exactly the role of the frozen DINO/JEPA encoder: precomputed, stationary, no collapse, ships like labels (A5 unchanged).</p></div>
+<div class="card"><h4>Low-dim, multimodal, plannable</h4><p class="muted">K×T×2 track tensors are ~10³ dims; futures are genuinely multimodal (ball bounces left <em>or</em> right); and diffusion inpainting turns the predictor into a goal-conditioned planner for free.</p></div>
+<div class="card"><h4>Verifiable, closed loop</h4><p class="muted">Predicted tracks → motion-prompted video generation → re-track → consistency check. And fitting a parabola to a predicted trajectory is trivial — physics-consistency becomes measurable without symbolic derivation.</p></div>
+</div>
+<p><strong>Prior-work slots:</strong> Diffusion Policy (diffusion over action trajectories beats regression <em>because</em> of multimodality), MotionDiffuser (multi-agent trajectory diffusion), MDM/PhysDiff (text-conditioned motion diffusion + physics projection in the sampling loop), DDVM (diffusion on flow fields), Diffuser (inpainting-as-planning), ATM/Track2Act (tracks as the interface for manipulation), Motion Prompting (tracks as <em>input</em> conditioning for video gen). Every ingredient is individually de-risked; the open slot is the <strong>language-conditioned predictive direction</strong>: interleaved text+video in → future motion out.</p>
+
+<h3>8.2 Diffusion head vs. track tokens — a real fork</h3>
+<table>
+<tr><th></th><th>track tokens (c′)</th><th>flow-matching head (d)</th></tr>
+<tr><td>Precision</td><td>quantization error</td><td>continuous</td></tr>
+<tr><td>Joint coherence (rigid bodies)</td><td>via attention, factorized AR order</td><td>denoised jointly</td></tr>
+<tr><td>Multimodal futures</td><td>categorical, native</td><td>full continuous distribution</td></tr>
+<tr><td>Inpainting / goal-conditioned planning</td><td>no</td><td><strong>free (clamp &amp; denoise)</strong></td></tr>
+<tr><td>Infra</td><td>plain LM training</td><td>small extra head</td></tr>
+</table>
+<p><strong>Call:</strong> diffusion wins for motion — inpainting alone justifies it (predictor ⇒ planner with zero extra training). Run (c′) as the cheap baseline; if tokens match diffusion on min-ADE, that is a reportable surprise.</p>
+
+<h3>8.3 Spending a pretrained video model (Veo/omni/Transfusion-class)</h3>
+<div class="callout"><strong>Decision rule:</strong> <em>denoise in the smallest space that contains the answer; condition on the richest space you can get frozen.</em> The answer (future motion) lives in ~10³ dims — diffuse there. The knowledge (visual dynamics prior) lives in the base model — pipe it in three ways, never as the diffusion arena:</div>
+<ol>
+<li><strong>Features as conditioning.</strong> For a Transfusion-style unified model there is no separate encoder — <em>the backbone transformer is the encoder</em>, and its middle-layer hidden states at visual positions are the feature bank (DIFT: mid-network diffusion features encode correspondence; Marigold: generative priors transfer through light adaptation). Sweep <em>layer index</em> and <em>noise level t</em> with a linear probe for next-step velocity — that sweep is the D0 gate here. Retrospective features (context positions, one forward pass) are the default; <em>prospective</em> features (append noised future span, partial denoise, read future positions — features of the model's imagination) are the compute-vs-prior ablation.</li>
+<li><strong>Rollouts as teacher.</strong> Sample base-model continuations, re-track them, use resulting tracks as extra pseudo-labels — the base model's physics prior distills into the cheap head, paid at training time only. Bonus: student-on-real vs. student-on-rollouts directly <em>measures</em> how physical the base model's imagination is.</li>
+<li><strong>Renderer for verification.</strong> Predicted tracks → motion-prompted generation → re-track → agreement.</li>
+</ol>
+<p class="muted">Diffusing in the video model's own space (fine-tune to joint video+motion denoising) is right only when the deliverable is controllable <em>generation</em> or when base-model iteration cost is not yours — a product path, not this research program.</p>
+
+<h3>8.4 The motion head, concretely</h3>
+<!-- ============ VISUAL: motion head ============ -->
+<div class="diagram">
+<svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" style="max-width:100%">
+  <defs><marker id="mh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b5179e"/></marker>
+  <marker id="mhb" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4361ee"/></marker></defs>
+  <text x="450" y="24" text-anchor="middle" font-weight="bold" font-size="14" fill="#1a1a2e">Track flow-matching head on frozen backbone hiddens (≈15M params)</text>
+  <!-- backbone -->
+  <rect x="30" y="50" width="250" height="70" rx="12" fill="#1a1a2e"/>
+  <text x="155" y="78" text-anchor="middle" fill="#fff" font-weight="bold" font-size="13">frozen Transfusion backbone</text>
+  <text x="155" y="100" text-anchor="middle" fill="#aab4d4" font-size="11">middle layer ℓ · visual positions · [N, d]</text>
+  <!-- H map -->
+  <line x1="280" y1="85" x2="340" y2="85" stroke="#4361ee" stroke-width="2.5" marker-end="url(#mhb)"/>
+  <rect x="340" y="52" width="170" height="66" rx="10" fill="#eef1ff" stroke="#4361ee"/>
+  <text x="425" y="76" text-anchor="middle" font-size="12" font-weight="bold" fill="#4361ee">H: reshape to [d, h′, w′]</text>
+  <text x="425" y="96" text-anchor="middle" font-size="10.5" fill="#5c6270">patch layout preserved</text>
+  <!-- inputs per token -->
+  <g font-size="10.5">
+    <rect x="30" y="160" width="200" height="40" rx="8" fill="#f0fbf8" stroke="#0d9488"/>
+    <text x="130" y="177" text-anchor="middle" font-weight="bold" fill="#0d9488">f_local = readout(H, q, t)</text>
+    <text x="130" y="192" text-anchor="middle" fill="#5c6270">cross-attn lookup, not naive index (§8.4.1)</text>
+    <rect x="30" y="210" width="200" height="40" rx="8" fill="#f0fbf8" stroke="#0d9488"/>
+    <text x="130" y="227" text-anchor="middle" font-weight="bold" fill="#0d9488">e_pos = fourier(q)</text>
+    <text x="130" y="242" text-anchor="middle" fill="#5c6270">where the point is (spectral bias fix)</text>
+    <rect x="30" y="260" width="200" height="40" rx="8" fill="#fff8ed" stroke="#d97706"/>
+    <text x="130" y="277" text-anchor="middle" font-weight="bold" fill="#d97706">e_traj = mlp(τ_t.flatten)</text>
+    <text x="130" y="292" text-anchor="middle" fill="#5c6270">current noisy trajectory state</text>
+    <rect x="30" y="310" width="200" height="40" rx="8" fill="#fff8ed" stroke="#d97706"/>
+    <text x="130" y="327" text-anchor="middle" font-weight="bold" fill="#d97706">e_t = timestep_embed(t)</text>
+    <text x="130" y="342" text-anchor="middle" fill="#5c6270">which denoising regime we're in</text>
+  </g>
+  <!-- fuse -->
+  <line x1="230" y1="250" x2="320" y2="250" stroke="#b5179e" stroke-width="2.5" marker-end="url(#mh)"/>
+  <rect x="320" y="200" width="190" height="100" rx="12" fill="#fdf2fb" stroke="#b5179e" stroke-width="2"/>
+  <text x="415" y="228" text-anchor="middle" font-size="12" font-weight="bold" fill="#b5179e">K track tokens [K, 512]</text>
+  <text x="415" y="250" text-anchor="middle" font-size="10.5" fill="#5c6270">one per query point:</text>
+  <text x="415" y="266" text-anchor="middle" font-size="10.5" fill="#5c6270">(belief, position, noisy τ) + t</text>
+  <!-- DiT -->
+  <line x1="510" y1="250" x2="570" y2="250" stroke="#b5179e" stroke-width="2.5" marker-end="url(#mh)"/>
+  <rect x="570" y="185" width="200" height="130" rx="12" fill="#fdf2fb" stroke="#b5179e" stroke-width="2"/>
+  <text x="670" y="212" text-anchor="middle" font-size="12" font-weight="bold" fill="#b5179e">6-layer DiT, width 512</text>
+  <text x="670" y="236" text-anchor="middle" font-size="10.5" fill="#1a1a2e">self-attn over K tokens</text>
+  <text x="670" y="252" text-anchor="middle" font-size="10" fill="#5c6270">→ rigid bodies move together</text>
+  <text x="670" y="274" text-anchor="middle" font-size="10.5" fill="#1a1a2e">cross-attn to h (+ text)</text>
+  <text x="670" y="290" text-anchor="middle" font-size="10" fill="#5c6270">→ table edges, instructions, scene</text>
+  <line x1="425" y1="118" x2="620" y2="182" stroke="#4361ee" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#mhb)"/>
+  <text x="545" y="140" text-anchor="middle" font-size="10" fill="#4361ee">cross-attention context</text>
+  <!-- out -->
+  <line x1="770" y1="250" x2="830" y2="250" stroke="#b5179e" stroke-width="2.5" marker-end="url(#mh)"/>
+  <text x="838" y="240" font-size="11.5" font-weight="bold" fill="#1a1a2e" text-anchor="start" transform="rotate(-90 845 250)"></text>
+  <rect x="800" y="205" width="90" height="90" rx="10" fill="#f0fbf8" stroke="#0d9488" stroke-width="2"/>
+  <text x="845" y="235" text-anchor="middle" font-size="11" font-weight="bold" fill="#0d9488">v_pred</text>
+  <text x="845" y="252" text-anchor="middle" font-size="10" fill="#5c6270">[K, T, 2]</text>
+  <text x="845" y="272" text-anchor="middle" font-size="10" fill="#5c6270">velocity field</text>
+</svg>
+<div class="cap">Setup: K query points q on the last context frame; target τ ∈ ℝ<sup>K×T×2</sup> = future per-step deltas (CoTracker pseudo-labels, visibility-masked).</div>
+</div>
+
+<h4>8.4.1 The load-bearing subtlety: how does a query point <em>q</em> map into <em>H</em>?</h4>
+<p>The whole head hinges on getting a backbone feature "at" each point. Whether that is even well-defined depends on how the backbone tokenizes — three regimes:</p>
+<div class="grid2">
+<div class="card"><h4>(i) Per-frame latent patches — map is a computable affine (but soft)</h4><p class="muted">Single-image Transfusion-style tokenization (VAE latents → patchify → grid): <code>q_pixel → /vae_downsample → /patch_size → (row,col) → token</code>. The correspondence <em>exists</em>. Two things make it soft, not wrong: <strong>receptive-field spread</strong> (VAE latents integrate a pixel neighborhood — sub-patch motion lives below the grid) and <strong>contextual mixing</strong> (after attention, <code>H[:,i]</code> keeps patch i's <em>position</em> but its <em>content</em> is globally contaminated). Bilinear-sampling the position is fine here; treating the value as purely local is not.</p></div>
+<div class="card"><h4>(ii) Spatiotemporal tubes / perceiver tokens — map does not exist</h4><p class="muted">A 3D-VAE token is a spacetime <em>volume</em> (e.g. 4 frames × 8×8 px → 1 token), so "q at frame t" has no 2D slice to land on. Any real video backbone is likely here — which is exactly why naive <code>bilinear_sample(H, q)</code> is hand-wavy.</p></div>
+</div>
+<div class="callout"><strong>Robust fix — stop indexing, start attending.</strong> Make q a <em>query token</em> carrying a space-time positional embedding; let it cross-attend over all of H, whose keys are tagged with their own space-time coordinates. This uses position <em>and</em> content, degrades gracefully when position alone is ambiguous, is tokenizer-agnostic, and is exactly what real point trackers (CoTracker/TAPIR) do — they correlate a query feature against a cost volume, never index. Reuse the backbone's own position scheme (e.g. RoPE) so query and keys share one coordinate system.</div>
+<p><strong>Cleaner still — decouple the two roles.</strong> <code>f_local</code> was serving two masters: <em>local precision</em> ("exactly which pixel") and <em>global prior</em> ("what's the scene physics"). H is good at the second, unreliable at the first. So take local precision from a <em>pixel-aligned</em> encoder with a guaranteed clean map (a small CNN, or the frozen tracker's own cost volume — already computing correspondence) and use H <strong>only via cross-attention</strong> for the global prior. The q→H indexing problem then disappears from the precision-critical path: <em>the tracker knows</em> where, <em>the backbone knows</em> what happens next. <strong>M-D0 is the arbiter</strong> — linear-probe H at q's nominal location for q's own current velocity; if even that fails, the naive map is dead in your backbone → go straight to attention readout / decoupled encoder.</p>
+
+<pre><span class="c"># ---- q → H readout: cross-attention lookup, NOT naive indexing (see 8.4.1) ----</span>
+q_tok   = mlp_q(cat(fourier(q), time_embed(t_query)))     <span class="c"># [K,512] "a point here, at this time"</span>
+H_kv    = h_proj + posemb(H_positions)                    <span class="c"># [N,512] keys tagged w/ space-time coords (reuse RoPE)</span>
+f_local = cross_attention(q_tok, key=H_kv, val=H_kv)      <span class="c"># [K,512] soft learned lookup (pos + content)</span>
+<span class="c">#         ↑ for a pixel-aligned encoder E, use f_local = bilinear_sample(E, q) and keep H for global cross-attn only</span>
+
+<span class="c"># ---- K track tokens: each knows where it is, what the backbone believes there,</span>
+<span class="c">#      and what its noisy trajectory currently looks like ----</span>
+e_pos   = fourier(q)                     <span class="c"># [K, 64] position (Fourier: beats raw xy — spectral bias)</span>
+e_traj  = mlp_in(tau_noisy.flatten(1))   <span class="c"># [K,256] current noisy trajectory (T*2 -> 256)</span>
+e_t     = timestep_embed(t)              <span class="c"># [256]   flow-matching time, broadcast-added (DiT-style)</span>
+tokens  = mlp_fuse(cat(f_local, e_pos, e_traj)) + e_t      <span class="c"># [K, 512]</span>
+
+<span class="c"># ---- denoiser: self-attn couples points (rigidity); cross-attn reads scene + text ----</span>
+z      = dit_blocks(tokens, context=h_proj)                <span class="c"># h_proj = linear(h): [N, 512]</span>
+v_pred = mlp_out(z).reshape(K, T, 2)     <span class="c"># velocity field, NOT the trajectory itself</span>
+
+<span class="c"># ---- training: flow matching — target velocity along a straight path is constant ----</span>
+tau0, t = randn_like(tau1), rand()
+tau_t   = (1-t)*tau0 + t*tau1            <span class="c"># noise→data interpolation point</span>
+loss    = (vis_mask * (head(tau_t,t,q,h) - (tau1-tau0))**2).mean()   <span class="c"># occlusions masked</span>
+
+<span class="c"># ---- sampling: 10 Euler steps, CFG w≈2; rerun with fresh noise = another future ----</span>
+tau = randn(K, T, 2)
+for t in linspace(0, 1, 10):
+    v_c, v_u = head(tau,t,q,h), head(tau,t,q,null)         <span class="c"># conditioned / unconditional</span>
+    tau += dt * (v_u + w*(v_c - v_u))                      <span class="c"># amplify what conditioning changes</span>
+tracks = q[:,None,:] + cumsum(tau, dim=1)                  <span class="c"># deltas -> absolute positions</span></pre>
+
+<div class="grid2">
+<div class="card"><h4>The two load-bearing details</h4><p class="muted"><strong>The q→H readout</strong> (§8.4.1) is where correctness lives — cross-attention lookup keyed by space-time position, or a decoupled pixel-aligned encoder, <em>not</em> naive indexing into a possibly-tubed token grid. <strong>Temporal span of h:</strong> motion is invisible in one frame — feed hiddens from ≥2 context frames, or difference consecutive feature maps as an explicit "neural flow" channel.</p></div>
+<div class="card"><h4>Why flow matching represents multimodality</h4><p class="muted">At low t the model cannot tell which future this sample is, so it predicts the average velocity; as t grows, τ_t leaks which mode it is in and the model commits. One deterministic network, full multimodal distribution. Inpainting = one line: after each Euler step, overwrite clamped entries (goal endpoint, known past) renoised to level t — the rest bends to fit ⇒ goal-conditioned planning free.</p></div>
+<div class="card"><h4>Gates &amp; baselines (extends the D-ladder)</h4><p class="muted"><strong>M-D0:</strong> layer/timestep linear-probe sweep for next-step velocity; three-way conditioning comparison (backbone hiddens vs. V-JEPA vs. DINO) — publishable alone. <strong>M-D1:</strong> copy-last-velocity baseline; any head must clear it widely. <strong>M-D2:</strong> same head, diffusion machinery deleted (direct L2 regression) — flow matching must beat it on min-ADE wherever futures are multimodal, else the machinery isn't earning its keep.</p></div>
+<div class="card"><h4>Risks</h4><p class="muted">Tracker pseudo-labels noisy under occlusion/fast motion (confidence-weighted loss, visibility flags); camera motion contaminates object motion (stabilize, or predict camera-compensated coordinates); backbone hiddens optimized to <em>render</em> may over-represent appearance (that's what the M-D0 sweep measures); K×T token budget in interleaved sequences.</p></div>
+</div>
+
+<p><strong>Eval:</strong> min-over-N ADE/FDE (honest under multimodality), sample diversity, rigid-body coherence of samples, CFG-sweep of language influence on physics, and the closed loop: sampled tracks → motion-prompted generation → re-track → agreement. <strong>Physics payoff without symbols:</strong> fit parabolas/conservation to predicted tracks — "does error grow exactly where physics is violated?" becomes measurable, no symbolic derivation required.</p>
+
 <h2>References (non-exhaustive)</h2>
-<p class="muted">I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022) · CLIP (Radford et al. 2021) · CoCa (Yu et al. 2022) · SigLIP (Zhai et al. 2023) · iBOT (Zhou et al. 2022) · MMVP / Eyes Wide Shut (Tong et al. 2024)</p>
+<p class="muted">I-JEPA (Assran et al. 2023) · V-JEPA (Bardes et al. 2024) · V-JEPA 2 / 2-AC (Meta 2025) · DINOv2 (Oquab et al. 2023) · DINO-WM (Zhou et al. 2024) · IWM (Garrido et al. 2024) · Transfusion (Zhou et al. 2024) · Chameleon (2024) · Emu2 (Sun et al. 2024) · MetaMorph (Tong et al. 2024) · ROSS (Wang et al. 2024) · REPA (Yu et al. 2024) · SEED-LLaMA (Ge et al. 2023) · LaViT (Jin et al. 2024) · VILA-U (2024) · Janus (DeepSeek 2024) · MAR (Li et al. 2024) · RCG (Li et al. 2023) · VICReg (Bardes et al. 2022) · CLIP (Radford et al. 2021) · CoCa (Yu et al. 2022) · SigLIP (Zhai et al. 2023) · iBOT (Zhou et al. 2022) · MMVP / Eyes Wide Shut (Tong et al. 2024) · Diffusion Policy (Chi et al. 2023) · Diffuser (Janner et al. 2022) · MotionDiffuser (Jiang et al. 2023) · MDM (Tevet et al. 2023) · PhysDiff (Yuan et al. 2023) · DDVM (Saxena et al. 2023) · CoTracker (Karaev et al. 2023) · TAPIR (Doersch et al. 2023) · ATM (Wen et al. 2024) · Motion Prompting (Geng et al. 2024) · DIFT (Tang et al. 2023) · Marigold (Ke et al. 2024) · Genie (Bruce et al. 2024)</p>
 
 </div>
 </body>
