@@ -365,6 +365,15 @@ for step, prompts in enumerate(prompt_loader):       # prompts: list[str], size 
 <pre><code>logp = torch.log_softmax(logits, -1)
 entropy = -(logp.exp() * logp).sum(-1).mean()   # add +c2 * entropy to the objective</code></pre>
 
+<h3>7.6 RLOO advantage (leave-one-out baseline)</h3>
+<pre><code>def rloo_advantages(rewards):                 # rewards: (B, G)
+    G = rewards.shape[1]
+    total = rewards.sum(axis=1, keepdims=True)
+    baseline = (total - rewards) / (G - 1)    # mean of the OTHER G-1 samples
+    return rewards - baseline                 # == G/(G-1) * (r - group_mean)
+</code></pre>
+<p><strong>vs GRPO, in one breath:</strong> leave-one-out makes the baseline independent of the sample it centers → <em>strictly</em> unbiased (GRPO's self-inclusive mean and ÷std both introduce small biases; the std term also over-weights too-easy/too-hard prompts — the Dr.&nbsp;GRPO fix). RLOO's original form also drops the clip: plain sequence-level REINFORCE + honest empirical baseline — the minimal member of the critic-free family. Ladder: REINFORCE → <strong>RLOO</strong> (+LOO baseline) → <strong>GRPO</strong> (+÷std, clip, KL-in-loss).</p>
+
 <h2 id="bugs">8 · Bugs interviewers plant (debug-this-code round)</h2>
 <table>
 <tr><th>Planted bug</th><th>Symptom</th><th>Fix / what to say</th></tr>
