@@ -902,3 +902,7 @@ _check("the 'abba' stale-index trap", _t_abba)
   ]
 }
 ]
+
+# F3 — full RL loop session (rollout -> REINFORCE -> GAE -> PPO -> GRPO)
+from rl_full_loop import RL_FULL_LOOP_SESSION
+SESSIONS.append(RL_FULL_LOOP_SESSION)
