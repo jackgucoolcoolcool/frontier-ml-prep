@@ -101,6 +101,16 @@ $$
 \;\;\Rightarrow\;\;
 \mathbb{E}\big[\nabla_\theta\log\pi\cdot b(s)\big]=0 .
 $$
+<div class="box key">
+<p><strong>Why $\mathbb{E}_{a\sim\pi}[\nabla_\theta\log\pi(a|s)]=0$, expanded.</strong> Write the expectation as a weighted sum: $\sum_a \pi(a|s)\cdot\frac{\nabla\pi(a|s)}{\pi(a|s)}$ — the $\pi$ outside cancels the $\pi$ underneath, leaving $\sum_a\nabla\pi(a|s) = \nabla\sum_a\pi(a|s) = \nabla 1 = 0$: probabilities sum to 1 <em>for every θ</em>, and the gradient of a constant is zero.</p>
+<p><strong>Intuition — probability is a zero-sum budget:</strong> the score points toward "make this action likelier," but mass is conserved, so up-pushes and down-pushes cancel exactly when weighted by how often each action occurs. Numeric check with softmax ($\text{score}=\text{onehot}(a)-\pi$), $\pi=(0.75,0.25)$: $\;0.75\,(+0.25,-0.25) + 0.25\,(-0.75,+0.75) = (0,0)$. The common action has a small score, the rare one a large score; the weighting balances them.</p>
+<p><strong>Baseline consequence:</strong> $b(s)$ doesn't vary with $a$, so it factors out of $\mathbb{E}_a$: $\mathbb{E}_a[b(s)\nabla\log\pi] = b(s)\cdot 0 = 0$ — <em>any</em> state-only function (even $b=42$) shifts the expected gradient by exactly zero. If $b$ depended on $a$ it couldn't factor out → bias. It still helps because $(G_t-b)$ has far smaller spread than $G_t$: same mean, less noise.</p>
+</div>
+
+<div class="box warn">
+<p><strong>Common confusion:</strong> is $V(s')-V(s) = A$? <strong>No.</strong> $A(s,a)=Q(s,a)-V(s)$ with $Q(s,a)=\mathbb{E}[r+\gamma V(s')\,|\,s,a]$, so the one-sample estimate is the TD residual $\delta = r+\gamma V(s')-V(s)$ — plain $V(s')-V(s)$ drops the reward $r$ (the action's actual payoff) and $\gamma$. An action paying $r{=}+10$ into an equally-valued state has $V(s')-V(s)=0$ but a huge advantage.</p>
+</div>
+
 <p>Best baseline ≈ $V^\pi(s)$, giving the weight $G_t - V(s_t) \approx Q - V = A(s_t,a_t)$. The general template every method instantiates:</p>
 $$
 \nabla_\theta J = \mathbb{E}\big[\Psi_t\,\nabla_\theta\log\pi_\theta(a_t|s_t)\big],\qquad
@@ -113,6 +123,21 @@ $$
 \hat A_t^{\text{GAE}} = \sum_{l\ge 0}(\gamma\lambda)^l\,\delta_{t+l}
 $$
 <p>$\lambda{=}1$ → Monte-Carlo advantage (unbiased, high variance); $\lambda{=}0$ → one-step TD (low variance, biased through $V$). Typical $\lambda=0.95$. Computed <em>backwards</em> in one sweep (see §7.1) — a favorite "implement this" ask.</p>
+
+<div class="box key">
+<p><strong>The "dial", expanded.</strong> There's a whole family of advantage estimators indexed by <em>how many real rewards you follow before handing off to the critic</em>:</p>
+$$
+\hat A^{(k)}_t = \underbrace{r_t + \gamma r_{t+1} + \dots + \gamma^{k-1} r_{t+k-1}}_{k\ \text{real (noisy) rewards}} + \underbrace{\gamma^k V(s_{t+k})}_{\text{critic estimates the rest}} - V(s_t)
+$$
+<p>Few real rewards → low variance, but the estimate leans on $V(s_{t+k})$ — <em>biased wherever the critic is wrong</em>. Many real rewards → no reliance on the critic inside the estimate, but summing many noisy rewards → high variance. GAE takes the exponentially-weighted average of all $k$ with weight $\lambda^{k-1}$, which collapses (telescoping) to $\sum_l(\gamma\lambda)^l\delta_{t+l}$ — read $(\gamma\lambda)^l$ as "how much do I still count the TD error $l$ steps out."</p>
+<table>
+<tr><th>$\lambda$</th><th>Reduces to</th><th>Trust profile</th><th>Bias</th><th>Variance</th></tr>
+<tr><td>0</td><td>$\delta_t$ alone</td><td>hand off to critic after 1 step</td><td>high if $V$ wrong</td><td>lowest</td></tr>
+<tr><td>0.95</td><td>~20-step horizon of $\delta$'s</td><td>mostly experience, critic mops the tail</td><td>small</td><td>moderate</td></tr>
+<tr><td>1</td><td>$G_t - V(s_t)$ (telescopes)</td><td>pure experience; critic = baseline only</td><td>zero</td><td>highest</td></tr>
+</table>
+<p><strong>Key distinction:</strong> at $\lambda{=}1$, $V$ appears <em>only</em> as the subtracted baseline — bias-free no matter how bad $V$ is (baseline theorem above). At $\lambda{<}1$, $V$ also appears <em>inside</em> the estimate (the bootstrap $\gamma V(s_{t+1})$ in $\delta$) — that role is <em>not</em> protected, and it's exactly where the bias enters. Two roles, two contracts: baseline = any $V$ legal; bootstrap = accuracy matters.</p>
+</div>
 
 <h3>2.4 PPO — importance sampling, then clip</h3>
 <p>Reuse a batch from $\pi_{\theta_{\text{old}}}$ for several gradient epochs by reweighting:</p>
