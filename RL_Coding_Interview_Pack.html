@@ -1,0 +1,395 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RL Coding Interview Pack — math, concepts, and full training loops</title>
+<script>
+MathJax = {tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},svg:{fontCache:'global'}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>
+:root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--red:#e57373;--border:#2a3340;--code-bg:#11161d;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+.layout{display:flex;max-width:1180px;margin:0 auto;}
+nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:280px;min-width:280px;padding:24px 14px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+nav.toc h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+nav.toc a:hover{color:var(--text);background:var(--panel);}
+main{flex:1;min-width:0;padding:38px 46px 120px;}
+header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:26px 30px;margin-bottom:30px;}
+header.hero h1{margin:0 0 10px;font-size:27px;}
+header.hero p{margin:6px 0;color:var(--muted);}
+h2{font-size:23px;margin:50px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border);color:#eaf0f7;scroll-margin-top:16px;}
+h3{font-size:18px;margin:28px 0 8px;color:var(--accent-2);}
+h4{font-size:15.5px;margin:20px 0 6px;color:var(--accent);}
+p{margin:12px 0;}
+code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:15px 17px;overflow-x:auto;}
+pre code{background:none;padding:0;color:#c7d3e0;font-size:13px;line-height:1.55;}
+.box{border:1px solid var(--border);border-radius:10px;padding:12px 18px;margin:18px 0;background:var(--panel);}
+.key{border-color:rgba(126,224,192,.4);background:rgba(126,224,192,.06);}
+.warn{border-color:rgba(255,180,84,.4);background:rgba(255,180,84,.06);}
+.bad{border-color:rgba(229,115,115,.4);background:rgba(229,115,115,.06);}
+strong{color:#f0f4f9;}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top;}
+th{background:var(--panel-2);color:#eaf0f7;}
+mjx-container{color:#dfe7f1;}
+mjx-container[display="true"]{margin:16px 0 !important;overflow-x:auto;overflow-y:hidden;}
+@media (max-width:900px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
+</style></head><body>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2>
+<a href="#concepts">1 · Concepts you must know cold</a>
+<a href="#math">2 · The math walkthrough</a>
+<a href="#anatomy">3 · Anatomy of the RL loop</a>
+<a href="#reinforce">4 · REINFORCE — full loop</a>
+<a href="#ppo">5 · PPO — full loop (GAE, clip)</a>
+<a href="#grpo">6 · GRPO for LLMs — full loop</a>
+<a href="#snippets">7 · Snippet drills</a>
+<a href="#bugs">8 · Bugs interviewers plant</a>
+<a href="#say">9 · What to say while coding</a>
+</nav>
+<main>
+
+<header class="hero">
+<h1>RL Coding Interview Pack</h1>
+<p>Everything needed to whiteboard the math and then write working code: the concept checklist, the three derivations, and <strong>three complete training loops</strong> — REINFORCE (the skeleton), PPO (the full apparatus: GAE, clip, value loss, entropy), and GRPO for LLMs (group sampling, token masking, KL to reference) — plus the snippet drills (DPO / reward-model / GAE / whitening) that get asked as standalones.</p>
+<p style="font-size:13.5px;">Theory companion: <code>Post_Training_and_RL_Deep_Dive</code>. Agentic extensions: <code>Agentic_RL_Compaction_and_Staleness</code>.</p>
+</header>
+
+<h2 id="concepts">1 · Concepts you must know cold</h2>
+<table>
+<tr><th>Concept</th><th>The one-sentence version you should say</th></tr>
+<tr><td><strong>MDP</strong> $(\mathcal{S},\mathcal{A},p,r,\gamma)$</td><td>States, actions, transition kernel, reward, discount; the policy $\pi_\theta(a|s)$ is what we optimize.</td></tr>
+<tr><td><strong>Return / objective</strong></td><td>$G_t=\sum_{t'\ge t}\gamma^{t'-t}r_{t'}$; maximize $J(\theta)=\mathbb{E}_{\tau\sim\pi_\theta}[G_0]$ — the expected return.</td></tr>
+<tr><td><strong>$V$, $Q$, advantage</strong></td><td>$V^\pi(s)=\mathbb{E}[G_t|s]$, $Q^\pi(s,a)=\mathbb{E}[G_t|s,a]$, $A=Q-V$ = "how much better than the policy's average."</td></tr>
+<tr><td><strong>On- vs off-policy</strong></td><td>On-policy: gradient needs samples from the current $\pi_\theta$ (REINFORCE, A2C; PPO is "near on-policy" via ratio+clip). Off-policy: replay old data via a bootstrapped critic (DQN, SAC).</td></tr>
+<tr><td><strong>Model-free</strong></td><td>The dynamics $p(s'|s,a)$ cancel out of $\nabla_\theta\log P(\tau|\theta)$ — no world model needed.</td></tr>
+<tr><td><strong>Score-function trick</strong></td><td>$\nabla_\theta P = P\,\nabla_\theta\log P$ turns an un-samplable integral into a samplable expectation.</td></tr>
+<tr><td><strong>Baseline</strong></td><td>Any action-independent $b(s)$ subtracts with zero bias (because $\mathbb{E}_a[\nabla\log\pi]=0$) and cuts variance.</td></tr>
+<tr><td><strong>Bias–variance ladder</strong></td><td>MC return (unbiased, high var) → n-step → TD(0)/bootstrapped (biased, low var); GAE's $\lambda$ interpolates.</td></tr>
+<tr><td><strong>Pseudo-loss</strong></td><td>The policy "loss" is a scalar built so autodiff emits the PG estimator; its value is meaningless — monitor reward/KL/entropy instead. Advantages are <em>detached</em>.</td></tr>
+<tr><td><strong>Entropy bonus</strong></td><td>$+c\,\mathcal{H}[\pi]$ fights premature determinism / policy collapse; exploration knob.</td></tr>
+<tr><td><strong>KL penalty (RLHF)</strong></td><td>$-\beta\,\mathrm{KL}(\pi_\theta\|\pi_{\text{ref}})$ leashes the policy to the SFT reference; differentiable directly (unlike the RM reward).</td></tr>
+<tr><td><strong>Credit assignment</strong></td><td>Which action caused the reward? Critic/GAE = per-token credit; GRPO group mean = one credit per episode.</td></tr>
+</table>
+
+<h2 id="math">2 · The math walkthrough (whiteboard-ready)</h2>
+
+<h3>2.1 Policy gradient in four lines (derive this)</h3>
+$$
+\nabla_\theta J = \nabla_\theta\!\int P(\tau|\theta)R(\tau)\,d\tau
+= \int \nabla_\theta P(\tau|\theta)\,R(\tau)\,d\tau
+$$
+$$
+= \int P(\tau|\theta)\,\nabla_\theta\log P(\tau|\theta)\,R(\tau)\,d\tau
+= \mathbb{E}_{\tau\sim\pi_\theta}\big[R(\tau)\,\nabla_\theta\log P(\tau|\theta)\big]
+$$
+<p>Key line: $\nabla_\theta P = P\,\nabla_\theta\log P$. Then expand $P(\tau|\theta)=p(s_0)\prod_t \pi_\theta(a_t|s_t)\,p(s_{t+1}|s_t,a_t)$ — the log turns the product into a sum and the <strong>dynamics terms have no $\theta$ and vanish</strong>:</p>
+$$
+\nabla_\theta J = \mathbb{E}\Big[R(\tau)\sum_t \nabla_\theta\log\pi_\theta(a_t|s_t)\Big] .
+$$
+<p><strong>Say out loud:</strong> "the trick converts an un-samplable integral into an expectation I can Monte-Carlo with rollouts, and cancels the dynamics — that's why it's model-free."</p>
+
+<h3>2.2 Two variance reductions → the advantage</h3>
+<p><strong>Causality (reward-to-go):</strong> action $a_t$ can't affect past reward, so replace $R(\tau)$ with $G_t=\sum_{t'\ge t}\gamma^{t'-t}r_{t'}$ — a single-sample estimate of $Q^\pi(s_t,a_t)$.</p>
+<p><strong>Baseline (3-line proof):</strong> for any $b(s)$,</p>
+$$
+\mathbb{E}_{a\sim\pi}\big[\nabla_\theta\log\pi(a|s)\big]
+= \sum_a \pi\,\frac{\nabla_\theta\pi}{\pi}
+= \nabla_\theta\sum_a \pi(a|s) = \nabla_\theta 1 = 0
+\;\;\Rightarrow\;\;
+\mathbb{E}\big[\nabla_\theta\log\pi\cdot b(s)\big]=0 .
+$$
+<p>Best baseline ≈ $V^\pi(s)$, giving the weight $G_t - V(s_t) \approx Q - V = A(s_t,a_t)$. The general template every method instantiates:</p>
+$$
+\nabla_\theta J = \mathbb{E}\big[\Psi_t\,\nabla_\theta\log\pi_\theta(a_t|s_t)\big],\qquad
+\Psi_t \in \{\,R(\tau),\; G_t,\; G_t-b(s_t),\; A_t,\; \text{clip-ratio}\cdot A_t\,\}
+$$
+
+<h3>2.3 GAE — the $\lambda$ dial</h3>
+$$
+\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t), \qquad
+\hat A_t^{\text{GAE}} = \sum_{l\ge 0}(\gamma\lambda)^l\,\delta_{t+l}
+$$
+<p>$\lambda{=}1$ → Monte-Carlo advantage (unbiased, high variance); $\lambda{=}0$ → one-step TD (low variance, biased through $V$). Typical $\lambda=0.95$. Computed <em>backwards</em> in one sweep (see §7.1) — a favorite "implement this" ask.</p>
+
+<h3>2.4 PPO — importance sampling, then clip</h3>
+<p>Reuse a batch from $\pi_{\theta_{\text{old}}}$ for several gradient epochs by reweighting:</p>
+$$
+L^{\text{CPI}} = \mathbb{E}_t\big[r_t(\theta)\hat A_t\big],\qquad
+r_t(\theta)=\frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_\text{old}}(a_t|s_t)}
+$$
+<p>Unconstrained maximization drives $r_t$ to extremes (stale advantages, IS variance) — so clip removes the incentive to leave the trust region:</p>
+$$
+L^{\text{CLIP}} = \mathbb{E}_t\Big[\min\big(r_t\hat A_t,\;\text{clip}(r_t,1{-}\epsilon,1{+}\epsilon)\,\hat A_t\big)\Big]
+$$
+<p>Full objective (maximize): $L^{\text{CLIP}} - c_1(V_\theta - V^{\text{targ}})^2 + c_2\mathcal{H}[\pi_\theta]$ ($-\beta\,\mathrm{KL}$ to a reference in RLHF). At $\theta=\theta_\text{old}$ all ratios are 1 and $\nabla L^{\text{CLIP}} = \nabla J$ exactly.</p>
+
+<h3>2.5 GRPO — delete the critic</h3>
+<p>For prompts you can re-sample freely, replace the learned baseline with a group statistic. Sample $G$ responses per prompt, score with reward $r_i$:</p>
+$$
+\hat A_i = \frac{r_i - \text{mean}(r_1..r_G)}{\text{std}(r_1..r_G) + \varepsilon}
+$$
+<p>broadcast $\hat A_i$ to every token of response $i$, and use the same clipped-ratio objective + explicit KL term. The group mean <em>is</em> an empirical $V(s)$ computed by actual branching — possible because an LLM prompt resets for free and the whole response is one action.</p>
+
+<h2 id="anatomy">3 · Anatomy of the full RL loop</h2>
+<p>Every on-policy trainer is the same five phases; the algorithms differ only inside phases 3–4. Internalize this and you can write any of them:</p>
+<pre><code># the universal on-policy skeleton
+for iteration in range(N_ITERS):
+    # 1. ROLLOUT   — run π_old in the env; store (s, a, logp_old, r, done, v)
+    # 2. SCORE     — compute returns / advantages from the stored rewards
+    #                (REINFORCE: reward-to-go; PPO: GAE; GRPO: group-normalized r)
+    # 3. LOSS      — pseudo-loss on the stored batch
+    #                (REINFORCE: -logp*G ; PPO/GRPO: clipped ratio*A [+VF][+ent][+KL])
+    # 4. UPDATE    — one grad step (REINFORCE) or K epochs of minibatches (PPO/GRPO)
+    # 5. DISCARD   — throw the batch away; fresh rollouts next iteration (on-policy!)
+</code></pre>
+<div class="box key"><strong>The two invariants to state before coding.</strong> (1) Everything computed during rollout is <strong>detached</strong> — old log-probs, rewards, advantages are constants; gradients flow only through the <em>current</em> policy's log-probs (and the critic's value head). (2) Phase 5 is what makes it on-policy: data is never reused across iterations, only across the K epochs <em>within</em> one (that's the ratio's job).</div>
+
+<h2 id="reinforce">4 · REINFORCE — the full loop (the skeleton everyone must produce)</h2>
+<p>Complete and runnable on CartPole (<code>pip install gymnasium torch</code>). ~40 lines. This is the "can you code RL at all" question.</p>
+<pre><code>import gymnasium as gym
+import torch, torch.nn as nn
+
+env    = gym.make("CartPole-v1")
+policy = nn.Sequential(nn.Linear(4, 128), nn.Tanh(), nn.Linear(128, 2))
+opt    = torch.optim.Adam(policy.parameters(), lr=1e-2)
+GAMMA  = 0.99
+
+for episode in range(1000):
+    # ---- 1. ROLLOUT: one full episode with the CURRENT policy -------------
+    obs, _ = env.reset()
+    logps, rewards = [], []
+    done = False
+    while not done:
+        logits = policy(torch.as_tensor(obs, dtype=torch.float32))
+        dist   = torch.distributions.Categorical(logits=logits)
+        action = dist.sample()                      # stochastic! not argmax
+        logps.append(dist.log_prob(action))         # keep the graph — this trains
+        obs, r, term, trunc, _ = env.step(action.item())
+        rewards.append(r)
+        done = term or trunc
+
+    # ---- 2. SCORE: reward-to-go, computed backwards ------------------------
+    G, returns = 0.0, []
+    for r in reversed(rewards):
+        G = r + GAMMA * G
+        returns.append(G)
+    returns = torch.tensor(list(reversed(returns)))
+
+    # normalize = crude baseline (mean) + scale control; zero bias, less variance
+    returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+
+    # ---- 3. LOSS: pseudo-loss whose gradient is the PG estimator ----------
+    loss = -(torch.stack(logps) * returns).sum()    # returns is detached (no graph)
+
+    # ---- 4. UPDATE (one step)  5. DISCARD (loop makes fresh episode) ------
+    opt.zero_grad(); loss.backward(); opt.step()
+</code></pre>
+<p><strong>The five spots interviewers watch:</strong> (i) <code>dist.sample()</code>, not argmax — exploration; (ii) log-probs keep the graph, returns don't — the detach discipline; (iii) reward-to-go computed <em>backwards</em>; (iv) the minus sign (optimizers minimize, we maximize); (v) normalization stated as "zero-bias variance reduction, since a constant shift is a legal baseline."</p>
+
+<h2 id="ppo">5 · PPO — the full loop (GAE + clip + value + entropy)</h2>
+<p>The complete apparatus, still compact enough to write in a 45-minute round. Actor-critic with a shared trunk; collect a fixed horizon of steps, compute GAE, then K epochs of clipped minibatch updates.</p>
+<pre><code>import gymnasium as gym
+import torch, torch.nn as nn
+
+class ActorCritic(nn.Module):
+    def __init__(self, n_obs=4, n_act=2, h=128):
+        super().__init__()
+        self.trunk  = nn.Sequential(nn.Linear(n_obs, h), nn.Tanh())
+        self.pi     = nn.Linear(h, n_act)           # policy head -> logits
+        self.v      = nn.Linear(h, 1)               # value head  -> V(s)
+    def forward(self, obs):
+        z = self.trunk(obs)
+        return self.pi(z), self.v(z).squeeze(-1)
+
+def gae(rewards, values, dones, last_v, gamma=0.99, lam=0.95):
+    """Backward sweep. values/rewards/dones: (T,); last_v: bootstrap for step T."""
+    T   = len(rewards)
+    adv = torch.zeros(T)
+    a   = 0.0
+    for t in reversed(range(T)):
+        v_next = last_v if t == T - 1 else values[t + 1]
+        nonterminal = 1.0 - dones[t]                # cut the chain at episode ends
+        delta = rewards[t] + gamma * v_next * nonterminal - values[t]
+        a     = delta + gamma * lam * nonterminal * a
+        adv[t] = a
+    returns = adv + values                          # value targets: A + V
+    return adv, returns
+
+env, net = gym.make("CartPole-v1"), ActorCritic()
+opt      = torch.optim.Adam(net.parameters(), lr=3e-4)
+T_HORIZON, K_EPOCHS, MB, CLIP = 2048, 10, 64, 0.2
+C1_VF, C2_ENT = 0.5, 0.01
+obs, _ = env.reset()
+
+for iteration in range(200):
+    # ---- 1. ROLLOUT: T steps with π_old; store everything DETACHED --------
+    buf = {k: [] for k in ["obs","act","logp","rew","done","val"]}
+    for _ in range(T_HORIZON):
+        o = torch.as_tensor(obs, dtype=torch.float32)
+        with torch.no_grad():                        # rollout never builds a graph
+            logits, v = net(o)
+            dist = torch.distributions.Categorical(logits=logits)
+            a    = dist.sample()
+            lp   = dist.log_prob(a)
+        obs, r, term, trunc, _ = env.step(a.item())
+        done = term or trunc
+        for k, x in zip(buf, [o, a, lp, r, float(done), v]): buf[k].append(x)
+        if done: obs, _ = env.reset()
+
+    obs_b  = torch.stack(buf["obs"]);  act_b  = torch.stack(buf["act"])
+    logp_b = torch.stack(buf["logp"]); val_b  = torch.stack(buf["val"])
+    rew_b  = torch.tensor(buf["rew"]); done_b = torch.tensor(buf["done"])
+
+    # ---- 2. SCORE: GAE (needs V of the state after the last step) ---------
+    with torch.no_grad():
+        _, last_v = net(torch.as_tensor(obs, dtype=torch.float32))
+    adv_b, ret_b = gae(rew_b, val_b, done_b, last_v)
+    adv_b = (adv_b - adv_b.mean()) / (adv_b.std() + 1e-8)   # whiten advantages
+
+    # ---- 3+4. K epochs of clipped minibatch updates on the SAME batch -----
+    idx = torch.arange(T_HORIZON)
+    for _ in range(K_EPOCHS):
+        for start in range(0, T_HORIZON, MB):
+            b = idx[torch.randperm(T_HORIZON)][start:start + MB]
+            logits, v = net(obs_b[b])                # CURRENT policy, with grad
+            dist  = torch.distributions.Categorical(logits=logits)
+            logp  = dist.log_prob(act_b[b])
+            ratio = torch.exp(logp - logp_b[b])      # π_θ / π_old  (logp_b: const)
+
+            s1 = ratio * adv_b[b]
+            s2 = torch.clamp(ratio, 1 - CLIP, 1 + CLIP) * adv_b[b]
+            loss_pi  = -torch.min(s1, s2).mean()     # pessimistic pair -> clip
+            loss_vf  = ((v - ret_b[b]) ** 2).mean()  # the one REAL loss here
+            loss_ent = -dist.entropy().mean()        # maximize entropy
+
+            loss = loss_pi + C1_VF * loss_vf + C2_ENT * loss_ent
+            opt.zero_grad(); loss.backward()
+            nn.utils.clip_grad_norm_(net.parameters(), 0.5)
+            opt.step()
+    # ---- 5. DISCARD: next iteration collects fresh data --------------------
+</code></pre>
+
+<div class="box warn"><strong>The details that get probed, in order of likelihood.</strong>
+(1) <code>torch.no_grad()</code> around rollout — old log-probs and values are constants; forgetting this double-backprops and silently corrupts training.
+(2) The GAE backward sweep and the <code>nonterminal</code> mask that stops bootstrap across episode boundaries.
+(3) <code>ratio = exp(logp − logp_old)</code> — log-space subtraction, never a division of probabilities.
+(4) <code>min(s1, s2)</code> is the <em>pessimistic</em> choice — for $A&gt;0$ it caps the upside, for $A&lt;0$ the clipped branch caps the downside; say it.
+(5) Value targets are <code>adv + values</code> (from the <em>old</em> value snapshot), treated as constants — the critic regresses toward a frozen target, not a moving one.
+(6) Advantage whitening per batch: zero-bias (constant shift = legal baseline; scale is just LR rescaling), big stability win.</div>
+
+<h2 id="grpo">6 · GRPO for LLMs — the full loop (what a frontier-lab round actually asks)</h2>
+<p>Structure: sample a <em>group</em> of completions per prompt with the old policy, score them with a verifier (or RM), normalize rewards within the group, broadcast to tokens, clipped-ratio update with an explicit KL to a frozen reference. No critic anywhere. Written against a HF-style API.</p>
+<pre><code>import torch, torch.nn.functional as F
+import copy
+
+G, CLIP, BETA_KL, K_EPOCHS = 8, 0.2, 0.04, 2
+
+def seq_logprobs(model, ids, mask):
+    """Per-token log-probs of a sequence under `model`.
+    ids: (B, L); mask: (B, L) 1 on COMPLETION tokens only (prompt & pad = 0)."""
+    logits = model(ids).logits[:, :-1]               # predict token t+1 from prefix t
+    logps  = torch.log_softmax(logits, dim=-1)
+    token_lp = logps.gather(-1, ids[:, 1:, None]).squeeze(-1)   # (B, L-1)
+    return token_lp * mask[:, 1:]                    # zero out prompt/pad positions
+
+ref_model = copy.deepcopy(model).eval()              # frozen SFT reference
+for p in ref_model.parameters(): p.requires_grad_(False)
+opt = torch.optim.AdamW(model.parameters(), lr=1e-6)
+
+for step, prompts in enumerate(prompt_loader):       # prompts: list[str], size B
+    # ---- 1. ROLLOUT: G completions per prompt from π_old (no grad) --------
+    with torch.no_grad():
+        ids, mask = generate_group(model, prompts, n=G)   # ids: (B*G, L)
+        logp_old  = seq_logprobs(model, ids, mask)        # (B*G, L-1), CONSTANT
+        logp_ref  = seq_logprobs(ref_model, ids, mask)    # for the KL term
+
+    # ---- 2. SCORE: verifier reward -> group-normalized advantage ----------
+    rewards = verifier(prompts, ids)                 # (B*G,)  e.g. tests pass = 1.0
+    r = rewards.view(-1, G)                          # (B, G): one group per prompt
+    adv = (r - r.mean(dim=1, keepdim=True)) / (r.std(dim=1, keepdim=True) + 1e-4)
+    adv = adv.view(-1, 1)                            # (B*G, 1): broadcast to tokens
+
+    # ---- 3+4. K epochs of clipped updates on this batch -------------------
+    for _ in range(K_EPOCHS):
+        logp = seq_logprobs(model, ids, mask)        # CURRENT policy, with grad
+        ratio = torch.exp(logp - logp_old)           # per-token IS ratio
+
+        s1 = ratio * adv                             # adv broadcast over tokens
+        s2 = torch.clamp(ratio, 1 - CLIP, 1 + CLIP) * adv
+        # per-token KL to reference (k3 estimator: unbiased, low-variance, >=0)
+        logr = logp_ref - logp
+        kl   = torch.exp(logr) - logr - 1
+
+        m = mask[:, 1:]                              # count only completion tokens
+        per_tok = -torch.min(s1, s2) + BETA_KL * kl
+        loss = (per_tok * m).sum() / m.sum()         # mean over REAL tokens only
+
+        opt.zero_grad(); loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        opt.step()
+    # ---- 5. DISCARD ---------------------------------------------------------
+</code></pre>
+
+<div class="box warn"><strong>The LLM-specific traps.</strong>
+(1) <strong>The mask.</strong> Prompt tokens (and padding) are <em>state, not action</em> — no log-prob terms, no loss. Everything is multiplied by the completion mask, including the final mean. Forgetting the shift (<code>ids[:, 1:]</code> vs <code>logits[:, :-1]</code>) is the classic off-by-one.
+(2) <strong>Group shape discipline.</strong> Rewards reshape to (B, G) so mean/std are per-prompt, not per-batch — normalizing across different prompts mixes different difficulty levels and corrupts the advantage.
+(3) <strong>The KL enters the loss directly</strong> (it's analytic in θ), not through the reward — and the k3 form <code>exp(logr) − logr − 1</code> is used because it's non-negative and low-variance vs the naive <code>logp − logp_ref</code> sample.
+(4) <strong>All-same-reward groups</strong> (all correct or all wrong) give std ≈ 0 → the ε guard; those groups contribute ~zero gradient — this is GRPO's known blind spot on too-easy/too-hard prompts.
+(5) Degenerates to REINFORCE-with-baseline when K_EPOCHS=1 (ratios ≡ 1) — good sanity answer to "what if I take one epoch?"</div>
+
+<h2 id="snippets">7 · Snippet drills (asked standalone)</h2>
+
+<h3>7.1 GAE as a function (already in §5 — be able to write it isolated)</h3>
+<p>Signature to remember: backward loop, <code>delta = r + γ·V(s')·(1−done) − V(s)</code>, accumulator <code>a = delta + γλ(1−done)·a</code>, returns <code>adv + values</code>.</p>
+
+<h3>7.2 DPO loss</h3>
+<pre><code>def dpo_loss(logp_w, logp_l, ref_logp_w, ref_logp_l, beta=0.1):
+    """All inputs: (B,) SUMMED log-probs of chosen/rejected under policy/reference."""
+    margin = beta * ((logp_w - ref_logp_w) - (logp_l - ref_logp_l))
+    return -F.logsigmoid(margin).mean()
+# a REAL loss: fixed offline pairs, value meaningful, no sampling, no detach games.</code></pre>
+
+<h3>7.3 Reward-model (Bradley–Terry) loss</h3>
+<pre><code>def rm_loss(r_chosen, r_rejected):          # (B,) scalar rewards from the RM head
+    return -F.logsigmoid(r_chosen - r_rejected).mean()</code></pre>
+
+<h3>7.4 Whitening / normalize (state the justification)</h3>
+<pre><code>adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+# mean-shift = legal action-independent baseline (zero bias);
+# scale = effective learning-rate control. Say both halves.</code></pre>
+
+<h3>7.5 Entropy of a categorical head (for the bonus term)</h3>
+<pre><code>logp = torch.log_softmax(logits, -1)
+entropy = -(logp.exp() * logp).sum(-1).mean()   # add +c2 * entropy to the objective</code></pre>
+
+<h2 id="bugs">8 · Bugs interviewers plant (debug-this-code round)</h2>
+<table>
+<tr><th>Planted bug</th><th>Symptom</th><th>Fix / what to say</th></tr>
+<tr><td>Advantages not detached (graph flows through critic into policy loss)</td><td>trains, but wrong — value errors leak into the policy gradient</td><td><code>adv.detach()</code>; the PG weight is a constant by construction</td></tr>
+<tr><td><code>argmax</code> instead of <code>sample()</code> during rollout</td><td>no exploration; policy never improves past initial bias</td><td>sample during training; argmax only at eval</td></tr>
+<tr><td>Missing minus sign on the policy objective</td><td>reward reliably <em>decreases</em></td><td>optimizers minimize; we maximize</td></tr>
+<tr><td>Reward-to-go computed forward / full return used at every $t$</td><td>much noisier gradient, slow learning</td><td>backward accumulation; causality argument</td></tr>
+<tr><td>No <code>(1−done)</code> in GAE/bootstrap</td><td>value bleeds across episode boundaries; erratic critic</td><td>mask the bootstrap at terminals</td></tr>
+<tr><td>Ratio as <code>p_new / p_old</code> on probabilities</td><td>under/overflow on long sequences</td><td>always <code>exp(logp − logp_old)</code></td></tr>
+<tr><td>GRPO reward normalized over the whole batch, not per group</td><td>cross-prompt difficulty leaks into advantages</td><td>reshape to (B, G); normalize per prompt</td></tr>
+<tr><td>Loss averaged over all positions incl. prompt/pad</td><td>gradient diluted; prompt tokens "trained"</td><td>mask, and divide by <code>mask.sum()</code></td></tr>
+<tr><td>max instead of min in the clip pair</td><td>optimistic objective; ratios explode past the clip</td><td><code>min</code> = pessimistic bound; explain both signs of A</td></tr>
+<tr><td>Old log-probs recomputed with grad each epoch</td><td>ratio ≡ 1 forever (or graph errors)</td><td>compute once at rollout under <code>no_grad</code>, store</td></tr>
+</table>
+
+<h2 id="say">9 · What to say while coding (the narration that scores points)</h2>
+<ul>
+<li>Before writing anything: <em>"I'll structure this as rollout → score → loss → update, and I'll keep everything from rollout detached — gradients only flow through the current policy's log-probs."</em></li>
+<li>At the pseudo-loss: <em>"note this loss value is meaningless — it's constructed so autodiff emits the policy-gradient estimator; I'd monitor mean reward, KL, and entropy instead."</em></li>
+<li>At normalization: <em>"mean subtraction is a legal baseline — zero bias since the expected score is zero — and the std division is just step-size control."</em></li>
+<li>At the clip: <em>"the min makes it pessimistic in both directions: for positive advantage it caps the payoff for pushing the ratio up; for negative advantage the clipped branch caps the benefit of pushing it down."</em></li>
+<li>At GRPO's group mean: <em>"the group mean is an empirical value baseline — I can afford it because prompts reset for free; that's exactly the branching a critic exists to amortize in classical RL."</em></li>
+<li>If asked "why not off-policy?": <em>"the PG expectation is under the current policy; PPO's ratio+clip only licenses a few stale epochs. True off-policy needs a bootstrapped critic — different contract (DQN/SAC)."</em></li>
+</ul>
+
+<div class="box key"><strong>Prep protocol.</strong> (1) Write §4 from memory until it's 10 minutes flat. (2) Write the GAE function (§7.1) isolated, twice. (3) Write §5 once fully, then re-derive the clip logic from the math in §2.4. (4) For §6, drill the mask/shift and the (B, G) reshape — those two lines are where LLM-RL interviews are won. (5) Do the §8 table as a self-quiz: cover the right column, diagnose from the symptom.</div>
+
+</main></div></body></html>
