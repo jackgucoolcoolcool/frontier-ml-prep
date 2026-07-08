@@ -399,6 +399,90 @@ entropy = -(logp.exp() * logp).sum(-1).mean()   # add +c2 * entropy to the objec
 </code></pre>
 <p><strong>vs GRPO, in one breath:</strong> leave-one-out makes the baseline independent of the sample it centers → <em>strictly</em> unbiased (GRPO's self-inclusive mean and ÷std both introduce small biases; the std term also over-weights too-easy/too-hard prompts — the Dr.&nbsp;GRPO fix). RLOO's original form also drops the clip: plain sequence-level REINFORCE + honest empirical baseline — the minimal member of the critic-free family. Ladder: REINFORCE → <strong>RLOO</strong> (+LOO baseline) → <strong>GRPO</strong> (+÷std, clip, KL-in-loss).</p>
 
+<h3 id="sigmaviz">7.7 Visualizing GRPO's ÷σ distortion (binary rewards, group of G)</h3>
+<p>For 0/1 rewards with success rate $p$: group std $\sigma=\sqrt{p(1-p)}$, a failure's centered reward is $-p$, a success's is $1-p$. After GRPO's division, a <em>failure sample's</em> weight becomes</p>
+$$
+\big|\hat A_{\text{fail}}\big| = \frac{p}{\sqrt{p(1-p)}} = \sqrt{\frac{p}{1-p}} \;\xrightarrow{\,p\to 1\,}\; \infty
+\qquad\text{vs. raw (no ÷σ): } \big|A_{\text{fail}}\big| = p \le 1
+$$
+<div class="box" style="padding:16px 18px;">
+<div style="display:flex;flex-wrap:wrap;gap:24px;">
+<div><svg id="svg-sigma" width="330" height="230"></svg>
+<div style="color:var(--muted);font-size:12.5px;max-width:330px;">σ(p) and the group's information content p(1−p) — both peak at the frontier p=0.5. GRPO divides by the blue curve: <em>most</em> division exactly where information is richest.</div></div>
+<div><svg id="svg-amp" width="330" height="230"></svg>
+<div style="color:var(--muted);font-size:12.5px;max-width:330px;">Weight of one failure sample vs p. Raw stays ≤ 1; GRPO's ÷σ sends it to ∞ as the prompt is mastered — the megaphone goes to the solved prompt's noise.</div></div>
+</div>
+<div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+<span style="font-size:13.5px;color:var(--muted);">Group of 8 — drag difficulty:</span>
+<input type="range" id="psl" min="1" max="7" value="4" style="width:180px;">
+<span id="plab" style="font-size:13.5px;color:var(--accent-2);"></span>
+</div>
+<div id="groupviz" style="margin-top:10px;font-family:'SF Mono',Menlo,monospace;font-size:13px;line-height:2;"></div>
+</div>
+</div>
+<script>
+(function(){
+function axes(svg,W,H,pad,ymax,ylab){
+  const NS='http://www.w3.org/2000/svg';
+  function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);svg.appendChild(e);return e;}
+  el('line',{x1:pad,y1:H-pad,x2:W-8,y2:H-pad,stroke:'#8b97a7'});
+  el('line',{x1:pad,y1:H-pad,x2:pad,y2:10,stroke:'#8b97a7'});
+  [0,0.5,1].forEach(function(t){const x=pad+t*(W-8-pad);
+    el('text',{x:x,y:H-pad+16,fill:'#8b97a7','font-size':11,'text-anchor':'middle'}).textContent=t;});
+  el('text',{x:W-10,y:H-pad+16,fill:'#8b97a7','font-size':11,'text-anchor':'end'}).textContent='p';
+  el('text',{x:pad-6,y:16,fill:'#8b97a7','font-size':11,'text-anchor':'end'}).textContent=ylab;
+  return function(p,y){return [pad+p*(W-8-pad), (H-pad)-Math.min(y,ymax)/ymax*(H-pad-14)];};
+}
+function curve(svg,map,f,color,label,lx,ly){
+  const NS='http://www.w3.org/2000/svg';let d='';
+  for(let i=1;i<=199;i++){const p=i/200;const[x,y]=map(p,f(p));d+=(d?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);}
+  const e=document.createElementNS(NS,'path');e.setAttribute('d',d);e.setAttribute('fill','none');
+  e.setAttribute('stroke',color);e.setAttribute('stroke-width','2.2');svg.appendChild(e);
+  const t=document.createElementNS(NS,'text');t.setAttribute('x',lx);t.setAttribute('y',ly);
+  t.setAttribute('fill',color);t.setAttribute('font-size','12');t.textContent=label;svg.appendChild(t);
+}
+var s1=document.getElementById('svg-sigma');
+var m1=axes(s1,330,230,38,0.55,'');
+curve(s1,m1,function(p){return Math.sqrt(p*(1-p));},'#6ea8fe','σ(p) = √(p(1−p))',120,52);
+curve(s1,m1,function(p){return p*(1-p);},'#7ee0c0','info: p(1−p)',130,120);
+
+var s2=document.getElementById('svg-amp');
+var m2=axes(s2,330,230,38,6,'|Â|');
+curve(s2,m2,function(p){return Math.sqrt(p/(1-p));},'#e57373','GRPO: √(p/(1−p))',60,40);
+curve(s2,m2,function(p){return p;},'#7ee0c0','raw: p (≤1)',200,190);
+(function(){const NS='http://www.w3.org/2000/svg';
+ const[x,y]=m2(0.5,1);const e=document.createElementNS(NS,'line');
+ e.setAttribute('x1',38);e.setAttribute('y1',y);e.setAttribute('x2',322);e.setAttribute('y2',y);
+ e.setAttribute('stroke','#2a3340');e.setAttribute('stroke-dasharray','4 4');s2.appendChild(e);})();
+
+function render(){
+  const k=+document.getElementById('psl').value, G=8, p=k/G;
+  const sig=Math.sqrt(p*(1-p));
+  document.getElementById('plab').textContent=k+'/8 correct (p='+p.toFixed(2)+', σ='+sig.toFixed(2)+')';
+  let html='';
+  function row(name,vals,color){
+    html+='<div><span style="display:inline-block;width:120px;color:var(--muted)">'+name+'</span>';
+    vals.forEach(function(v){
+      const w=Math.min(Math.abs(v)*28,90);
+      html+='<span style="display:inline-block;width:52px;text-align:right;color:'+color+'">'+v.toFixed(2)+'</span>';
+      html+='<span style="display:inline-block;height:10px;width:'+w+'px;background:'+color+';opacity:.55;margin:0 8px 0 4px;border-radius:2px;"></span>';
+    });
+    html+='</div>';
+  }
+  const rawC=1-p, rawF=-p;
+  const nC=sig>0?rawC/sig:0, nF=sig>0?rawF/sig:0;
+  html+='<div style="color:var(--muted)">one ✓ sample &nbsp;/&nbsp; one ✗ sample ('+k+'✓, '+(G-k)+'✗ in group):</div>';
+  row('raw centered', [rawC, rawF], '#7ee0c0');
+  row('GRPO ÷σ', [nC, nF], '#e57373');
+  document.getElementById('groupviz').innerHTML=html;
+}
+document.getElementById('psl').addEventListener('input',render);
+render();
+})();
+</script>
+<p><strong>Read the slider:</strong> at 4/8 the two estimators agree in spirit (±0.5 vs ±1). Drag to 7/8: the raw failure weight stays at −0.875, but GRPO's jumps to ≈ −2.65 — the biggest gradient in the batch now belongs to one noisy outlier on an almost-solved prompt, and it grows without bound as p→1. That is the distortion RLOO and Dr.&nbsp;GRPO remove by not dividing.</p>
+
 <h2 id="bugs">8 · Bugs interviewers plant (debug-this-code round)</h2>
 <table>
 <tr><th>Planted bug</th><th>Symptom</th><th>Fix / what to say</th></tr>
