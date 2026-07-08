@@ -43,8 +43,9 @@ mjx-container[display="true"]{margin:16px 0 !important;overflow-x:auto;overflow-
 <a href="#math">2 · The math walkthrough</a>
 <a href="#anatomy">3 · Anatomy of the RL loop</a>
 <a href="#reinforce">4 · REINFORCE — full loop</a>
-<a href="#ppo">5 · PPO — full loop (GAE, clip)</a>
+<a href="#ppo">5 · PPO — math + askable pieces</a>
 <a href="#grpo">6 · GRPO for LLMs — full loop</a>
+<a href="#rloo">6.5 · RLOO — full loop</a>
 <a href="#snippets">7 · Snippet drills</a>
 <a href="#bugs">8 · Bugs interviewers plant</a>
 <a href="#say">9 · What to say while coding</a>
@@ -53,7 +54,7 @@ mjx-container[display="true"]{margin:16px 0 !important;overflow-x:auto;overflow-
 
 <header class="hero">
 <h1>RL Coding Interview Pack</h1>
-<p>Everything needed to whiteboard the math and then write working code: the concept checklist, the three derivations, and <strong>three complete training loops</strong> — REINFORCE (the skeleton), PPO (the full apparatus: GAE, clip, value loss, entropy), and GRPO for LLMs (group sampling, token masking, KL to reference) — plus the snippet drills (DPO / reward-model / GAE / whitening) that get asked as standalones.</p>
+<p>Everything needed to whiteboard the math and then write working code, weighted by what actually gets asked: <strong>PPO as math + two standalone functions</strong> (clip objective, GAE — full loops are rarely asked), and <strong>complete training loops for the likely coding targets</strong> — REINFORCE (the skeleton), GRPO for LLMs (group sampling, token masking, KL to reference), and RLOO (the stripped, unbiased variant to lead with) — plus the snippet drills (DPO / reward-model / whitening) that get asked as standalones.</p>
 <p style="font-size:13.5px;">Theory companion: <code>Post_Training_and_RL_Deep_Dive</code>. Agentic extensions: <code>Agentic_RL_Compaction_and_Staleness</code>.</p>
 </header>
 
@@ -214,88 +215,36 @@ for episode in range(1000):
 </code></pre>
 <p><strong>The five spots interviewers watch:</strong> (i) <code>dist.sample()</code>, not argmax — exploration; (ii) log-probs keep the graph, returns don't — the detach discipline; (iii) reward-to-go computed <em>backwards</em>; (iv) the minus sign (optimizers minimize, we maximize); (v) normalization stated as "zero-bias variance reduction, since a constant shift is a legal baseline."</p>
 
-<h2 id="ppo">5 · PPO — the full loop (GAE + clip + value + entropy)</h2>
-<p>The complete apparatus, still compact enough to write in a 45-minute round. Actor-critic with a shared trunk; collect a fixed horizon of steps, compute GAE, then K epochs of clipped minibatch updates.</p>
-<pre><code>import gymnasium as gym
-import torch, torch.nn as nn
+<h2 id="ppo">5 · PPO — know the math, code only the askable pieces</h2>
+<p><strong>Priority call:</strong> a full PPO loop (rollout buffer + actor-critic + K-epoch minibatching) is rarely asked in 45 minutes — too much scaffolding, too little signal. What <em>is</em> asked: the math of §2.4 verbally, and two standalone functions. Have those cold; know the loop's <em>shape</em> in prose.</p>
 
-class ActorCritic(nn.Module):
-    def __init__(self, n_obs=4, n_act=2, h=128):
-        super().__init__()
-        self.trunk  = nn.Sequential(nn.Linear(n_obs, h), nn.Tanh())
-        self.pi     = nn.Linear(h, n_act)           # policy head -> logits
-        self.v      = nn.Linear(h, 1)               # value head  -> V(s)
-    def forward(self, obs):
-        z = self.trunk(obs)
-        return self.pi(z), self.v(z).squeeze(-1)
+<h4>5.1 The clipped objective (the #1 standalone ask)</h4>
+<pre><code>def ppo_policy_loss(logp_new, logp_old, adv, eps=0.2):
+    """logp_old and adv are CONSTANTS from the rollout (detached)."""
+    ratio = torch.exp(logp_new - logp_old)        # log-space: never divide probs
+    s1 = ratio * adv
+    s2 = torch.clamp(ratio, 1 - eps, 1 + eps) * adv
+    return -torch.minimum(s1, s2).mean()          # pessimistic pair, negated
 
-def gae(rewards, values, dones, last_v, gamma=0.99, lam=0.95):
-    """Backward sweep. values/rewards/dones: (T,); last_v: bootstrap for step T."""
-    T   = len(rewards)
+def clip_fraction(logp_new, logp_old, eps=0.2):   # the dashboard diagnostic
+    return ((torch.exp(logp_new - logp_old) - 1).abs() > eps).float().mean()</code></pre>
+
+<h4>5.2 GAE (the #2 standalone ask)</h4>
+<pre><code>def gae(rewards, values, dones, last_v, gamma=0.99, lam=0.95):
+    """Backward sweep over a buffer that may span several episodes.
+    dones[t]=1 if the episode ended AT step t; last_v bootstraps the final state."""
+    T, acc = len(rewards), 0.0
     adv = torch.zeros(T)
-    a   = 0.0
     for t in reversed(range(T)):
         v_next = last_v if t == T - 1 else values[t + 1]
-        nonterminal = 1.0 - dones[t]                # cut the chain at episode ends
+        nonterminal = 1.0 - dones[t]              # cuts bootstrap AND the chain
         delta = rewards[t] + gamma * v_next * nonterminal - values[t]
-        a     = delta + gamma * lam * nonterminal * a
-        adv[t] = a
-    returns = adv + values                          # value targets: A + V
-    return adv, returns
+        acc   = delta + gamma * lam * nonterminal * acc
+        adv[t] = acc
+    return adv, adv + values                      # (advantages, value targets)</code></pre>
 
-env, net = gym.make("CartPole-v1"), ActorCritic()
-opt      = torch.optim.Adam(net.parameters(), lr=3e-4)
-T_HORIZON, K_EPOCHS, MB, CLIP = 2048, 10, 64, 0.2
-C1_VF, C2_ENT = 0.5, 0.01
-obs, _ = env.reset()
-
-for iteration in range(200):
-    # ---- 1. ROLLOUT: T steps with π_old; store everything DETACHED --------
-    buf = {k: [] for k in ["obs","act","logp","rew","done","val"]}
-    for _ in range(T_HORIZON):
-        o = torch.as_tensor(obs, dtype=torch.float32)
-        with torch.no_grad():                        # rollout never builds a graph
-            logits, v = net(o)
-            dist = torch.distributions.Categorical(logits=logits)
-            a    = dist.sample()
-            lp   = dist.log_prob(a)
-        obs, r, term, trunc, _ = env.step(a.item())
-        done = term or trunc
-        for k, x in zip(buf, [o, a, lp, r, float(done), v]): buf[k].append(x)
-        if done: obs, _ = env.reset()
-
-    obs_b  = torch.stack(buf["obs"]);  act_b  = torch.stack(buf["act"])
-    logp_b = torch.stack(buf["logp"]); val_b  = torch.stack(buf["val"])
-    rew_b  = torch.tensor(buf["rew"]); done_b = torch.tensor(buf["done"])
-
-    # ---- 2. SCORE: GAE (needs V of the state after the last step) ---------
-    with torch.no_grad():
-        _, last_v = net(torch.as_tensor(obs, dtype=torch.float32))
-    adv_b, ret_b = gae(rew_b, val_b, done_b, last_v)
-    adv_b = (adv_b - adv_b.mean()) / (adv_b.std() + 1e-8)   # whiten advantages
-
-    # ---- 3+4. K epochs of clipped minibatch updates on the SAME batch -----
-    idx = torch.arange(T_HORIZON)
-    for _ in range(K_EPOCHS):
-        for start in range(0, T_HORIZON, MB):
-            b = idx[torch.randperm(T_HORIZON)][start:start + MB]
-            logits, v = net(obs_b[b])                # CURRENT policy, with grad
-            dist  = torch.distributions.Categorical(logits=logits)
-            logp  = dist.log_prob(act_b[b])
-            ratio = torch.exp(logp - logp_b[b])      # π_θ / π_old  (logp_b: const)
-
-            s1 = ratio * adv_b[b]
-            s2 = torch.clamp(ratio, 1 - CLIP, 1 + CLIP) * adv_b[b]
-            loss_pi  = -torch.min(s1, s2).mean()     # pessimistic pair -> clip
-            loss_vf  = ((v - ret_b[b]) ** 2).mean()  # the one REAL loss here
-            loss_ent = -dist.entropy().mean()        # maximize entropy
-
-            loss = loss_pi + C1_VF * loss_vf + C2_ENT * loss_ent
-            opt.zero_grad(); loss.backward()
-            nn.utils.clip_grad_norm_(net.parameters(), 0.5)
-            opt.step()
-    # ---- 5. DISCARD: next iteration collects fresh data --------------------
-</code></pre>
+<h4>5.3 The loop, in prose (know the shape, don't memorize code)</h4>
+<p>Collect T steps with π_old under <code>no_grad</code> (store obs, actions, log-probs, rewards, dones, values) → bootstrap <code>last_v</code>, run <code>gae</code>, whiten advantages → K epochs of shuffled minibatches: recompute log-probs/values with grad, <code>ppo_policy_loss + c1·(V − target)² − c2·entropy</code>, grad-clip, step → discard the batch. Full objective: $L^{\text{CLIP}} - c_1 L^{\text{VF}} + c_2\mathcal{H}$ (maximize), math in §2.4.</p>
 
 <div class="box warn"><strong>The details that get probed, in order of likelihood.</strong>
 (1) <code>torch.no_grad()</code> around rollout — old log-probs and values are constants; forgetting this double-backprops and silently corrupts training.
@@ -364,6 +313,40 @@ for step, prompts in enumerate(prompt_loader):       # prompts: list[str], size 
 (3) <strong>The KL enters the loss directly</strong> (it's analytic in θ), not through the reward — and the k3 form <code>exp(logr) − logr − 1</code> is used because it's non-negative and low-variance vs the naive <code>logp − logp_ref</code> sample.
 (4) <strong>All-same-reward groups</strong> (all correct or all wrong) give std ≈ 0 → the ε guard; those groups contribute ~zero gradient — this is GRPO's known blind spot on too-easy/too-hard prompts.
 (5) Degenerates to REINFORCE-with-baseline when K_EPOCHS=1 (ratios ≡ 1) — good sanity answer to "what if I take one epoch?"</div>
+
+<h3 id="rloo">6.5 RLOO — the same loop, stripped to the unbiased minimum</h3>
+<p>Everything GRPO does minus the machinery: leave-one-out baseline (no self-inclusion), <strong>no ÷std</strong>, <strong>no clip, no epochs</strong> (single on-policy step → ratio ≡ 1, so plain REINFORCE), KL folded into the reward. Notice how much shorter it is — this is the version to <em>lead</em> with in an interview and then "add GRPO's extras" on request.</p>
+<pre><code>G, BETA_KL = 8, 0.04
+
+for step, prompts in enumerate(prompt_loader):        # prompts: list[str], size B
+    # ---- 1. ROLLOUT: G completions per prompt (no grad) --------------------
+    with torch.no_grad():
+        ids, mask = generate_group(model, prompts, n=G)      # ids: (B*G, L)
+        logp_ref  = seq_logprobs(ref_model, ids, mask)       # (B*G, L-1)
+        logp_beh  = seq_logprobs(model, ids, mask)           # behavior logps (const)
+
+    # ---- 2. SCORE: KL-shaped reward -> leave-one-out advantage -------------
+    r = verifier(prompts, ids).view(-1, G)             # (B, G)
+    kl_seq = (logp_beh - logp_ref).sum(-1).view(-1, G) # sequence KL to reference
+    r = r - BETA_KL * kl_seq                           # KL leash lives IN the reward
+    total = r.sum(dim=1, keepdim=True)
+    adv = r - (total - r) / (G - 1)                    # r_i - mean(others): unbiased
+    adv = adv.view(-1, 1)                              # no ÷std -- LR handles scale
+
+    # ---- 3+4. ONE gradient step (exactly on-policy: no ratio, no clip) -----
+    logp = seq_logprobs(model, ids, mask)              # with grad
+    m = mask[:, 1:]
+    loss = -((logp * adv) * m).sum() / m.sum()         # plain REINFORCE, masked mean
+    opt.zero_grad(); loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    opt.step()
+    # ---- 5. DISCARD ---------------------------------------------------------
+</code></pre>
+<div class="box key"><strong>The three deliberate absences (say them while writing):</strong>
+(1) <em>No ÷σ</em> — the baseline theorem licenses subtraction only; per-group σ-division converts group variance into gradient weight and over-amplifies solved prompts (§7.7's plots).
+(2) <em>No clip/ratio</em> — one gradient step per batch means θ = θ_behavior at update time, ratios ≡ 1; the trust region has nothing to guard. Add clip only if you take multiple epochs (→ you've rebuilt GRPO).
+(3) <em>No critic</em> — the leave-one-out mean IS the value baseline, and unlike GRPO's self-inclusive mean it's independent of the sample it centers → the baseline theorem applies <em>exactly</em>.
+Ladder to recite: REINFORCE → +LOO baseline = <strong>RLOO</strong> → +÷σ, clip, KL-in-loss, epochs = <strong>GRPO</strong>.</div>
 
 <h2 id="snippets">7 · Snippet drills (asked standalone)</h2>
 
