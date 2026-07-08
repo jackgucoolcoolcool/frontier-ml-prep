@@ -356,9 +356,42 @@ def knn_predict(X_train, y_train, X_test, k=5):
 
 ---
 
+## 16. Beam search
+
+```python
+def beam_search(model, prompt_ids, k=4, max_new=50, eos_id=2, alpha=0.7):
+    """Score = sum of token log-probs, length-normalized by len**alpha at finish."""
+    beams = [(prompt_ids, 0.0)]                  # (tokens, cumulative LOG-prob)
+    finished = []
+    for _ in range(max_new):
+        candidates = []
+        for ids, score in beams:
+            logits = model(torch.tensor([ids])).logits[0, -1]
+            logp = F.log_softmax(logits, dim=-1)
+            top_lp, top_id = logp.topk(k)        # top-k per beam suffices (see probes)
+            for lp, tid in zip(top_lp.tolist(), top_id.tolist()):
+                candidates.append((ids + [tid], score + lp))      # ADD log-probs
+        candidates.sort(key=lambda c: c[1], reverse=True)          # best of <= k*k
+        beams = []
+        for ids, score in candidates:
+            if ids[-1] == eos_id:                # retire finished beam, normalized
+                finished.append((ids, score / (len(ids) - len(prompt_ids)) ** alpha))
+            else:
+                beams.append((ids, score))
+            if len(beams) == k: break
+        if not beams: break
+    finished += [(ids, s / (len(ids) - len(prompt_ids)) ** alpha) for ids, s in beams]
+    return max(finished, key=lambda c: c[1])[0]
+```
+
+**Probes:** (1) sum log-probs, never multiply probs (underflow); (2) top-k per beam is provably sufficient — each parent contributes ≤ k of the global top-k, so k² candidates cover it; (3) **length normalization** — raw score strictly decreases per token → un-normalized beam prefers short outputs / instant EOS (the classic bug); divide by lengthᵅ, α≈0.6–0.7; (4) EOS: retire the beam into `finished`, refill live slots — don't expand past EOS, don't stop the search; (5) when NOT to use it: beam = approximate argmax → right for near-unique-answer tasks (MT, summarization, ASR); degenerate for open-ended generation (repetitive, low diversity) → chat LLMs sample instead. Production: run k beams as one batch with KV cache.
+
+---
+
 ## Drill checklist (re-type each from blank, timed)
 
 - [ ] k-means (empty-cluster guard) / linreg (normal eq + GD) / kNN (argpartition)
+- [ ] beam search (log-prob sum, length norm, EOS retirement)
 - [ ] stable softmax + cross-entropy
 - [ ] scaled dot-product attention + causal mask
 - [ ] multi-head attention (shapes from memory)

@@ -63,6 +63,7 @@
 <a href="#s13">13. Best-of-n / rejection sampling</a>
 <a href="#s14">14. (Bonus) Backprop for a 2-layer MLP in NumP</a>
 <a href="#s15b">15. Classic ML: k-means, linreg, kNN</a>
+<a href="#s16">16. Beam search</a>
 <a href="#s15">Drill checklist (re-type each from blank, time</a></nav>
 <main>
 <header class="hero" id="top"><h1>ML Coding From Scratch — Implementation Reference</h1><p style="margin:4px 0;color:var(--muted)"><strong>Why this doc:</strong> The coding rounds test whether you can implement core ML primitives <strong>from a blank file</strong>, correctly and efficiently. This is a reference of the highest-probability asks, with clean PyTorch you should be able to reproduce from memory. Given your interviewers&#x27; focus, the <strong>attention family</strong> and <strong>post-training losses (DPO, reward model, PPO)</strong> are the most likely.</p><p style="margin:4px 0;color:var(--muted)"><strong>How to use it:</strong> don&#x27;t just read — <em>close the doc and re-type each one timed.</em> For each, I note what an interviewer probes. Code targets clarity + correctness first, then efficiency (vectorized, no Python loops over tokens).</p><p style="margin:4px 0;color:var(--muted)">Assumes <code>import torch</code>, <code>import torch.nn as nn</code>, <code>import torch.nn.functional as F</code>. Shapes use <code>B</code>=batch, <code>T</code>=sequence length, <code>D</code>=model dim, <code>H</code>=heads.</p></header>
@@ -368,9 +369,36 @@ def linreg_gd(X, y, lr=0.1, n_iters=1000):             # the "now scale it" foll
 <p><strong>Say:</strong> no training — all cost at inference O(ND)/query (lazy vs parametric); feature scaling mandatory; curse of dimensionality (distances concentrate → use embeddings); odd k breaks ties; k = the cleanest bias-variance dial.</p>
 <p><strong>Connective tissue:</strong> k-means = EM's hard-assignment special case; linear regression = MLE under Gaussian noise, gradient is the universal <code>Xᵀ(pred − y)</code> pattern; kNN = the non-parametric extreme.</p>
 <hr>
+<h2 class="section" id="s16">16. Beam search</h2>
+<pre><code>def beam_search(model, prompt_ids, k=4, max_new=50, eos_id=2, alpha=0.7):
+    """Score = sum of token log-probs, length-normalized by len**alpha at finish."""
+    beams = [(prompt_ids, 0.0)]                  # (tokens, cumulative LOG-prob)
+    finished = []
+    for _ in range(max_new):
+        candidates = []
+        for ids, score in beams:
+            logits = model(torch.tensor([ids])).logits[0, -1]
+            logp = F.log_softmax(logits, dim=-1)
+            top_lp, top_id = logp.topk(k)        # top-k per beam suffices (see probes)
+            for lp, tid in zip(top_lp.tolist(), top_id.tolist()):
+                candidates.append((ids + [tid], score + lp))      # ADD log-probs
+        candidates.sort(key=lambda c: c[1], reverse=True)          # best of &lt;= k*k
+        beams = []
+        for ids, score in candidates:
+            if ids[-1] == eos_id:                # retire finished beam, normalized
+                finished.append((ids, score / (len(ids) - len(prompt_ids)) ** alpha))
+            else:
+                beams.append((ids, score))
+            if len(beams) == k: break
+        if not beams: break
+    finished += [(ids, s / (len(ids) - len(prompt_ids)) ** alpha) for ids, s in beams]
+    return max(finished, key=lambda c: c[1])[0]</code></pre>
+<p><strong>Probes:</strong> (1) sum log-probs, never multiply probs (underflow); (2) top-k per beam is provably sufficient — each parent contributes ≤ k of the global top-k, so k² candidates cover it; (3) <strong>length normalization</strong> — raw score strictly decreases per token → un-normalized beam prefers short outputs / instant EOS (the classic bug); divide by lengthᵅ, α≈0.6–0.7; (4) EOS: retire the beam into <code>finished</code>, refill live slots — don't expand past EOS, don't stop the search; (5) when NOT to use it: beam = approximate argmax → right for near-unique-answer tasks (MT, summarization, ASR); degenerate for open-ended generation (repetitive, low diversity) → chat LLMs sample instead. Production: run k beams as one batch with KV cache.</p>
+<hr>
 <h2 class="section" id="s15">Drill checklist (re-type each from blank, timed)</h2>
 <ul>
 <li>k-means (empty-cluster guard) / linreg (normal eq + GD) / kNN (argpartition)</li>
+<li>beam search (log-prob sum, length norm, EOS retirement)</li>
 <li>stable softmax + cross-entropy</li>
 <li>scaled dot-product attention + causal mask</li>
 <li>multi-head attention (shapes from memory)</li>
