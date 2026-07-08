@@ -296,8 +296,69 @@ db1 = d1
 
 ---
 
+## 15. Classic ML warm-ups: k-means, linear regression, kNN
+
+The generic-screen trio. Shared skill: vectorized pairwise distances (`||x||² − 2x·c + ||c||²`).
+
+### k-means
+
+```python
+def kmeans(X, k, n_iters=100, seed=0):
+    rng = np.random.default_rng(seed)
+    centroids = X[rng.choice(len(X), size=k, replace=False)].copy()  # (mention k-means++)
+    for _ in range(n_iters):
+        d2 = (X**2).sum(1, keepdims=True) - 2 * X @ centroids.T + (centroids**2).sum(1)
+        labels = d2.argmin(axis=1)
+        new_c = centroids.copy()
+        for j in range(k):
+            members = X[labels == j]
+            if len(members) > 0: new_c[j] = members.mean(axis=0)
+            else: new_c[j] = X[rng.integers(len(X))]   # empty-cluster guard (planted bug)
+        if np.allclose(new_c, centroids): break
+        centroids = new_c
+    return centroids, labels
+```
+
+**Say:** coordinate descent on Σ||x−c_z||²; both steps monotonically decrease it → converges to a *local* optimum (init matters → k-means++); O(NkD)/iter; = hard-assignment EM on a spherical GMM.
+
+### Linear regression
+
+```python
+def linreg_closed_form(X, y, ridge=0.0):
+    Xb = np.hstack([np.ones((len(X), 1)), X])          # bias column
+    A = Xb.T @ Xb + ridge * np.eye(Xb.shape[1])
+    if ridge > 0: A[0, 0] -= ridge                     # don't regularize the bias
+    return np.linalg.solve(A, Xb.T @ y)                # solve/lstsq, NEVER inv()
+
+def linreg_gd(X, y, lr=0.1, n_iters=1000):             # the "now scale it" follow-up
+    Xb = np.hstack([np.ones((len(X), 1)), X])
+    w = np.zeros(Xb.shape[1])
+    for _ in range(n_iters):
+        w -= lr * 2 / len(y) * Xb.T @ (Xb @ w - y)
+    return w
+```
+
+**Say:** derive the normal equation (∇||Xw−y||² = 2Xᵀ(Xw−y) = 0); `solve`/`lstsq` for stability + singular XᵀX (collinearity = the planted failure); GD when D large (XᵀX solve is O(D³)) or streaming; ridge = Gaussian prior.
+
+### kNN
+
+```python
+def knn_predict(X_train, y_train, X_test, k=5):
+    d2 = ((X_test[:, None, :] - X_train[None, :, :]) ** 2).sum(-1)   # (M, N)
+    nn = np.argpartition(d2, k, axis=1)[:, :k]         # O(N) top-k, not argsort
+    return np.array([np.bincount(v).argmax() for v in y_train[nn]])
+    # regression: y_train[nn].mean(axis=1); big M,N: use the ||x||²−2x·c identity
+```
+
+**Say:** no training — all cost at inference O(ND)/query (lazy vs parametric); feature scaling mandatory; curse of dimensionality (distances concentrate → use embeddings); odd k breaks ties; k = the cleanest bias-variance dial.
+
+**Connective tissue:** k-means = EM's hard-assignment special case; linear regression = MLE under Gaussian noise, gradient is the universal `Xᵀ(pred − y)` pattern; kNN = the non-parametric extreme.
+
+---
+
 ## Drill checklist (re-type each from blank, timed)
 
+- [ ] k-means (empty-cluster guard) / linreg (normal eq + GD) / kNN (argpartition)
 - [ ] stable softmax + cross-entropy
 - [ ] scaled dot-product attention + causal mask
 - [ ] multi-head attention (shapes from memory)
