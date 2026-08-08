@@ -1,0 +1,224 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scaled RL Data for Frontier LLMs — Current Practice → Self-Improving Designs</title><style>
+  :root{--bg:#0f1419;--panel:#161b22;--panel-2:#1c2530;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--border:#2a3340;--code-bg:#11161d;--table-head:#1f2937;--reveal-bg:#16241f;}
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;font-size:16.5px;}
+  #progress{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));z-index:100;transition:width .1s ease-out;}
+  .layout{display:flex;max-width:1240px;margin:0 auto;}
+  nav.toc{position:sticky;top:0;align-self:flex-start;height:100vh;overflow-y:auto;width:300px;min-width:300px;padding:24px 16px 60px 20px;border-right:1px solid var(--border);font-size:13.5px;}
+  nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;margin:1px 0;border-left:2px solid transparent;}
+  nav.toc a:hover{color:var(--text);background:var(--panel);}
+  nav.toc a.active{color:var(--accent);border-left-color:var(--accent);background:var(--panel);}
+  main{flex:1;min-width:0;padding:40px 48px 120px;}
+  header.hero{border:1px solid var(--border);background:linear-gradient(160deg,var(--panel-2),var(--panel));border-radius:14px;padding:28px 30px;margin-bottom:36px;}
+  header.hero h1{margin:0 0 10px;font-size:30px;}
+  h2.section{font-size:24px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);scroll-margin-top:20px;}
+  h3{font-size:19px;margin:30px 0 10px;color:#eaf0f7;}
+  h4{font-size:16px;margin:22px 0 8px;color:var(--accent-2);}
+  p{margin:12px 0;} a{color:var(--accent);}
+  code{background:var(--code-bg);padding:1.5px 6px;border-radius:5px;font-size:14px;font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow-x:auto;}
+  pre code{background:none;padding:0;color:#c7d3e0;font-size:13.5px;line-height:1.55;}
+  ul,ol{padding-left:24px;} li{margin:6px 0;}
+  ul ul,ol ul{margin:6px 0;}
+  strong{color:#f0f4f9;}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+  th{background:var(--table-head);color:#eaf0f7;}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015);}
+  .callout{border-radius:10px;padding:14px 18px;margin:18px 0;border:1px solid var(--border);}
+  .practice{background:rgba(255,180,84,.07);border-color:rgba(255,180,84,.35);}
+  .watch{background:rgba(110,168,254,.08);border-color:rgba(110,168,254,.35);}
+  .keyidea{background:rgba(126,224,192,.07);border-color:rgba(126,224,192,.3);}
+  .qa{border:1px solid var(--border);border-radius:10px;margin:10px 0;overflow:hidden;}
+  .qa .q{padding:12px 16px;cursor:pointer;background:var(--panel);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .qa .q:hover{background:var(--panel-2);}
+  .qa .q .chev{color:var(--muted);transition:transform .2s;font-size:13px;}
+  .qa.open .q .chev{transform:rotate(90deg);}
+  .qa .a{display:none;padding:14px 16px;background:var(--reveal-bg);border-top:1px solid var(--border);}
+  .qa.open .a{display:block;}
+  .qa .a code{background:#0d1612;}
+  hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+  .back-top{position:fixed;bottom:24px;right:24px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:18px;display:none;z-index:50;}
+  .back-top:hover{border-color:var(--accent);color:var(--accent);}
+  @media (max-width:880px){nav.toc{display:none;}main{padding:24px 18px 100px;}}
+</style></head><body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc"><h2>Contents</h2><a href="#top">Overview</a>
+<a href="#s1">1. Current practice (as of mid-2026)</a>
+<a href="#s2">2. Why current practice saturates</a>
+<a href="#s3">3. The organizing principle: manufacture verif</a>
+<a href="#s4">4. Future designs</a>
+<a href="#s5">5. Research questions I&#x27;d propose (interview-r</a>
+<a href="#s6">6. Soundbites</a>
+<a href="#s7">Sources</a></nav>
+<main>
+<header class="hero" id="top"><h1>Scaled RL Data for Frontier LLMs — Current Practice → Self-Improving Designs</h1><p style="margin:4px 0;color:var(--muted)"><strong>Key idea:</strong> the bottleneck for frontier post-training has moved from &quot;tokens&quot; to <strong>tasks × environments × reward signals</strong>. Pretraining consumed the internet; RL consumes <em>verifiable experience</em>, and nobody has an internet of that. Whoever builds the machine that manufactures reliable RL experience at scale — without humans in the inner loop — wins the next scaling regime. This doc: what the field does today (mid-2026), why it saturates, and concrete designs for self-improving data engines in three domains: <strong>code, knowledge work, long-context work</strong>.</p><p style="margin:4px 0;color:var(--muted)"><strong>Framing for interviews:</strong> RL is a <em>compute-to-data converter</em>. Pretraining converts data → capability; RL converts compute + a reward signal → data (rollouts) → capability. So &quot;scaling RL data&quot; really decomposes into three multiplicable resources: (1) <strong>task supply</strong> (unique, in-distribution-of-use, right difficulty), (2) <strong>reward fidelity</strong> (how often the signal points the right way, and how hard it is to hack), (3) <strong>rollout throughput</strong> (env speed, async infra, staleness tolerance). Any design should say which of the three it scales and what it pays.</p></header>
+<hr>
+<h2 class="section" id="s1">1. Current practice (as of mid-2026)</h2>
+<h3>1.1 Code — the most mature domain</h3>
+<ul>
+<li><strong>RLVR with execution oracles.</strong> Unit tests, compilation, runtime checks as reward. This is the canonical case because the <strong>generator–verifier gap</strong> is maximal: writing the patch is hard, running the tests is cheap and objective.</li>
+<li><strong>Task mining from git history.</strong> Issue↔PR pairs (SWE-bench recipe) scaled up: take a repo, check out the pre-fix commit, hide the fix, use the repo&#x27;s own tests (plus fail-to-pass filtering) as the oracle. Labs run this over millions of repos with heavy filtering for test quality, flakiness, and environment reproducibility.</li>
+<li><strong>Agentic RL in real harnesses.</strong> Training happens <em>inside</em> the deployment scaffold (terminal, editor tools, browser) — multi-turn, multi-task, async frameworks like <a href="https://arxiv.org/pdf/2510.04206" target="_blank">AgentRL</a>; co-evolving the harness itself (<a href="https://arxiv.org/pdf/2606.03108" target="_blank">EvoTrainer</a>). Hermetic containerized sandboxes; thousands of concurrent environments; the env-step, not the GPU, is often the wall-clock bottleneck.</li>
+<li><strong>Synthetic task generation.</strong> Procedural bug injection (mutate a passing repo, ask the model to fix it), dependency-bump tasks, spec-to-code with generated test suites. Adaptive-difficulty procedural generators (<a href="https://arxiv.org/pdf/2511.07317" target="_blank">RLVE</a>) keep pass-rates in the learnable band.</li>
+</ul>
+<h3>1.2 Knowledge work — reward is the bottleneck, not tasks</h3>
+<ul>
+<li><strong>Rubric-based rewards.</strong> Per-prompt rubrics (checklists of what a good answer must contain / avoid), initially expert-written, now mostly model-drafted and human-audited. LLM-judge grades against the rubric; reward = weighted rubric satisfaction. This is the workhorse for non-verifiable domains (analysis, writing, advice, research).</li>
+<li><strong>Deep-research agents.</strong> Multi-step search+synthesis tasks with rubric or reference-answer grading (<a href="https://arxiv.org/html/2604.17931v2" target="_blank">LiteResearcher</a>-style pipelines); reward often decomposes into <em>retrieval hit</em> (verifiable: did you find the source?) + <em>synthesis quality</em> (rubric).</li>
+<li><strong>Preference RL persists for style/safety</strong> but is now a thin layer on top of rubric/verifiable RL, not the main capability driver.</li>
+<li><strong>Weakness:</strong> judges saturate and get hacked; rubric coverage is spiky; task distribution drifts from what users actually ask.</li>
+</ul>
+<h3>1.3 Long-context work — the least developed</h3>
+<ul>
+<li><strong>Synthetic multi-hop retrieval</strong> over real corpora (haystack tasks are dead as training signal — models saturate them; they survive only as smoke tests).</li>
+<li><strong>Long-horizon agent trajectories</strong> are the real long-context data: a 100-turn SWE session <em>is</em> a long-context task. Context management itself (compaction, memory files, what to re-read) is starting to be rewarded rather than hard-coded — see my notes in <strong>Agentic_RL_Compaction_and_Staleness</strong>.</li>
+<li><strong>Reward problem:</strong> outcome reward over a 500k-token trajectory gives ~1 bit for hours of compute — the credit-assignment problem is the domain-defining difficulty.</li>
+</ul>
+<h3>1.4 Cross-cutting infra reality</h3>
+<ul>
+<li><strong>Async, off-policy-tolerant training</strong> (importance-weighted corrections, staleness caps) because environments are slow and heterogeneous.</li>
+<li><strong>Difficulty curation is automatic:</strong> GRPO-style group statistics double as a free difficulty probe — if all G rollouts pass or all fail, advantage is zero and the sample is wasted; pipelines resample/filter to keep pass-rate near the max-gradient band (~20–80%).</li>
+<li><strong>Task synthesis from unverifiable text:</strong> e.g. <a href="https://arxiv.org/pdf/2601.22975" target="_blank">Golden Goose</a> — convert arbitrary internet text into verifiable tasks (mask a derivable fact, ask for it, check the mask). Early but points at the key trick of §3.</li>
+</ul>
+<hr>
+<h2 class="section" id="s2">2. Why current practice saturates — the failure catalogue</h2>
+<table><thead><tr><th>Failure</th><th>Mechanism</th><th>Symptom</th></tr></thead><tbody><tr><td><strong>Task exhaustion</strong></td><td>mined tasks (git issues, exam questions) are finite; procedural generators are narrow</td><td>pass@1 climbs, real-world transfer flattens</td></tr><tr><td><strong>Verifier saturation</strong></td><td>policy exceeds judge; judge noise becomes the ceiling</td><td>reward ↑, human evals flat or ↓</td></tr><tr><td><strong>Reward hacking</strong></td><td>any gap between proxy and intent gets optimized into</td><td>test-deletion, rubric keyword stuffing, sycophantic judged answers</td></tr><tr><td><strong>Distribution narrowing</strong></td><td>RL sharpens the policy onto reward modes; entropy collapse</td><td>diversity ↓, pass@k for large k ↓ even as pass@1 ↑</td></tr><tr><td><strong>Self-training drift</strong></td><td>model-generated tasks + model-graded rewards → closed loop amplifies model&#x27;s own blind spots</td><td>generational &quot;model collapse&quot; in task space</td></tr><tr><td><strong>Credit assignment at horizon</strong></td><td>outcome-only reward over 10⁵–10⁶ tokens</td><td>slow, high-variance learning on exactly the tasks that matter most</td></tr></tbody></table>
+<div class="callout practice"><strong>In practice:</strong> every scaled RL pipeline is a race between capability gain and hack discovery. The operational metric that matters is not reward but <strong>audited-human-agreement per unit of reward gained</strong>, tracked continuously.</div>
+<hr>
+<h2 class="section" id="s3">3. The organizing principle: manufacture verifiability</h2>
+<p>Almost every promising direction is an instance of one trick: <strong>find a transformation that makes the reward asymmetrically cheap relative to the task.</strong> Four generic asymmetries:</p>
+<ol>
+<li><strong>Execution asymmetry</strong> (code): running is cheaper than writing.</li>
+<li><strong>Hiding asymmetry</strong> (knowledge/long-context): <em>remove</em> something derivable from a trusted artifact; recovering it is hard, checking recovery is <code>==</code>. Backtranslation-of-verifiability.</li>
+<li><strong>Generation–verification asymmetry</strong> (proofs, structured claims): checking a proof/citation/derivation is easier than producing it — reward = verifier pass.</li>
+<li><strong>Consistency asymmetry</strong> (self-play): two independent paths must agree (majority vote, cross-examination, forward-vs-backward solving); agreement is checkable without ground truth.</li>
+</ol>
+<p>Everything in §4 composes these with a <strong>task generator</strong> and an <strong>auto-curriculum</strong>.</p>
+<hr>
+<h2 class="section" id="s4">4. Future designs — self-improving data engines</h2>
+<h3>4.1 The three-player self-play kernel (the core proposal)</h3>
+<p>Roles (can be one model, role-prompted, or separate checkpoints):</p>
+<ul>
+<li><strong>Proposer</strong> generates tasks <em>with a verification artifact</em> (test suite, hidden answer, rubric, proof obligation).</li>
+<li><strong>Solver</strong> (the policy we care about) attempts the task.</li>
+<li><strong>Verifier</strong> applies the artifact; where the artifact is a rubric, the Verifier is a judge model.</li>
+</ul>
+<p>Reward design is the whole game:</p>
+<ul>
+<li><strong>Solver:</strong> standard RLVR on Verifier output.</li>
+<li><strong>Proposer:</strong> rewarded for tasks that are (a) <em>valid</em> (artifact passes sanity/spot-check), (b) <em>at the frontier</em> — solver group pass-rate near 50% (the GRPO group statistic is a free, differentiable-through-sampling difficulty signal), (c) <em>novel</em> (embedding-distance penalty vs. task bank). This is the auto-curriculum: difficulty tracks the policy by construction (<a href="https://arxiv.org/abs/2505.20347" target="_blank">R-Zero / SeRL</a> lineage, <a href="https://arxiv.org/pdf/2604.14054" target="_blank">π-Play</a>).</li>
+<li><strong>Verifier:</strong> the weak link. Improve it with <strong>asymmetric supervision</strong>: train it on (i) hacks discovered by a red-team policy explicitly rewarded for <em>fooling</em> the Verifier while failing human audit (adversarial mining of reward hacks as data), (ii) sparse expert audits used as meta-labels.</li>
+</ul>
+<p><strong>Why this can self-improve without drifting:</strong> the loop injects grounding at two points — the verification <em>artifact</em> is checked mechanically where possible, and audits anchor the Verifier. The design principle: <strong>self-play scales the task axis; grounding must scale the reward axis</strong> — never let both come from the unaided model.</p>
+<h3>4.2 Code: &quot;world of broken repos&quot;</h3>
+<ul>
+<li><strong>Injector/Fixer self-play.</strong> Injector edits a green repo to make tests fail <em>subtly</em> (rewarded when the Fixer&#x27;s pass-rate is mid-band and the diff is small/semantically sneaky — not <code>rm -rf src</code>); Fixer is the policy. Oracle = the repo&#x27;s own tests + differential execution vs. the pre-injection binary. Unlimited tasks from a finite repo corpus; difficulty auto-tracks.</li>
+<li><strong>Spec-first generation.</strong> Proposer writes a spec + property-based tests (Hypothesis-style) + a reference solution; validity check = reference passes tests, tests kill mutants of the reference. Solver sees only the spec. This filters out under-specified tasks <em>mechanically</em> — mutation-kill-rate is a computable test-quality score.</li>
+<li><strong>Compositional environments.</strong> Treat verified envs as composable bricks (chain: fix the build → then the test → then perf-regression; cf. <a href="https://arxiv.org/pdf/2606.12373" target="_blank">recursive env composition</a>) — horizon and difficulty scale combinatorially from a fixed brick set.</li>
+<li><strong>Deployment flywheel.</strong> Real agent sessions (with consent) → hindsight-relabel into tasks: the session&#x27;s <em>final</em> state defines the goal; replay from initial state as a fresh env. Failures become tasks with a known-hard region; successes become distillation targets. This is the one task source whose distribution <em>provably matches use</em>.</li>
+</ul>
+<h3>4.3 Knowledge work: rubric ecosystems + hide-and-recover</h3>
+<ul>
+<li><strong>Backtranslated verifiable knowledge tasks.</strong> From trusted corpora (papers, filings, medical guidelines, internal docs): delete a derivable conclusion/number/step; task = recover it with sources; reward = exact/entailment match on the hidden span + citation-span checker (the citation must actually contain the claim — a mechanical string/entailment check). Generalizes <a href="https://arxiv.org/pdf/2601.22975" target="_blank">Golden Goose</a>; scales with the <em>pretraining corpus</em>, which is the only thing we have internet-scale amounts of.</li>
+<li><strong>Co-evolving rubrics.</strong> Rubrics are a <em>population</em>, not a fixed spec: mutate/recombine rubrics; select on agreement-with-audit and hack-resistance (<a href="https://arxiv.org/pdf/2602.10885" target="_blank">self-evolving rubrics</a>, <a href="https://arxiv.org/pdf/2605.03871" target="_blank">EvoLM</a>). Policy trains against the current rubric ensemble (ensembling resists single-rubric keyword hacks); rubric fitness is measured against the sparse human-audit stream. Two-timescale co-evolution: fast policy, slow rubric.</li>
+<li><strong>Cross-examination rewards (consistency asymmetry).</strong> For claims with no oracle: a second instance tries to <em>refute</em> the answer with independent search; reward for the answerer scales with surviving adversarial scrutiny; the refuter is rewarded for successful refutations that a judge+sources confirm. Debate-as-reward, but scoped to <em>factual</em> disputes where sources adjudicate — avoids the &quot;persuasive ≠ true&quot; failure of open-ended debate.</li>
+</ul>
+<h3>4.4 Long-context: make context management the rewarded skill</h3>
+<ul>
+<li><strong>Provenance-verified multi-hop synthesis.</strong> Proposer walks a real corpus building a k-hop chain (entity → doc → fact → doc...), records the trace; task = answer with citations; verifier checks each hop&#x27;s span. The <em>trace</em> makes an unverifiable-looking synthesis task mechanically checkable. Curriculum = hops × distractor volume × context length.</li>
+<li><strong>Compaction-aware RL.</strong> Long-horizon agent task where context overflows <em>by design</em>; the policy&#x27;s memory/compaction actions are part of the trajectory. Dense shaping: at random checkpoints, ask probe questions answerable only from information the policy should have retained; probe accuracy is a cheap intermediate reward for &quot;did you keep the right things.&quot; (Direct extension of the compaction/staleness notes.)</li>
+<li><strong>Hindsight horizon-splitting for credit assignment.</strong> Slice long trajectories at compaction/summary boundaries; treat the summary as the state; train value estimates at boundary granularity (options/hierarchical view). Turns the 1-bit-per-500k-token problem into per-segment learning signal without a learned dense PRM.</li>
+</ul>
+<h3>4.5 The outer loop: iterated amplification-and-distillation</h3>
+<p>AlphaZero&#x27;s recipe, transplanted: <strong>spend compute to make a better teacher, distill, repeat.</strong></p>
+<ol>
+<li><strong>Amplify:</strong> best current policy + search (best-of-n with verifier, tool use, multi-agent cross-examination, long deliberation) produces solutions <em>better than the policy&#x27;s own 1-sample distribution</em>.</li>
+<li><strong>Verify/filter:</strong> keep only artifact-verified or ensemble-agreed trajectories.</li>
+<li><strong>Distill:</strong> SFT/RL the base policy toward amplified outputs (RL, not just SFT, to preserve exploration — distill the <em>achievable reward</em>, not the token sequence).</li>
+<li><strong>Re-generate tasks</strong> at the new frontier (Proposer re-tunes difficulty) and loop.</li>
+</ol>
+<p>The <strong>generation-over-generation dashboard</strong> (what I&#x27;d actually watch): (a) generator–verifier gap trend; (b) audited human agreement with Verifier at fixed sample budget; (c) task-embedding diversity vs. gen-0; (d) pass@k at <em>large</em> k (entropy-collapse canary); (e) transfer to a frozen, never-trained-on holdout of real user tasks. Self-improvement is real iff (e) moves; everything else can be gamed by the loop itself.</p>
+<hr>
+<h2 class="section" id="s5">5. Research questions I&#x27;d propose (interview-ready)</h2>
+<ol>
+<li><strong>Scaling laws for RL data:</strong> capability as a function of (unique tasks) × (rollouts per task) × (reward fidelity) — is there a data-vs-compute exchange rate like Chinchilla&#x27;s? Hypothesis: unique-task count dominates once rollouts/task exceed a small number; reward fidelity enters as an effective-data multiplier.</li>
+<li><strong>Where does self-play stop?</strong> Characterize the drift rate of closed-loop task generation vs. the audit budget needed to pin it. Prediction: audit demand grows sub-linearly if verification artifacts are mechanical, linearly+ if judge-based.</li>
+<li><strong>Hack-mining as an alignment asset:</strong> train the red-team policy <em>deliberately</em>, publish the hack corpus internally, and measure how verifier robustness scales with hacks discovered — turning reward hacking from a tax into a data source.</li>
+<li><strong>Difficulty targeting:</strong> is 50% pass-rate actually optimal, or does the max-learning-signal band shift with group size G and KL budget? (Connects to the GRPO variance analysis in Post_Training_and_RL_Deep_Dive.)</li>
+</ol>
+<h2 class="section" id="s6">6. Soundbites</h2>
+<ul>
+<li>&quot;Pretraining ate the internet; RL has to <em>cook its own food</em> — the research problem is the kitchen, not the stove.&quot;</li>
+<li>&quot;Every scalable reward is a manufactured asymmetry: execution, hiding, verification, or consistency.&quot;</li>
+<li>&quot;Self-play scales tasks; grounding must scale rewards. A loop that self-generates both is a model-collapse machine.&quot;</li>
+<li>&quot;The only unfakeable metric of a self-improvement loop is transfer to frozen, real, held-out user tasks.&quot;</li>
+</ul>
+<hr>
+<h2 class="section" id="s7">Sources</h2>
+<ul>
+<li><a href="https://arxiv.org/pdf/2511.07317" target="_blank">RLVE: adaptive verifiable environments</a> · <a href="https://arxiv.org/pdf/2510.04206" target="_blank">AgentRL</a> · <a href="https://arxiv.org/pdf/2606.03108" target="_blank">EvoTrainer</a> · <a href="https://arxiv.org/pdf/2606.12373" target="_blank">Verifiable envs as LEGO bricks</a> · <a href="https://arxiv.org/pdf/2601.22975" target="_blank">Golden Goose</a> · <a href="https://arxiv.org/html/2604.17931v2" target="_blank">LiteResearcher</a> · <a href="https://arxiv.org/pdf/2509.02547" target="_blank">Agentic RL survey</a> · <a href="https://arxiv.org/abs/2505.20347" target="_blank">SeRL</a> · <a href="https://arxiv.org/pdf/2604.14054" target="_blank">π-Play</a> · <a href="https://arxiv.org/pdf/2602.10885" target="_blank">Self-evolving rubrics</a> · <a href="https://arxiv.org/pdf/2605.03871" target="_blank">EvoLM: co-evolved rubrics</a> · <a href="https://arxiv.org/pdf/2509.17158" target="_blank">ARE: scaling agent environments</a></li>
+</ul>
+<p><em>Written 2026-07-07. Companion docs: Post_Training_and_RL_Deep_Dive, Agentic_RL_Compaction_and_Staleness, Self_Improving_VLMs.</em></p>
+</main></div>
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<script>
+  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
+  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
+  const KEY=document.title.replace(/\W/g,'_');
+  document.querySelectorAll('.qa').forEach((qa,i)=>{const k=KEY+'_qa_'+i;if(localStorage.getItem(k)==='1')qa.classList.add('open');qa.querySelector('.q').addEventListener('click',()=>{qa.classList.toggle('open');localStorage.setItem(k,qa.classList.contains('open')?'1':'0');});});
+  const tl=[...document.querySelectorAll('nav.toc a')],secs=tl.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll',()=>{let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<=120)cur=s;}tl.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+(cur&&cur.id)));});
+</script>
+<!-- MUSE-MSL-NEWS-2026-07 -->
+<section id="muse-msl-2026" style="max-width:880px;margin:48px auto 24px;padding:24px 26px;background:#161b22;border:1px solid #2a3340;border-left:4px solid #7ee0c0;border-radius:12px;color:#d7dee8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;font-size:15px;">
+  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+    <span style="background:#7ee0c0;color:#0f1419;font-size:11px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:999px;">NEW &middot; JUL 7 2026</span>
+    <h2 style="margin:0;font-size:19px;color:#d7dee8;">Meta MSL: Muse Image &amp; Muse Video</h2>
+  </div>
+  <p style="margin:12px 0 6px;color:#8b97a7;">Meta Superintelligence Labs (MSL) shipped its first media-generation models — directly relevant to the vision-team interview.
+    <a href="https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/" style="color:#6ea8fe;">Official announcement &rarr;</a> &middot; <a href="Meta_Muse_MSL_Deep_Dive.html" style="color:#6ea8fe;">Full deep dive &rarr;</a></p>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">What was announced</h3>
+  <ul style="margin:0 0 4px;padding-left:20px;">
+    <li><b>Muse Image</b> (live) — an <i>agentic</i> image model, not a direct prompt&rarr;image mapper. It reasons before generating and extends the <b>Muse Spark</b> architecture (MSL's proprietary reasoning model, Meta's first post-Llama foundation model).</li>
+    <li><b>Tool use inside the generative loop</b>: executes <b>code</b> (accurate plots, QR codes, conditioning on rendered figures) and calls <b>web search</b> to ground outputs in real-time facts and visual references; can hand off to Muse Spark for heavier reasoning.</li>
+    <li><b>Emergent self-refinement</b>: during RL post-training the model learned — without being explicitly designed to — to critique its own output inside the reasoning chain, then locally edit, fully regenerate, or apply a tool.</li>
+    <li><b>Test-time compute scaling</b>: quality improves <b>&asymp; log-linearly</b> with inference compute; deliberate sequential reasoning beats best-of-N sampling at matched compute.</li>
+    <li><b>Editing &amp; composition</b>: precision single/multi-image editing, multi-reference composition with interleaved text+images.</li>
+    <li><b>Muse Video</b> (preview) — same pretraining base, native audio; open problems Meta names: audio-video sync and physically accurate fast motion.</li>
+    <li><b>Benchmarks</b> (Arena Elo, Jul 5 2026): #2 text-to-image, #2 single-image editing, #2 multi-image editing; Muse Video #3 text-to-video.</li>
+    <li><b>Content Seal</b>: invisible provenance watermark robust to crop / compression / resize / screenshots, with a public detector.</li>
+    <li><b>Distribution</b>: Meta AI app, meta.ai, Instagram Stories (US), WhatsApp; Instagram integration (reimagine photos, create with friends, personalized presets).</li>
+  </ul>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Test-time compute: deliberate reasoning vs best-of-N</h3>
+  <p style="margin:0 0 8px;color:#8b97a7;">Sequential self-refinement compounds — each step conditions on the previous attempt — so quality grows roughly <span style="font-family:ui-monospace,Menlo,monospace;color:#d7dee8;">Q(C) &asymp; a + b&middot;log C</span>. Best-of-N only takes the max of independent draws, so its gains flatten (extreme-value scaling &asymp; a + b&middot;log log N).</p>
+  <svg viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:560px;display:block;background:#11161d;border:1px solid #2a3340;border-radius:8px;">
+    <line x1="50" y1="180" x2="530" y2="180" stroke="#2a3340" stroke-width="1.5"/>
+    <line x1="50" y1="180" x2="50" y2="20" stroke="#2a3340" stroke-width="1.5"/>
+    <text x="290" y="205" fill="#8b97a7" font-size="12" text-anchor="middle">inference compute (log scale)</text>
+    <text x="20" y="100" fill="#8b97a7" font-size="12" text-anchor="middle" transform="rotate(-90 20 100)">quality (Elo)</text>
+    <path d="M 60 165 C 180 120, 340 75, 520 35" fill="none" stroke="#7ee0c0" stroke-width="2.5"/>
+    <path d="M 60 168 C 180 140, 340 122, 520 112" fill="none" stroke="#ffb454" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <text x="368" y="52" fill="#7ee0c0" font-size="12">deliberate reasoning (&asymp; log-linear)</text>
+    <text x="380" y="138" fill="#ffb454" font-size="12">best-of-N (flattens)</text>
+  </svg>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Interview angles (vision team)</h3>
+  <ul style="margin:0;padding-left:20px;">
+    <li><b>RL on generation</b>: self-refinement emerged from RL, not supervision — connect to your REINFORCE/GRPO prep; discuss reward design for non-verifiable objectives (human-preference Elo, aesthetics vs instruction faithfulness) and reward hacking risk.</li>
+    <li><b>Test-time scaling for images</b>: mirrors LLM reasoning scaling; be ready to argue <i>why</i> sequential refinement beats best-of-N (conditioning on failure modes vs i.i.d. resampling) and the prod latency/compute trade-off at Instagram scale.</li>
+    <li><b>Agentic generation</b>: search-grounded and code-conditioned generation = tool use inside the sampler; ties to your agents material (Day 4) and unified any-to-any model notes.</li>
+    <li><b>Unified stack &amp; data</b>: Muse Spark &rarr; Muse Image &rarr; Muse Video share pretraining; strong hook for multimodal scaling-law discussion (your Science-of-MM-Data material) — image and video from one base, what does the data mixture look like?</li>
+    <li><b>Video open problems</b>: AV sync + fast-motion physics — natural bridge to your video-JEPA / LatentFusion proposal (physical plausibility in latent space).</li>
+    <li><b>Provenance</b>: watermark robustness under crop/compress/screenshot — good safety/eval talking point.</li>
+  </ul>
+</section>
+<!-- /MUSE-MSL-NEWS-2026-07 -->
+
+</body></html>

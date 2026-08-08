@@ -64,6 +64,26 @@ $$
 
 <p>Then every conditioning context is a literal prefix of the flat sequence, one forward pass scores the whole episode, and the mask selects which positions contribute loss terms. All standard multi-turn RL training relies on (2).</p>
 
+<h3 style="margin-top:18px;">RLOO on a multi-turn episode — when "treat it as single-turn" is exactly right</h3>
+<p>Sample $G$ <em>full episodes</em> from the same initial prompt, score each with the terminal reward, and use the leave-one-out baseline; the episode's "action" is the entire sum (1):</p>
+$$
+A_i = R_i - \tfrac{1}{G-1}\textstyle\sum_{j\neq i} R_j,
+\qquad
+\nabla_\theta J = \mathbb{E}\Big[\tfrac{1}{G}\textstyle\sum_i A_i \underbrace{\sum_k \sum_t \nabla_\theta \log \pi_\theta\big(y^i_{k,t} \mid c^i_k \oplus y^i_{k,<t}\big)}_{\text{eq. (1): the whole episode is one mega-action}}\Big]
+$$
+<p><strong>So yes: under RLOO, multi-turn <em>is</em> single-turn, legitimately</strong> — because RLOO never had per-token or per-turn credit to begin with (no critic, no GAE): a single sequence-level advantage is broadcast over all policy tokens either way. The three conditions that make the equivalence exact:</p>
+<ul>
+<li><strong>Group at the episode level.</strong> The $G$ rollouts are independent full episodes from the same initial prompt; tool stochasticity is just part of each sampled trajectory. The baseline stays unbiased because episode $j$'s reward is independent of episode $i$'s actions — same argument as single-turn.</li>
+<li><strong>Mask the dynamics, keep the conditioning honest.</strong> Only $y_k$ tokens contribute loss terms (the ledger); each is scored against the context it actually saw. Flatten into one forward pass iff the prefix property (2) holds — with compaction, score per-$(c_k, y_k)$ segments and <em>sum</em>; the advantage doesn't change.</li>
+<li><strong>Sum, don't length-normalize.</strong> Episodes differ in turn count and token count; RLOO with summed log-probs stays unbiased. Dividing by length (GRPO-style normalization) re-weights episodes by $1/|\tau|$ — a bias that interacts badly with the "more turns = more attempts" confound.</li>
+</ul>
+<div class="box warn">
+<p><strong>What the single-turn treatment costs: credit assignment.</strong> One scalar $A_i$ supervises every token of every turn — the turn that saved the episode and the turn that wasted 2k tokens get identical weight, and variance grows with horizon and tool noise (the ~1-bit-per-episode problem). The critic-free remedies, in escalating order:
+(i) <strong>turn-level branching groups</strong> — replay a shared prefix $c_k$ (cheap for deterministic tools: LLM envs can reset to any prefix) and sample $G$ continuations from it → RLOO <em>at the turn</em>, giving per-turn advantages with the same machinery;
+(ii) <strong>intermediate/process rewards</strong> (per-turn verifiers) summed into per-segment returns;
+(iii) if neither suffices, that is the argument for a critic (per-turn values + GAE) — you're buying credit assignment with bias.</p>
+</div>
+
 <h2>2 &nbsp;Compaction breaks the prefix property</h2>
 
 <p>With long horizons the scaffold applies a compaction operator $\varphi$ (summarize / truncate) somewhere mid-episode:</p>
@@ -142,6 +162,33 @@ $$
 \qquad \pi_\theta(y_k \mid c_k) \;\neq\; \pi_\theta(y_k \mid s_k)
 $$
 <p>Two practical corollaries. (i) The <em>critic</em> also only sees $c_k$ — value estimates inherit the information loss, further weakening PPO's credit assignment on long horizons. (ii) No gradient can recover a fact $\varphi$ deleted; if performance is capped by compaction, the fix is $\varphi$, not the RL.</p>
+
+<h3 style="margin-top:18px;">Why "POMDP," exactly — the four-step derivation</h3>
+<p><strong>(1) The uncompacted process is an MDP <em>because history is the state</em>.</strong> With append-only context the policy conditions on $h_k = c_1 \oplus y_1 \oplus o_1 \oplus \cdots \oplus o_{k-1}$ — the full record. A history-state is Markov <em>by construction</em>: nothing outside $h_k$ can influence the future's distribution, because $h_k$ contains everything that has happened. Full observability, honest MDP.</p>
+<p><strong>(2) Compaction demotes the policy's input from state to observation.</strong> $c_k = \varphi(h_k)$ is <em>many-to-one and lossy</em>, but the world still runs on the true state: the sandbox remembers the file you edited at turn 2 even if the summary dropped it; the next tool output depends on the real history, not your summary of it. That is the POMDP triple: hidden state $s_k$ (true history + environment), observation $o_k=\varphi(s_k)$, policy $\pi_\theta(y\,|\,o_k)$. Partial observability is the <em>definition</em> here, not an analogy: the policy's input no longer determines the distribution of the future.</p>
+<p><strong>(3) The operational symptom is state aliasing.</strong> Many-to-one means two histories with different futures can compact to the <em>same</em> $c$ — then $V(c)$ is not a function (same input, two true values): the critic can only learn the average over the belief $P(h\,|\,c)$, advantages inherit the blur, and the optimal action given $c$ alone may be stochastic. Markov fails at the observation level: $P(o_{k+1}\,|\,o_k, y_k)$ is undefined without the hidden $h$.</p>
+<figure style="margin:18px 0;text-align:center;">
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="State aliasing: two different histories compact to one summary with conflicting values">
+<defs><marker id="arPm" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7ee0c0"/></marker></defs>
+<rect x="10" y="20" width="215" height="52" rx="9" fill="#1c2530" stroke="#2a3340"/>
+<text x="24" y="42" fill="#d7dee8" font-size="12.5">h: …edited fix.py; tests PASSED…</text>
+<text x="24" y="60" fill="#8b97a7" font-size="10.5">true value: ship it → V(h) high</text>
+<rect x="10" y="130" width="215" height="52" rx="9" fill="#1c2530" stroke="#2a3340"/>
+<text x="24" y="152" fill="#d7dee8" font-size="12.5">h′: …edited fix.py; tests FAILED…</text>
+<text x="24" y="170" fill="#8b97a7" font-size="10.5">true value: ship it → V(h′) low</text>
+<rect x="330" y="75" width="180" height="52" rx="9" fill="#241a20" stroke="#f78fb3" stroke-opacity=".55"/>
+<text x="344" y="97" fill="#f78fb3" font-size="12.5">c = φ(·): "ran tests,</text>
+<text x="344" y="115" fill="#f78fb3" font-size="12.5">continued to next step"</text>
+<line x1="225" y1="46" x2="326" y2="90" stroke="#7ee0c0" stroke-width="1.5" marker-end="url(#arPm)"/>
+<line x1="225" y1="156" x2="326" y2="112" stroke="#7ee0c0" stroke-width="1.5" marker-end="url(#arPm)"/>
+<text x="262" y="52" fill="#8b97a7" font-size="10.5">φ</text>
+<text x="262" y="162" fill="#8b97a7" font-size="10.5">φ</text>
+<text x="540" y="96" fill="#ffb454" font-size="12.5">V(c) = ?</text>
+<text x="540" y="114" fill="#8b97a7" font-size="10.5">one input, two truths</text>
+<text x="320" y="200" fill="#8b97a7" font-size="10.5" text-anchor="middle">Aliasing: φ is many-to-one, so V(c) can only be a belief-average — the critic's target is blurred, the advantage inherits it.</text>
+</svg>
+</figure>
+<p><strong>(4) The litmus test, and the escape hatches.</strong> The process stays an MDP iff $\varphi(h)$ is a <em>sufficient statistic</em> of the history for the future — a lossless re-coding changes nothing. Compaction is lossy on purpose (that IS the token savings), so generically it isn't sufficient. The escapes are the classical POMDP moves in agent clothes: carry a belief state (recurrent memory / scratchpad), improve the observation model (better $\varphi$ — "the fix is $\varphi$, not the RL"), or let the policy <em>write</em> its own memory — the "restate key facts so they survive summarization" adaptation is the agent learning to construct its own sufficient statistic, and once summaries are policy actions (next box), <em>what to remember</em> becomes a trainable decision.</p>
 </div>
 
 <div class="box">
@@ -229,4 +276,51 @@ $$
 <p><strong>One sentence to retain:</strong> per-call segmentation makes compaction representable ((1) + (3)); the $\theta$-free-ness of $\varphi$ keeps the gradient valid (4); lossiness makes it a POMDP (fix $\varphi$, not the loss); and asynchrony is handled by logging the behavior policy per token and applying truncated importance ratios under a staleness cap (7) — the CPI/trust-region story, stretched across time.</p>
 </div>
 
-</main></body></html>
+</main><!-- MUSE-MSL-NEWS-2026-07 -->
+<section id="muse-msl-2026" style="max-width:880px;margin:48px auto 24px;padding:24px 26px;background:#161b22;border:1px solid #2a3340;border-left:4px solid #7ee0c0;border-radius:12px;color:#d7dee8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;font-size:15px;">
+  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+    <span style="background:#7ee0c0;color:#0f1419;font-size:11px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:999px;">NEW &middot; JUL 7 2026</span>
+    <h2 style="margin:0;font-size:19px;color:#d7dee8;">Meta MSL: Muse Image &amp; Muse Video</h2>
+  </div>
+  <p style="margin:12px 0 6px;color:#8b97a7;">Meta Superintelligence Labs (MSL) shipped its first media-generation models — directly relevant to the vision-team interview.
+    <a href="https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/" style="color:#6ea8fe;">Official announcement &rarr;</a> &middot; <a href="Meta_Muse_MSL_Deep_Dive.html" style="color:#6ea8fe;">Full deep dive &rarr;</a></p>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">What was announced</h3>
+  <ul style="margin:0 0 4px;padding-left:20px;">
+    <li><b>Muse Image</b> (live) — an <i>agentic</i> image model, not a direct prompt&rarr;image mapper. It reasons before generating and extends the <b>Muse Spark</b> architecture (MSL's proprietary reasoning model, Meta's first post-Llama foundation model).</li>
+    <li><b>Tool use inside the generative loop</b>: executes <b>code</b> (accurate plots, QR codes, conditioning on rendered figures) and calls <b>web search</b> to ground outputs in real-time facts and visual references; can hand off to Muse Spark for heavier reasoning.</li>
+    <li><b>Emergent self-refinement</b>: during RL post-training the model learned — without being explicitly designed to — to critique its own output inside the reasoning chain, then locally edit, fully regenerate, or apply a tool.</li>
+    <li><b>Test-time compute scaling</b>: quality improves <b>&asymp; log-linearly</b> with inference compute; deliberate sequential reasoning beats best-of-N sampling at matched compute.</li>
+    <li><b>Editing &amp; composition</b>: precision single/multi-image editing, multi-reference composition with interleaved text+images.</li>
+    <li><b>Muse Video</b> (preview) — same pretraining base, native audio; open problems Meta names: audio-video sync and physically accurate fast motion.</li>
+    <li><b>Benchmarks</b> (Arena Elo, Jul 5 2026): #2 text-to-image, #2 single-image editing, #2 multi-image editing; Muse Video #3 text-to-video.</li>
+    <li><b>Content Seal</b>: invisible provenance watermark robust to crop / compression / resize / screenshots, with a public detector.</li>
+    <li><b>Distribution</b>: Meta AI app, meta.ai, Instagram Stories (US), WhatsApp; Instagram integration (reimagine photos, create with friends, personalized presets).</li>
+  </ul>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Test-time compute: deliberate reasoning vs best-of-N</h3>
+  <p style="margin:0 0 8px;color:#8b97a7;">Sequential self-refinement compounds — each step conditions on the previous attempt — so quality grows roughly <span style="font-family:ui-monospace,Menlo,monospace;color:#d7dee8;">Q(C) &asymp; a + b&middot;log C</span>. Best-of-N only takes the max of independent draws, so its gains flatten (extreme-value scaling &asymp; a + b&middot;log log N).</p>
+  <svg viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:560px;display:block;background:#11161d;border:1px solid #2a3340;border-radius:8px;">
+    <line x1="50" y1="180" x2="530" y2="180" stroke="#2a3340" stroke-width="1.5"/>
+    <line x1="50" y1="180" x2="50" y2="20" stroke="#2a3340" stroke-width="1.5"/>
+    <text x="290" y="205" fill="#8b97a7" font-size="12" text-anchor="middle">inference compute (log scale)</text>
+    <text x="20" y="100" fill="#8b97a7" font-size="12" text-anchor="middle" transform="rotate(-90 20 100)">quality (Elo)</text>
+    <path d="M 60 165 C 180 120, 340 75, 520 35" fill="none" stroke="#7ee0c0" stroke-width="2.5"/>
+    <path d="M 60 168 C 180 140, 340 122, 520 112" fill="none" stroke="#ffb454" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <text x="368" y="52" fill="#7ee0c0" font-size="12">deliberate reasoning (&asymp; log-linear)</text>
+    <text x="380" y="138" fill="#ffb454" font-size="12">best-of-N (flattens)</text>
+  </svg>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Interview angles (vision team)</h3>
+  <ul style="margin:0;padding-left:20px;">
+    <li><b>RL on generation</b>: self-refinement emerged from RL, not supervision — connect to your REINFORCE/GRPO prep; discuss reward design for non-verifiable objectives (human-preference Elo, aesthetics vs instruction faithfulness) and reward hacking risk.</li>
+    <li><b>Test-time scaling for images</b>: mirrors LLM reasoning scaling; be ready to argue <i>why</i> sequential refinement beats best-of-N (conditioning on failure modes vs i.i.d. resampling) and the prod latency/compute trade-off at Instagram scale.</li>
+    <li><b>Agentic generation</b>: search-grounded and code-conditioned generation = tool use inside the sampler; ties to your agents material (Day 4) and unified any-to-any model notes.</li>
+    <li><b>Unified stack &amp; data</b>: Muse Spark &rarr; Muse Image &rarr; Muse Video share pretraining; strong hook for multimodal scaling-law discussion (your Science-of-MM-Data material) — image and video from one base, what does the data mixture look like?</li>
+    <li><b>Video open problems</b>: AV sync + fast-motion physics — natural bridge to your video-JEPA / LatentFusion proposal (physical plausibility in latent space).</li>
+    <li><b>Provenance</b>: watermark robustness under crop/compress/screenshot — good safety/eval talking point.</li>
+  </ul>
+</section>
+<!-- /MUSE-MSL-NEWS-2026-07 -->
+
+</body></html>

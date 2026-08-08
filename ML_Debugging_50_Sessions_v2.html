@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Debugging v2 — 50 Fresh Interview Sessions</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --bad: #ff8d70; --border: #2a3340;
+    --code-bg: #11161d; --reveal-bg: #16241f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 16.5px; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); z-index: 100; transition: width 0.1s ease-out; }
+  .layout { display: flex; max-width: 1280px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+    width: 275px; min-width: 275px; padding: 24px 16px 60px 20px; border-right: 1px solid var(--border); font-size: 13.5px; }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 0 8px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; margin: 1px 0; border-left: 2px solid transparent; }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+  main { flex: 1; min-width: 0; padding: 40px 48px 120px; }
+  header.hero { border: 1px solid var(--border); background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 14px; padding: 28px 30px; margin-bottom: 30px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 30px; }
+  header.hero .sub { color: var(--muted); margin: 4px 0; font-size: 15px; }
+  .bar-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent-2); padding: 4px 11px; border-radius: 20px; font-size: 13px; }
+  h2.section { font-size: 23px; margin: 46px 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h2.part { font-size: 26px; margin: 60px 0 6px; color: var(--accent-2); scroll-margin-top: 20px; }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1.5px 6px; border-radius: 5px; font-size: 13.5px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #e8c98a; }
+  ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+  strong { color: #f0f4f9; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #1f2937; color: #f0f4f9; }
+  .controls { margin: 14px 0 18px; }
+  .btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13.5px; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; border: 1px solid var(--border); }
+  .callout .label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .keyidea { background: rgba(126,224,192,0.07); border-color: rgba(126,224,192,0.3); } .keyidea .label { color: var(--accent-2); }
+
+  /* drill cards */
+  .drill { border: 1px solid var(--border); border-radius: 12px; margin: 22px 0; background: var(--panel); overflow: hidden; scroll-margin-top: 20px; }
+  .dtop { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--panel-2); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .dnum { color: var(--accent-2); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 17px; }
+  .dcat { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border: 1px solid var(--border); border-radius: 12px; padding: 2px 9px; }
+  .dtitle { font-weight: 700; font-size: 16.5px; color: #f0f4f9; flex: 1; min-width: 200px; }
+  .dbody { padding: 6px 18px 16px; }
+  .ask { border-left: 3px solid var(--accent); background: rgba(110,168,254,.06); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-style: italic; }
+  .ask b { font-style: normal; color: var(--accent); }
+  .sym { border-left: 3px solid var(--warn); background: rgba(255,180,84,.06); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 15px; }
+  .sym b { color: var(--warn); }
+  pre.code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; color: #c9d4e3; margin: 12px 0; }
+  pre.code .cm { color: #667788; }
+  mark.bad { background: rgba(255,141,112,.16); color: #ffb4a0; border-radius: 3px; padding: 0 2px; outline: 1px solid rgba(255,141,112,.35); }
+  mark.fix { background: rgba(126,224,192,.14); color: #9fe8cf; border-radius: 3px; padding: 0 2px; outline: 1px solid rgba(126,224,192,.3); }
+  .look { border-left: 3px solid var(--accent-2); background: rgba(126,224,192,.06); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 15px; }
+  .look b { color: var(--accent-2); }
+  .theory { background: var(--reveal-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 15px; }
+  .theory b { color: var(--accent-2); }
+  details.sol { margin: 12px 0 4px; }
+  details.sol > summary { cursor: pointer; list-style: none; display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 16px; font-size: 13.5px; font-weight: 600; color: var(--accent); user-select: none; }
+  details.sol > summary:hover { border-color: var(--accent); }
+  details.sol > summary::before { content: "▶ "; font-size: 11px; }
+  details.sol[open] > summary::before { content: "▼ "; }
+  .viz { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px 4px; margin: 12px 0; overflow-x: auto; }
+  .viz svg { display: block; max-width: 100%; height: auto; }
+  .viz .cap { color: var(--muted); font-size: 12.5px; margin: 6px 2px 8px; }
+  .dk { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; font-weight: 400; white-space: nowrap; cursor: pointer; user-select: none; padding: 3px 10px; border: 1px solid var(--border); border-radius: 14px; flex-shrink: 0; }
+  .dk:hover { border-color: var(--bad); color: var(--bad); }
+  .dk input { accent-color: #ff8d70; cursor: pointer; margin: 0; }
+  .drill.dontknow { border-color: rgba(255,141,112,.55); }
+  .drill.dontknow .dnum { color: var(--bad); }
+  .drill.dontknow .dk { border-color: rgba(255,141,112,.55); color: var(--bad); }
+  #dkCount { color: var(--bad); font-size: 13.5px; margin-left: 4px; }
+  body.dkonly .drill:not(.dontknow) { display: none; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+  .back-top { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; z-index: 50; }
+  .back-top:hover { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 880px) { nav.toc { display: none; } main { padding: 24px 18px 100px; } }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="layout">
+  <nav class="toc" id="toc">
+<h2>Debugging v2 · 50 sessions</h2>
+<a href="#top">Overview</a>
+<a href="#cover">Miss-coverage map</a>
+<h2>Part 1 · Guided (read)</h2>
+<a href="#v1">§1 · Numerics &amp; losses (1–5)</a>
+<a href="#v2">§2 · Init &amp; signal propagation (6–8)</a>
+<a href="#v3">§3 · Train/eval &amp; regularization (9–10)</a>
+<a href="#v4">§4 · Data &amp; labels (11–13)</a>
+<a href="#v5">§5 · Masks &amp; attention (14–16)</a>
+<a href="#v6">§6 · Optimization loop (17–20)</a>
+<a href="#v7">§7 · RL &amp; post-training (21–25)</a>
+<h2>Part 2 · Practice (solve)</h2>
+<a href="#v8">§8 · Numerics &amp; losses (26–30)</a>
+<a href="#v9">§9 · Data &amp; eval (31–35)</a>
+<a href="#v10">§10 · Attention &amp; transformer (36–40)</a>
+<a href="#v11">§11 · Init, depth &amp; regularization (41–44)</a>
+<a href="#v12">§12 · RL &amp; post-training (45–50)</a>
+</nav>
+<main>
+    <header class="hero" id="top">
+      <h1>ML Debugging v2 — 50 Fresh Interview Sessions</h1>
+      <div class="sub"><strong>Same diseases, new disguises.</strong> Every scenario here is new — no session repeats a v1 setup — but the core concepts return, weighted toward the nine you flagged (7, 9, 10, 12, 22, 33, 47, 49, 50): each of those gets 3–4 fresh variants attacking the concept from a different angle (the checker instead of the gradient, cross-attention instead of causal, the estimator instead of the objective).</div>
+      <div class="sub"><strong>How to use:</strong> Part 1 (1–25) is open — read it as a casebook. Part 2 (26–50) has solutions collapsed — hypotheses out loud, point at the line, name the probe, <em>then</em> reveal (≤5 min each). Flags here are independent of v1 (stored separately); copy the list back to me for round 3.</div>
+      <div class="bar-meta"><span class="pill">50 new sessions</span><span class="pill">Misses ×3–4 each</span><span class="pill">Buggy + fixed code</span><span class="pill">Theory included</span><span class="pill">v1 cross-refs</span></div>
+    </header>
+
+    <div class="controls">
+      <button class="btn" onclick="setAll(true)">Open all solutions</button>
+      <button class="btn" onclick="setAll(false)">Collapse all</button>
+      <button class="btn" id="dkOnly" onclick="toggleDkOnly()">Show only don't-knows</button>
+      <button class="btn" id="dkCopy" onclick="copyDk()">Copy list for Claude</button>
+      <span id="dkCount"></span>
+    </div>
+
+    <h2 class="section" id="cover">Where your v1 misses are re-drilled</h2>
+    <table>
+      <tr><th>v1 miss</th><th>Concept</th><th>v2 sessions (new angle)</th></tr>
+      <tr><td>#7</td><td>CE / log numerics</td><td><b>1</b> (0·log0 on easy examples), <b>2</b> (bf16 underflow), <b>26</b> (lse overflow), <b>27</b> (the clamp that lied)</td></tr>
+      <tr><td>#9</td><td>gradient checking</td><td><b>4</b> (the checker is the bug), <b>5</b> (unchecked param), <b>29</b> (stochastic forward)</td></tr>
+      <tr><td>#10</td><td>init / signal propagation</td><td><b>6</b> (gain mismatch), <b>7</b> (first-loss arithmetic), <b>8</b>+<b>41</b> (residual-stream growth)</td></tr>
+      <tr><td>#12</td><td>dropout / train-eval</td><td><b>9</b> (un-inverted mechanism), <b>10</b> (val&lt;train artifacts), <b>42</b> (stream vs branch placement)</td></tr>
+      <tr><td>#22</td><td>mask intersections</td><td><b>14</b> (cross-attn empty context), <b>15</b> (window×pad), <b>16</b> (multiplicative leak), <b>39</b> (dtype of the mask value)</td></tr>
+      <tr><td>#33</td><td>label shift / leakage</td><td><b>11</b> (seq2seq BOS), <b>12</b> (packing/EOS), <b>13</b> (prompt in loss), <b>31</b> (double shift), <b>36</b> (prefix-LM loss mask)</td></tr>
+      <tr><td>#47</td><td>GAE / credit assignment</td><td><b>21</b> (cumsum direction), <b>22</b> (truncation vs termination), <b>45</b> (V[t] vs V[t+1])</td></tr>
+      <tr><td>#49</td><td>DPO reference / 0.693</td><td><b>23</b> (ref re-synced), <b>24</b> (both-logps-down), <b>48</b> (swapped pairs)</td></tr>
+      <tr><td>#50</td><td>RLHF reward/KL</td><td><b>25</b> (whitening×KL), <b>46</b> (RM template), <b>47</b> (entropy sign), <b>50</b> (clamped KL estimator)</td></tr>
+    </table>
+    <h2 class="part" id="p1">Part 1 — Guided casebook (sessions 1–25)</h2>
+    <p class="sub" style="color:var(--muted)">Everything visible. Name the bug before the highlighted line gives it away.</p>
+    <h2 class="section" id="v1">§1 · Numerics &amp; losses (1–5)</h2>
+    <div class="drill" id="d1">
+      <div class="dtop"><span class="dnum">1</span><span class="dcat">numerics</span><span class="dtitle">Hand-rolled cross-entropy NaNs — but only for the EASY examples</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Custom CE with one-hot targets: <code>-(onehot * log(probs)).sum()</code>. Training is fine for an hour, then NaN — and the batches that trigger it are the ones the model gets RIGHT. v1 #7 was log(0) on the correct class; this is its mirror image."</p>
+        <pre class="code">def ce(probs, onehot):                  # probs from softmax: rows sum to 1
+<mark class="bad">    return -(onehot * np.log(probs)).sum(1).mean()   # log of EVERY prob, incl. ~0 ones</mark>
+# when the model is confident, wrong-class probs underflow to exactly 0.0
+# onehot is 0 there, but 0 * log(0) = 0 * (-inf) = NaN — IEEE, not algebra</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>NaN on confident/easy examples ⇒ a log or division touching probabilities the math says are 'multiplied by zero'.</b> IEEE evaluates <code>0 · (−∞)</code> to NaN — the mask does not save you if the −∞ is computed first.</li><li>The v1 #7 pattern (log of the correct class hitting 0) and this one bracket the same rule: <b>never take a bare log of a softmax output</b> — the failure just picks a different class to blow up on.</li><li>Grep-level tell: <code>log(probs)</code> anywhere. The fixed form indexes first, or better, never materializes probs at all.</li></ul></div>
+          <pre class="code">def ce(logits, y):                      # y: integer labels
+<mark class="fix">    logp = logits - logsumexp(logits, axis=1, keepdims=True)   # log-softmax, fused &amp; stable</mark>
+<mark class="fix">    return -logp[np.arange(len(y)), y].mean()                  # index FIRST, log never sees 0</mark></pre>
+          <div class="theory"><b>Background.</b> Two distinct log(0) routes hide in naive CE: v1 #7's <code>log(p_correct)</code> underflows when the model is <em>wrong</em> and confident; this one, $0\cdot\log(0)$ on off-classes, fires when it is <em>right</em> and confident — later in training, which is why it feels like the model "broke by getting good." The fused log-softmax ($z - \mathrm{logsumexp}(z)$) removes both: no probability is ever exponentiated and re-logged. Frameworks' <code>cross_entropy</code> takes logits for exactly this reason (#31's double-softmax is the same lesson from the other side).</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d2">
+      <div class="dtop"><span class="dnum">2</span><span class="dcat">numerics</span><span class="dtitle">bf16 training: loss becomes -inf on hard tokens only</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Same model, same data: fp32 run is clean; bf16 run occasionally logs loss = inf, traced to a few rare tokens. The loss code takes softmax, then log, in half precision. Explain why only HARD tokens die, and fix it without leaving bf16."</p>
+        <pre class="code">with autocast(dtype=torch.bfloat16):
+    logits = model(x)                    # bf16: ~8 bits of mantissa
+<mark class="bad">    p = logits.softmax(-1)               # a hard token&#x27;s true prob ~1e-6 …</mark>
+<mark class="bad">    loss = -p.gather(-1, y[:,None]).log().mean()   # …rounds to 0 in bf16 → log(0) = -inf</mark></pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Half-precision underflow is a THRESHOLD effect:</b> easy tokens (p ≈ 0.9) survive the round-trip; rare/hard tokens (p ≈ 1e−6) round to 0 in low precision, and only they produce −inf. 'Only some examples NaN' + mixed precision ⇒ check the dynamic range of the intermediate.</li><li>softmax-then-log does exp → normalize → log: the exp/normalize round-trip is where the precision dies. <code>log_softmax</code> computes $z-\mathrm{logsumexp}(z)$ — subtraction in logit space, no tiny numbers ever stored.</li><li>Rule for mixed precision: <b>losses and normalizations in fp32</b> — autocast frameworks do this for you until someone hand-rolls the loss.</li></ul></div>
+          <pre class="code">with autocast(dtype=torch.bfloat16):
+    logits = model(x)
+<mark class="fix">loss = F.cross_entropy(logits.float(), y)   # log_softmax fused, computed in fp32</mark>
+# (F.cross_entropy under autocast upcasts internally; the .float() makes it explicit)</pre>
+          <div class="theory"><b>Background.</b> bf16 keeps fp32's exponent range but only ~3 decimal digits of mantissa; probabilities below ~1e-38 don't underflow, but the softmax NORMALIZATION quantizes small ratios to 0 long before that. The general statement of #7/v2-1/v2-2: the log of a computed probability is only as safe as the smallest probability you'll ever index — which for language models (rare tokens, 50k+ vocab) is guaranteed tiny. Keep everything in logit space; convert to probabilities only at the API boundary, in fp32.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d3">
+      <div class="dtop"><span class="dnum">3</span><span class="dcat">numerics</span><span class="dtitle">KL distillation loss comes back NEGATIVE</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Distilling teacher→student with <code>F.kl_div(student_probs, teacher_probs)</code>. The KL prints negative — which is mathematically impossible — and the student barely learns. Two API misuses, one line."</p>
+        <pre class="code">t_p = teacher_logits.softmax(-1)
+s_p = student_logits.softmax(-1)
+<mark class="bad">loss = F.kl_div(s_p, t_p)        # kl_div expects LOG-probs as input #1 — these are probs</mark>
+# and default reduction=&#x27;mean&#x27; averages over B*V elements, not over the batch</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>A provably-nonnegative quantity printing negative ⇒ the API contract is violated, not the math.</b> <code>F.kl_div(input, target)</code> wants <code>input</code> = log-probabilities; feed probs and you compute <code>Σ t·(log t − p)</code> — garbage that can be any sign.</li><li>Second trap: <code>reduction='mean'</code> divides by every ELEMENT (B·V), silently scaling the loss down by vocab size — gradients ~50k× too small, 'barely learns.' Use <code>'batchmean'</code> (the docs themselves say so).</li><li>Sanity probe: KL(p‖p) must be exactly 0 — one line, catches both bugs.</li></ul></div>
+          <pre class="code">t_p   = teacher_logits.softmax(-1)
+s_logp = student_logits.log_softmax(-1)          # log-probs, stable
+<mark class="fix">loss = F.kl_div(s_logp, t_p, reduction=&#x27;batchmean&#x27;)   # Σ t·(log t − log s) / B ≥ 0</mark></pre>
+          <div class="theory"><b>Background.</b> $\mathrm{KL}(t\|s)=\sum t(\log t-\log s)\ge 0$ with equality iff the distributions match — so a negative reading is a free, unambiguous bug alarm (use it: assert loss ≥ 0). The kl_div signature (input=log-probs, target=probs, batchmean) is the most-misused API in distillation code; the same contract confusion is #31's probs-into-CE wearing a different loss. Modern wrinkle: soft-target distillation at temperature τ needs the loss scaled by τ² to keep gradient magnitude comparable — forgetting it is the follow-up bug.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d4">
+      <div class="dtop"><span class="dnum">4</span><span class="dcat">gradients</span><span class="dtitle">Gradient check fails everywhere — but the backprop is correct</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "You finite-difference-check a hand-written MLP: every layer reports relative error ~1e-2, way over threshold. You've triple-checked the chain rule; it's right. The CHECKER is the bug. Two numerical sins in three lines."</p>
+        <pre class="code">def gradcheck(f, w, g_analytic, eps=1e-12):      # fp32 weights
+    num = np.zeros_like(w)
+    for i in range(w.size):
+<mark class="bad">        w.flat[i] += eps                          # 1e-12 vanishes: w + eps == w in fp32</mark>
+        num.flat[i] = (f(w) - f_base) / eps       # forward difference: O(eps) truncation
+<mark class="bad">        w.flat[i] -= eps</mark>
+    return abs(num - g_analytic).max()            # absolute error: wrong scale for big grads</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>eps has a sweet spot, not a 'smaller is better' dial.</b> Too small (1e−12 in fp32): <code>w+eps==w</code>, difference is pure rounding noise. Too big: truncation error. fp32 sweet spot ≈ 1e−3; fp64 ≈ 1e−6. If a gradcheck fails uniformly across all layers, suspect eps/dtype before the chain rule.</li><li>Forward difference $(f(w+\epsilon)-f(w))/\epsilon$ has $O(\epsilon)$ error; centered $(f(w+\epsilon)-f(w-\epsilon))/2\epsilon$ has $O(\epsilon^2)$ — always centered.</li><li>Compare with RELATIVE error $|a-n|/(|a|+|n|+\text{tiny})$ — an absolute threshold flags every large gradient and passes every dead one.</li></ul></div>
+          <pre class="code">def gradcheck(f, w, g_analytic, eps=1e-6):       # and cast w to float64 first
+    num = np.zeros_like(w)
+    for i in range(w.size):
+        old = w.flat[i]
+<mark class="fix">        w.flat[i] = old + eps; fp = f(w)</mark>
+<mark class="fix">        w.flat[i] = old - eps; fm = f(w)</mark>
+        w.flat[i] = old
+<mark class="fix">        num.flat[i] = (fp - fm) / (2 * eps)       # centered: O(eps^2)</mark>
+<mark class="fix">    rel = abs(num - g_analytic) / (abs(num) + abs(g_analytic) + 1e-12)</mark>
+    return rel.max()                               # pass: &lt; 1e-5 in fp64</pre>
+          <div class="theory"><b>Background.</b> Finite differences fight two error sources: truncation (Taylor remainder, shrinks with eps) and rounding (cancellation in $f(w+\epsilon)-f(w-\epsilon)$, GROWS as eps shrinks) — the optimum is $\epsilon\approx\sqrt[3]{\text{machine eps}}$ for centered differences, which is why fp64 + 1e-6 is the standard recipe. v1 #9 used the checker to convict the gradient; this session is the converse skill — knowing when the checker itself lies. Complete the pair and you can always answer 'how do you KNOW your backward is right?'</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d5">
+      <div class="dtop"><span class="dnum">5</span><span class="dcat">gradients</span><span class="dtitle">Gradient check passes per-layer, training still diverges — the check missed a tensor</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Hand-written 2-layer net: gradcheck (done right, fp64, centered) passes for W1, W2, b2… and training still explodes. Turns out one parameter was never checked, and its gradient has a bug that also explains the divergence. Read the code with checklist discipline."</p>
+        <pre class="code">def backward(x, y, cache):
+    dz2 = cache.p - y                      # (B, C)  softmax-CE gradient: correct
+    dW2 = cache.h.T @ dz2 / len(y)         # checked ✓
+    db2 = dz2.mean(0)                      # checked ✓
+    dh  = dz2 @ W2.T
+    dz1 = dh * (cache.z1 &gt; 0)              # ReLU mask: correct
+    dW1 = x.T @ dz1 / len(y)               # checked ✓
+<mark class="bad">    db1 = dz1.sum(0)                       # SUM, not mean — b1&#x27;s gradient is B× too big</mark>
+<mark class="bad">    return dW1, dW2, db2                   # …and b1 never returned: optimizer never sees it</mark>
+# the gradcheck loop iterated over the RETURNED dict — b1 was invisible to it</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>A gradient check only covers what it iterates over.</b> Check completeness first: <code>set(params) == set(grads)</code>. The most dangerous parameter is the one missing from the dict — it fails silently (v2's cousin of #40's unregistered modules).</li><li>Mixed sum/mean reductions across parameters = per-parameter learning-rate anarchy: b1 effectively trains at lr·B while everything else trains at lr. Divergence that 'gets worse with batch size' is this bug's signature.</li><li>Convention check is one glance: every gradient line should end with the SAME <code>/ len(y)</code> or none — uniformity is the invariant, whichever convention you pick.</li></ul></div>
+          <pre class="code">    dW1 = x.T @ dz1 / len(y)
+<mark class="fix">    db1 = dz1.mean(0)                      # same reduction convention as every other grad</mark>
+<mark class="fix">    return dW1, db1, dW2, db2              # every parameter accounted for</mark>
+# and in the checker:
+<mark class="fix">    assert set(grads) == set(params), &#x27;unchecked parameter!&#x27;</mark></pre>
+          <div class="theory"><b>Background.</b> Loss-reduction convention (sum vs mean over the batch) must be applied uniformly: with mean-loss, every parameter's gradient carries 1/B; mixing conventions rescales one parameter's effective LR by B, which both diverges and — nastily — changes behavior when you retune batch size. The deeper habit this session drills: gradcheck is a COVERAGE tool, so its first assertion is completeness, then correctness. Frameworks make this failure shape reappear as: params filtered out of optimizer groups, <code>requires_grad=False</code> leftovers, and EMA shadows never updated.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v2">§2 · Init &amp; signal propagation (6–8)</h2>
+    <div class="drill" id="d6">
+      <div class="dtop"><span class="dnum">6</span><span class="dcat">init</span><span class="dtitle">30-layer ReLU MLP: activation norms halve every layer</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "No normalization layers (it's a from-scratch exercise). Per-layer activation-norm printout: 12.1, 8.4, 5.9, 4.1 … ~0 by layer 20. Loss never moves. The init line is the whole bug — and the printout tells you the exact factor."</p>
+        <pre class="code">for l in range(L):
+<mark class="bad">    W[l] = np.random.randn(d, d) * np.sqrt(1.0 / d)    # Xavier — designed for tanh</mark>
+    # forward: h = relu(h @ W[l])
+# ReLU zeroes half the variance: Var(out) = 0.5 * Var(in)  →  norms shrink ~1/√2 per layer</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Norms changing by a CONSTANT FACTOR per layer ⇒ init/gain mismatch</b> — read the factor: ×0.7 ≈ 1/√2 is the ReLU half-variance signature; Xavier under ReLU exactly produces it.</li><li>He init (<code>√(2/d)</code>) exists to cancel ReLU's halving; Xavier (<code>√(1/d)</code>) balances tanh. Wrong pairing = geometric decay (or explosion) with no normalization to hide it.</li><li>This is v1 #10's disease measured with the same tool (norms-vs-layer plot); the variant to recognize instantly: gain mismatch vs #10's deeper-family causes. LayerNorm nets hide this at forward time — it resurfaces in the GRADIENTS.</li></ul></div>
+          <pre class="code"><mark class="fix">    W[l] = np.random.randn(d, d) * np.sqrt(2.0 / d)    # He: the 2 cancels ReLU&#x27;s 1/2</mark>
+# check: per-layer activation norms now roughly constant</pre>
+          <div class="theory"><b>Background.</b> For $h_{out} = \mathrm{relu}(W h_{in})$ with $W_{ij}\sim\mathcal N(0,\sigma^2)$: $\mathrm{Var}(Wh) = d\sigma^2\mathrm{Var}(h)$ and ReLU keeps half → $\mathrm{Var}(h_{out}) = \tfrac{d\sigma^2}{2}\mathrm{Var}(h)$. Criticality demands $d\sigma^2/2 = 1 \Rightarrow \sigma = \sqrt{2/d}$ (He). Depth turns any per-layer factor $c$ into $c^L$ — the same multiplicativity as #39's missing residual, expressed through init instead of wiring. The three defenses stack: correct gain (this), normalization (LN/BN), and residuals; modern transformers use all three, which is why this bug now mostly appears in from-scratch interview code.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d7">
+      <div class="dtop"><span class="dnum">7</span><span class="dcat">init</span><span class="dtitle">First loss is 14.2, not ln(V) — and the model takes 5k steps to recover</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Tiny GPT, vocab 50k: expected first loss ln(50000) ≈ 10.8, observed 14.2. It does eventually train, but a reference run is miles ahead at equal steps. The init of ONE tensor explains both the 14.2 and the slow start. (Weight-tied head.)"</p>
+        <pre class="code"><mark class="bad">self.tok_emb = nn.Embedding(V, d)          # default init: N(0, 1) — std 1.0</mark>
+self.head = nn.Linear(d, V, bias=False)
+self.head.weight = self.tok_emb.weight     # tied: bad emb init hits TWICE
+# logits = h @ emb.T: with std-1 embeddings and d=1024, logits ~ N(0, ~32²)</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>First-loss arithmetic is a free diagnostic:</b> uniform-random predictions give exactly ln V; a HIGHER first loss means the model starts confidently WRONG — logits already have large magnitude at init. Work backwards: big logits ← big embedding·hidden dot products ← std-1 init at d=1024 (√1024 ≈ 32).</li><li>Weight tying doubles the damage: oversized embeddings inflate the input activations AND the output logits. Softmax at logit-std ~30 is near one-hot → tiny gradients to everything but one class → the 5k-step 'recovery' is the model shrinking its own embeddings first.</li><li>GPT-2's magic 0.02: std chosen so logits start small (≈ flat softmax) — the model begins maximally uncertain, which is exactly where CE learns fastest.</li></ul></div>
+          <pre class="code"><mark class="fix">nn.init.normal_(self.tok_emb.weight, std=0.02)   # logits start ~N(0, 0.02²·d) — near-flat softmax</mark>
+self.head.weight = self.tok_emb.weight
+# check: first loss ≈ ln V (10.82), first softmax ≈ uniform</pre>
+          <div class="theory"><b>Background.</b> CE's gradient is $p - y$: when the softmax is saturated at the wrong class, $p-y$ is large but the SOFTMAX JACOBIAN is near-zero everywhere else, so learning stalls until logit scale shrinks — 'confidently wrong at init' is a tax paid in thousands of steps. First-loss ≈ ln V is therefore a cheap release gate for any classifier (v1 #6's flat-at-ln-C is the same number read the opposite way: there loss STAYS at ln V, here it STARTS above it). Interview extension: this is also why μP parameterization scales init with width — logit variance at init should be width-invariant.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d8">
+      <div class="dtop"><span class="dnum">8</span><span class="dcat">init</span><span class="dtitle">Pre-norm 48L: activations at layer 48 are 40× layer 1 — grad spikes at step 30k</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Pre-norm transformer, all residuals correct, LN everywhere — yet the residual-stream norm grows roughly linearly with depth, and late in training you get gradient spikes from the top layers. Nothing is 'wrong' line-by-line; something is missing that GPT-2 style inits have."</p>
+        <pre class="code">for block in blocks:                       # 48 of them
+    x = x + block.attn(ln(x))              # each block ADDS a same-scale contribution
+    x = x + block.mlp(ln(x))               # stream variance grows ~linearly with depth
+<mark class="bad"># all Linear layers share one global init std — output projections included</mark></pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Pre-norm's cost:</b> LN protects each block's INPUT, but the residual stream itself is never normalized — 2L same-scale additions grow its variance ~linearly (norm ~√(2L)). Late layers then operate at 40× scale: their gradients dominate, and spikes start there.</li><li>The standard fix is init-time, one line: scale each block's OUTPUT projection (attn out-proj, mlp down-proj) by 1/√(2L) — contributions shrink with depth, stream variance stays O(1). (GPT-2's 'scaled init'; μP and DeepNet are principled versions.)</li><li>Diagnostic that separates this from #39: here gradient norms are healthy-to-large toward the TOP and the model trains — the pathology is stability, not vanishing. Norm-vs-layer plots (v1 #10's tool) read the direction of trouble.</li></ul></div>
+          <pre class="code">for name, p in model.named_parameters():
+<mark class="fix">    if name.endswith((&#x27;attn.out_proj.weight&#x27;, &#x27;mlp.down_proj.weight&#x27;)):</mark>
+<mark class="fix">        nn.init.normal_(p, std=0.02 / math.sqrt(2 * L))   # residual-branch outputs: shrink by depth</mark>
+# check: residual-stream RMS roughly flat across layers at init</pre>
+          <div class="theory"><b>Background.</b> With $x_{l+1} = x_l + f_l(\mathrm{LN}(x_l))$ and independent same-variance branches, $\mathrm{Var}(x_L) \approx \mathrm{Var}(x_0) + \sum_l \mathrm{Var}(f_l) \propto L$: pre-norm buys trainability (identity path, near-identity init) at the price of an unnormalized, growing backbone. Scaling branch outputs by $1/\sqrt{2L}$ makes total added variance O(1) regardless of depth. This completes the depth triptych with #39 (no identity path → vanishing) and v2-6 (wrong gain → geometric decay): wiring, gain, and ACCUMULATION are three separate depth pathologies with three separate one-line fixes — name which one the symptom points to.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v3">§3 · Train/eval &amp; regularization (9–10)</h2>
+    <div class="drill" id="d9">
+      <div class="dtop"><span class="dnum">9</span><span class="dcat">regularization</span><span class="dtitle">Custom dropout: accuracy drops when you turn it OFF</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "From-scratch net with hand-rolled dropout. Counter-intuitive report: evaluating WITH dropout active scores better than the 'proper' eval with dropout disabled. That inversion is the fingerprint of one missing division. (v1 #12 was framework-mode misuse; this is the raw mechanism.)"</p>
+        <pre class="code">def dropout(x, p=0.5, training=True):
+    if not training: return x               # eval: pass through — sounds right…
+<mark class="bad">    return x * (np.random.rand(*x.shape) &gt; p)    # train: mask only, NO 1/(1-p) rescale</mark>
+# train-time E[output] = (1-p)·x  ;  eval-time output = x  →  eval activations 2× larger</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>'Better WITH dropout at eval' inverts the usual #12 symptom and pins the bug precisely:</b> the network calibrated itself to train-time magnitudes ((1−p)·x); proper eval feeds it 2× that — every downstream layer sees out-of-distribution scale. Keeping dropout on 'fixes' eval by keeping the broken scale.</li><li>Inverted dropout divides by (1−p) AT TRAIN TIME so eval is a clean identity — that's why frameworks implement it this way (and why <code>model.eval()</code> alone is enough for them).</li><li>Cheap probe: print mean activation norm train-mode vs eval-mode on the SAME batch — they must match. Any train/eval scale gap = un-inverted dropout somewhere.</li></ul></div>
+          <pre class="code">def dropout(x, p=0.5, training=True):
+    if not training: return x
+<mark class="fix">    mask = np.random.rand(*x.shape) &gt; p</mark>
+<mark class="fix">    return x * mask / (1 - p)               # inverted dropout: E[output] = x in BOTH modes</mark></pre>
+          <div class="theory"><b>Background.</b> Dropout's contract is $\mathbb E[\text{out}] = x$ so the surrounding network is scale-stationary across modes; the original 2012 formulation rescaled by (1−p) at TEST time instead, and 'inverted' dropout moved the correction to training so inference is untouched — mixing the two conventions (rescaling in neither place, or both) is the classic from-scratch bug. General principle worth saying: any stochastic train-time regularizer must preserve some moment the network depends on (dropout: mean; BatchNorm: running stats standing in for batch stats) — v1 #12/#13 and this session are one family: <em>train/eval asymmetry with a broken invariant</em>.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d10">
+      <div class="dtop"><span class="dnum">10</span><span class="dcat">regularization</span><span class="dtitle">Val loss beats train loss all run — and everyone celebrates the regularization</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Team ships a report where validation loss is consistently BELOW training loss, credited to 'strong dropout.' Real cause is a compound artifact — two mechanisms, both visible in this snippet. When is val < train legitimate, and when is it this?"</p>
+        <pre class="code">for x, y in train_loader:
+    model.train()                            # dropout ON
+    loss = F.cross_entropy(model(x), y)      # train loss LOGGED WITH dropout active
+    ...
+train_curve.append(epoch_avg)                # averaged over the epoch (model improved meanwhile)
+model.eval()
+<mark class="bad">val = evaluate(model, val_loader)            # eval: no dropout + measured AFTER the epoch</mark>
+<mark class="bad"># …and val_loader was built from the same corpus without dedup — 8% of val is IN train</mark></pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Val < train has two benign explanations you must name BEFORE claiming leakage:</b> (1) train loss is measured WITH dropout noise, val without; (2) train is an epoch-average of a moving model, val a snapshot of the final (better) one. Quantify both by re-scoring TRAIN data in eval mode after the epoch.</li><li>If val is still lower after that control → suspect overlap: dedup val against train (exact + near-dup). Here 8% duplicate rows accounted for the rest.</li><li>Habit: never compare losses measured under different modes/times. One eval-mode pass over both sets, same checkpoint, is the only fair comparison.</li></ul></div>
+          <pre class="code"># fair comparison, same checkpoint, same mode:
+<mark class="fix">model.eval()</mark>
+<mark class="fix">train_clean = evaluate(model, train_eval_loader)   # eval-mode, post-epoch, no dropout</mark>
+val         = evaluate(model, val_loader)           # now comparable
+<mark class="fix"># and: dedup val against train (minhash / embedding-NN), report overlap %</mark></pre>
+          <div class="theory"><b>Background.</b> Dropout inflates measured train loss (the network is literally noisier when scored), and epoch-averaging mixes early-bad with late-good — together they routinely produce val 5-15% below train with zero leakage, which is why 'val < train' alone proves nothing in either direction. The discipline is a controlled comparison (same weights, same mode, same time), after which any remaining gap IS evidence — usually of overlap, the #35-family disease. Interviewers use this to test whether you reach for 'leakage!' before eliminating measurement artifacts: kill the boring hypotheses first.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v4">§4 · Data &amp; labels (11–13)</h2>
+    <div class="drill" id="d11">
+      <div class="dtop"><span class="dnum">11</span><span class="dcat">data / labels</span><span class="dtitle">Seq2seq translation: val loss world-class, BLEU catastrophic</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Encoder-decoder translation model. Teacher-forced val loss is stunning; actual decoded translations are word salad. You've seen this movie in decoder-only form (#33's missing shift). Find the seq2seq version in the collator."</p>
+        <pre class="code">def collate(src_ids, tgt_ids):
+    enc_in  = src_ids
+<mark class="bad">    dec_in  = tgt_ids                      # decoder INPUT = full target …</mark>
+<mark class="bad">    labels  = tgt_ids                      # … and LABELS = the same tensor</mark>
+    return enc_in, dec_in, labels
+# position t of the decoder receives tgt[t] as input and is asked to predict tgt[t] — copy</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Great teacher-forced loss + garbage generation = the answer is visible in training but absent at decode-time.</b> In seq2seq the shift lives in the COLLATOR as a BOS-prepend: <code>dec_in = [BOS] + tgt[:-1]</code>, <code>labels = tgt</code>. Identical tensors for dec_in and labels = #33's copy task in a trench coat.</li><li>Eyeball probe (same as #33): print <code>dec_in[0,:8]</code> and <code>labels[0,:8]</code> — they must be offset by exactly one, with BOS leading the input.</li><li>Free-running decode is the discriminating test — at generation the model must produce tgt[t] from tgt[<t], the one thing it never learned.</li></ul></div>
+          <pre class="code">def collate(src_ids, tgt_ids):
+    enc_in = src_ids
+<mark class="fix">    dec_in = np.concatenate([[BOS], tgt_ids[:-1]])   # shift right, BOS enters</mark>
+<mark class="fix">    labels = tgt_ids                                  # predict t from BOS..t-1</mark>
+    return enc_in, dec_in, labels</pre>
+          <div class="theory"><b>Background.</b> Autoregressive factorization needs input position t to carry ONLY $y_{<t}$; decoder-only models implement the shift by slicing one stream (x=ids[:-1], y=ids[1:]), encoder-decoder models by prepending BOS to a separate decoder stream — same invariant, different plumbing, and HuggingFace hides it as <code>shift_tokens_right</code> (models with <code>decoder_start_token_id</code>). The triage from #33 transfers verbatim: suspicious loss → check shift, check mask, check contamination, in that order. Bonus depth: label smoothing and loss-masking of pad in the labels tensor are the two collator details that usually accompany this fix.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d12">
+      <div class="dtop"><span class="dnum">12</span><span class="dcat">data / labels</span><span class="dtitle">Packed pretraining: loss great, generations wander topics mid-sentence</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "To use every token, documents are concatenated into 4k blocks (standard packing). Loss looks textbook. But sampled generations drift across unrelated topics and the model can't stop — EOS is nearly never emitted. Two omissions in the packing code."</p>
+        <pre class="code">def pack(docs, T=4096):
+    stream = []
+    for d in docs:
+<mark class="bad">        stream.extend(tokenize(d))          # no EOS/separator between documents</mark>
+    blocks = chunk(stream, T)
+<mark class="bad">    return blocks                           # attention: full causal within block —</mark>
+                                            # every doc attends across into its neighbors</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Generations that never end ⇒ the model never saw 'ending' as a supervised event.</b> No EOS between packed docs = P(EOS) is trained toward zero. The separator token is not cosmetic; it's the label for 'stop.'</li><li>Cross-document attention makes the model condition on unrelated leftovers — mid-block topic drift at generation time is the trained-in behavior. Fixes: block-diagonal attention mask per document (or reset positions per doc), standard in Llama-class pretraining stacks.</li><li>Cheap audit: decode one packed block and look at the seams; then check P(EOS) under the trained model on a document that clearly ends — near-zero = this bug.</li></ul></div>
+          <pre class="code">def pack(docs, T=4096):
+    stream = []
+    for d in docs:
+<mark class="fix">        stream.extend(tokenize(d) + [EOS])         # document boundary is a supervised token</mark>
+    blocks = chunk(stream, T)
+<mark class="fix">    doc_mask = block_diagonal_from_eos(blocks)     # no attention across documents</mark>
+    return blocks, doc_mask</pre>
+          <div class="theory"><b>Background.</b> Packing trades data hygiene for throughput; the two invariants to preserve are (1) the boundary is VISIBLE (EOS) so termination has training signal, and (2) attention/positions respect it so no document conditions on another. Skipping (2) is survivable at scale (many labs did, curves barely move) but shows up exactly where this symptom says — long-generation coherence; skipping (1) is not survivable for anything that must stop. This is #33's family at the corpus level: the target structure the sampler needs at inference was never present in training. Ask-back that impresses: 'attention across documents also lets EVAL doc content leak into loss on neighbors — packed val sets need the same mask.'</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d13">
+      <div class="dtop"><span class="dnum">13</span><span class="dcat">data / labels</span><span class="dtitle">SFT: benchmark scores drop after fine-tuning — loss masked pads but not the prompt</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Instruction-tuning run: loss healthy, but the tuned model does worse on held-out tasks than the base model, and its answers weirdly echo the instruction's phrasing. The loss mask handles padding correctly. What else needed masking?"</p>
+        <pre class="code">ids    = [prompt_ids + response_ids + pad]        # standard SFT concat
+labels = ids.clone()
+labels[ids == pad_id] = -100                       # pads masked ✓
+<mark class="bad">loss = F.cross_entropy(logits.view(-1,V), labels.view(-1), ignore_index=-100)</mark>
+# prompt tokens are still LABELS: the model is trained to PREDICT the instruction text</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>~60-80% of SFT tokens are prompt; leave them in the loss and most of the gradient teaches instruction-modeling, not answering.</b> Symptom set: answers echoing prompt style, capability regression (capacity spent on the wrong distribution), and loss dominated by prompt perplexity so it looks 'healthy.'</li><li>Fix is one more masking rule: <code>labels[:prompt_len] = -100</code> — supervise only the response span (plus EOS). Same mechanism as pad masking (#34); different span.</li><li>Debug probe: compute loss separately on prompt-span vs response-span. If prompt-span loss is falling fast, you're training the wrong thing.</li></ul></div>
+          <pre class="code">labels = ids.clone()
+labels[ids == pad_id] = -100
+<mark class="fix">labels[:, :prompt_len] = -100                     # prompt is CONTEXT, not target</mark>
+loss = F.cross_entropy(logits.view(-1,V), labels.view(-1), ignore_index=-100)</pre>
+          <div class="theory"><b>Background.</b> The loss mask is the declaration of WHAT the model is trained to produce: pads (never), prompt (context only — usually), response (always). Prompt-loss-weighting is a genuine hyperparameter (small nonzero weight sometimes helps small models), but the failure mode of weight-1 is well documented: style echo + benchmark regression, and it interacts with #34 (pad flood) since both are 'the loss counted tokens it shouldn't.' This trio — #34 pads, v2-13 prompt spans, #33 shift — are the three things to CHECK in any LM collator, in one breath: <em>shifted? pads out? prompt out?</em></div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v5">§5 · Masks &amp; attention (14–16)</h2>
+    <div class="drill" id="d14">
+      <div class="dtop"><span class="dnum">14</span><span class="dcat">masks</span><span class="dtitle">VLM cross-attention NaNs — only when the image gets filtered out</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Vision-language model: text decoder cross-attends to image tokens. Rarely, a whole batch NaNs. Logs show it happens exactly when the image-quality filter drops ALL patches for one sample (blank images). You fixed #22's causal version; this is the cross-attention edition."</p>
+        <pre class="code">def cross_attn(txt_q, img_kv, img_valid):        # img_valid: (B, N_img) True = kept patch
+    S = txt_q @ img_kv.K.T / np.sqrt(dk)         # (B, T_txt, N_img)
+<mark class="bad">    S = np.where(img_valid[:, None, :], S, -np.inf)</mark>
+<mark class="bad">    A = softmax(S, -1)                            # sample with 0 kept patches:</mark>
+    return A @ img_kv.V                           # every row all--inf → NaN, poisons batch</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Same theorem as #22, new geometry:</b> cross-attention rows go all-−∞ when the KEY SET is empty — here 'no valid image tokens,' the analogue of 'no unpadded prefix.' Intermittency tracks DATA composition (blank images in batch), not sequence length.</li><li>Empty-context is a legitimate state for multimodal models (text-only samples!) — the architecture needs a policy for it, not just a NaN guard: skip cross-attn for those rows (gate to 0) or attend to a learned null token.</li><li>The audit generalizes: for EVERY attention site in the model, ask 'what guarantees this key set is non-empty?' Causal self-attn: the diagonal. Cross-attn: nothing — you must supply it.</li></ul></div>
+          <pre class="code">def cross_attn(txt_q, img_kv, img_valid):
+<mark class="fix">    has_ctx = img_valid.any(-1)                   # (B,) rows with a non-empty key set</mark>
+    S = txt_q @ img_kv.K.T / np.sqrt(dk)
+    S = np.where(img_valid[:, None, :], S, -np.inf)
+    A = softmax(S, -1)
+    out = A @ img_kv.V
+<mark class="fix">    return np.where(has_ctx[:, None, None], out, 0.0)   # empty context → contribute nothing</mark>
+# (production alternative: always prepend one learned NULL image token — key set never empty)</pre>
+          <div class="theory"><b>Background.</b> Fully-masked softmax rows are a THEOREM about mask intersections, not a causal-mask quirk: any attention with a data-dependent key mask (cross-attn over filtered patches, retrieved documents, MoE routing, memory slots) has an empty-set corner case, and the frequency is set by the data pipeline, not the model. The two production idioms are gating (zero contribution, residual carries the row) and the null/sink token (BERT's [CLS]-as-sink, StreamingLLM's attention sinks are relatives). v1 #22 + this session = the complete answer to 'how do masks NaN': self-attn empties via padding×causal, cross-attn empties via filtering — one guard covers both: assert every row keeps ≥1 key.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d15">
+      <div class="dtop"><span class="dnum">15</span><span class="dcat">masks</span><span class="dtitle">Sliding-window attention: fine for 8k steps, NaN the first time a doc is short</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Mistral-style sliding-window (w=4096) decoder, LEFT-padded batches for generation. Training on long docs is fine for hours; the first batch containing a short doc NaNs. Two masks intersect; you know the theorem. Point to the exact emptiness condition."</p>
+        <pre class="code">allowed = causal &amp; window &amp; pad_keys
+# causal[t,j]: j ≤ t
+# window[t,j]: t - w &lt; j          (only the last w positions)
+<mark class="bad"># pad_keys[·,j]: j is a real token       — LEFT padding: reals start at position p</mark>
+<mark class="bad"># short doc: p &gt; t - w + something…  → for pad-region rows t &lt; p the window</mark>
+#   covers ONLY pads → zero allowed keys → all--inf row → NaN (as in #22)</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Adding a third mask multiplies the emptiness cases:</b> causal∧pad empties only at t<p (v1 #22); causal∧window∧pad ALSO empties whenever the w-token window lands entirely in padding — which happens for pad rows and, with p > w, even for early REAL rows. Short docs make p large: 'NaN on the first short doc' is the window sliding off the real prefix.</li><li>Enumerate emptiness per mask-pair, don't intuit: for each row, |{j: all masks true}| ≥ 1 must hold. One assert in the mask builder converts a 2 a.m. NaN into a unit-test failure.</li><li>Fix hierarchy (same as #22/v2-14): diagonal always allowed → row can't empty; plus zero out pad-row outputs before they propagate.</li></ul></div>
+          <pre class="code">allowed = causal &amp; window &amp; pad_keys
+<mark class="fix">allowed |= np.eye(T, dtype=bool)                 # self is always a legal key: no empty rows</mark>
+S = np.where(allowed, S, -np.inf)
+A = softmax(S, -1)
+<mark class="fix">A = np.where(pad_mask[:, None], A, 0.0)          # pad queries emit zeros (belt &amp; braces)</mark>
+<mark class="fix"># builder-time guard: assert allowed.any(-1).all(), &#x27;empty attention row&#x27;</mark></pre>
+          <div class="theory"><b>Background.</b> Each mask removes keys; intersection removes their union, and the emptiness frontier moves every time you add a feature (windowing, padding, causality, doc-boundary masks from packed pretraining — v2-12's block-diagonal mask is a fourth player with its own corner). This is why FlashAttention kernels special-case fully-masked rows internally and why the diagonal-allowed idiom is standard: it converts 'prove all intersections non-empty' into 'trivially non-empty by construction.' The interview-grade summary: <em>masks compose by AND, failures compose by OR</em> — every new mask inherits every old mask's edge cases and adds its own.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d16">
+      <div class="dtop"><span class="dnum">16</span><span class="dcat">masks</span><span class="dtitle">The mask that multiplies: model trains, val loss slightly TOO good</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Refactor swapped mask application from additive to multiplicative: <code>S * mask</code> with a 0/1 mask. Nothing crashes, generations look okay, but teacher-forced val loss is a bit better than the pre-refactor run — which should worry you more than a crash. Why does ×0 leak?"</p>
+        <pre class="code">mask = np.tril(np.ones((T, T)))               # 1 = allowed, 0 = future
+<mark class="bad">S = (Q @ K.T / np.sqrt(dk)) * mask            # future scores become 0 — NOT -inf</mark>
+A = softmax(S, -1)                            # e^0 = 1: every masked position gets
+                                              # weight comparable to a MID-SIZED score</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Multiplying scores by 0 sets them to the softmax MIDDLE, not the bottom:</b> $e^0=1$, while real scores range ±several — masked (future!) positions receive small-but-nonzero attention weight. That's a partial causal LEAK: val loss improves a touch (the tell from #20, in miniature), generation quality quietly degrades relative to loss.</li><li>'Loss slightly too good after a refactor' deserves the same triage as 'impossibly good' (#20/#33) — leaks come in sizes. Diff attention maps pre/post refactor on one batch: any nonzero weight above the diagonal convicts.</li><li>Correct forms: additive <code>S + (mask-1)·1e9</code>-style, or <code>where(mask, S, -inf)</code>; if fp16, use dtype-aware large-negative (<code>torch.finfo(dtype).min/2</code>) — -inf and overflow have their own traps (v2-39).</li></ul></div>
+          <pre class="code">mask = np.tril(np.ones((T, T), dtype=bool))
+<mark class="fix">S = np.where(mask, Q @ K.T / np.sqrt(dk), -np.inf)   # masked = -inf → weight EXACTLY 0</mark>
+A = softmax(S, -1)
+<mark class="fix"># probe: assert (np.triu(A, 1) == 0).all()            # nothing above the diagonal</mark></pre>
+          <div class="theory"><b>Background.</b> Softmax cares about RELATIVE score, so 'zero' is not 'nothing' — it beats every negative score and loses only to positives; the leaked weight per masked key is $1/(\sum e^{s_{allowed}} + n_{masked})$, small for peaked rows, large for flat ones (early training! — so this bug also destabilizes warmup). The mask contract is: masked ⇒ POST-softmax weight identically 0, and only −∞ pre-softmax (or where+neg-inf) delivers it. This completes the mask trilogy: #22/v2-14/15 = masks that remove too much (empty rows, NaN); this = a mask that removes too little (leak); #20 = no mask at all — symptoms NaN, subtle-degradation, and impossibly-good loss respectively.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v6">§6 · Optimization loop (17–20)</h2>
+    <div class="drill" id="d17">
+      <div class="dtop"><span class="dnum">17</span><span class="dcat">optimization</span><span class="dtitle">Switched grad accumulation from 4 to 16 — training diverges</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "To simulate a bigger batch on less memory, the loop accumulates gradients over k micro-batches. With k=4 it trained (slightly hot); at k=16 it diverges within hundreds of steps. The accumulation is missing one division — explain why k made it worse."</p>
+        <pre class="code">for step in range(STEPS):
+    for micro in range(k):
+        x, y = next(loader)
+<mark class="bad">        loss = F.cross_entropy(model(x), y)</mark>
+<mark class="bad">        loss.backward()                       # gradients SUM over micro-batches</mark>
+    clip_grad_norm_(model.parameters(), 1.0)  # (clip partially hid the k=4 case!)
+    opt.step(); opt.zero_grad()</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>backward() ADDS into .grad — accumulating k micro-batches without /k hands the optimizer k× the intended gradient,</b> i.e. an effective LR of k·lr. k=4 survived because clipping capped the blowup; k=16 blew past what clip could hide. 'Diverges when I change accumulation/batch settings' = look for a missing normalization first.</li><li>Clip-before-step also masks the diagnosis: grad-norm logs show constant 1.0. Log the PRE-clip norm — it's k× the k=1 run, the smoking gun.</li><li>One more accumulation trap worth naming: metrics — logging <code>loss.item()</code> of the last micro-batch, not the mean, makes curves noisy-but-plausible and hides the bug longer.</li></ul></div>
+          <pre class="code">    for micro in range(k):
+        x, y = next(loader)
+<mark class="fix">        loss = F.cross_entropy(model(x), y) / k   # mean over the EFFECTIVE batch</mark>
+        loss.backward()
+    clip_grad_norm_(model.parameters(), 1.0)
+    opt.step(); opt.zero_grad()</pre>
+          <div class="theory"><b>Background.</b> Gradient accumulation should be exactly equivalent to a k×-larger batch: mean-loss over the effective batch requires each micro-loss scaled by 1/k (mean-of-means with equal sizes). The /k omission is the top accumulation bug; its cousins: zero_grad placement (v2-18), BatchNorm stats still computed per-MICRO-batch (accumulation does NOT fix BN — one reason transformers/LN made accumulation safe), and DDP <code>no_sync()</code> for all but the last micro-step. Adam's per-parameter normalization partially forgives constant scale errors (it divides by gradient magnitude), which is why the bug presents as 'hotter,' surfacing fully only when k changes — scale bugs love adaptive optimizers as camouflage.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d18">
+      <div class="dtop"><span class="dnum">18</span><span class="dcat">optimization</span><span class="dtitle">Loss sawtooths and climbs; gradient norms grow every step within an epoch</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "New trainer refactor: loss falls for ~50 steps, then oscillates upward in a sawtooth that resets each epoch. Grad-norm log grows nearly monotonically between resets. One missing line — and the epoch-reset pattern is the clue that dates it."</p>
+        <pre class="code">for epoch in range(E):
+<mark class="bad">    opt.zero_grad()                     # moved OUTSIDE the step loop in the refactor</mark>
+    for x, y in loader:
+        loss = F.cross_entropy(model(x), y)
+        loss.backward()                  # grads accumulate across ALL steps of the epoch
+        opt.step()                       # each step applies the RUNNING SUM</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Grad norms growing ~linearly within an epoch and resetting at epoch boundaries = accumulation aligned to the epoch loop:</b> zero_grad in the wrong scope. Each step applies the sum of all previous batches' gradients — direction increasingly stale, magnitude increasingly huge.</li><li>The sawtooth period IS the diagnostic: bugs synced to epochs live in the epoch loop (zero_grad placement, scheduler stepped per-epoch, loader state); bugs synced to steps live inside.</li><li>Modern hygiene: <code>opt.zero_grad(set_to_none=True)</code> immediately after <code>opt.step()</code> — one visual unit, impossible to separate by refactor.</li></ul></div>
+          <pre class="code">for epoch in range(E):
+    for x, y in loader:
+        loss = F.cross_entropy(model(x), y)
+        loss.backward()
+        opt.step()
+<mark class="fix">        opt.zero_grad(set_to_none=True)   # paired with step(): grads live for ONE step</mark></pre>
+          <div class="theory"><b>Background.</b> PyTorch's accumulate-by-default design makes zero_grad a correctness line, not hygiene (the same property that makes v2-17's accumulation possible makes this bug possible). set_to_none=True frees memory and makes a 'grad exists but is stale' state impossible to read. Periodicity analysis generalizes into a real debugging tool: FFT the loss curve mentally — spikes at epoch frequency (this, schedulers, shuffling), at eval frequency (eval-mode leaks into train, #13-family), or at checkpoint frequency (EMA/save-load bugs) each name their suspect list.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d19">
+      <div class="dtop"><span class="dnum">19</span><span class="dcat">optimization</span><span class="dtitle">Cosine schedule: LR still at max after 3k steps — scheduler stepped per epoch</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Warmup+cosine schedule 'configured correctly' but the run is hot: loss noisy, occasional spikes. LR log shows a staircase stuck near max. Trainer processes ~1k steps per epoch. Find the cadence bug and the second, sneakier one in the restart logic."</p>
+        <pre class="code">sched = CosineWithWarmup(opt, warmup=500, total=10_000)   # designed in UNITS OF STEPS
+for epoch in range(E):
+    for x, y in loader:
+        train_step(x, y)
+<mark class="bad">    sched.step()                       # stepped once per EPOCH: after 3 epochs, LR thinks t=3</mark>
+# …and on resume:
+ckpt = load(path)
+model.load_state_dict(ckpt[&#x27;model&#x27;]); opt.load_state_dict(ckpt[&#x27;opt&#x27;])
+<mark class="bad"># scheduler state never saved: resume restarts warmup at step 0 → LR spike on live run</mark></pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Schedulers have units; mismatch is silent.</b> A steps-based schedule stepped per-epoch runs ~1000× slow (warmup 'for 500' = 500 EPOCHS). LR-vs-step is the one plot that catches every schedule bug instantly — log it always.</li><li>The resume bug is the production twin: model+optimizer restored, scheduler reborn at t=0 → a warmup-scale LR spike hits converged weights mid-run (loss spike right after every restart = this).</li><li>Checkpoint completeness rule: model, optimizer, scheduler, scaler (AMP), RNG state, step counter — all or it isn't a checkpoint.</li></ul></div>
+          <pre class="code">for epoch in range(E):
+    for x, y in loader:
+        train_step(x, y)
+<mark class="fix">        sched.step()                    # same units the schedule was designed in: steps</mark>
+save(dict(model=..., opt=...,
+<mark class="fix">          sched=sched.state_dict(), step=global_step))   # scheduler state is training state</mark></pre>
+          <div class="theory"><b>Background.</b> LR schedules are functions of a COUNTER, and nothing type-checks what the counter counts — per-epoch vs per-step stepping survives every unit test and differs by 1000× in effect (this exact bug class recurs in warmup restarts, and its inverse — per-step stepping of an epochs-designed schedule — silently decays LR to ~0 by epoch 2: 'model stopped learning' #17-adjacent). Post-warmup LR spikes on resume are a classic large-run incident: converged weights + max LR = a loss spike that can take thousands of steps to recover, or diverge outright in bf16. Treat the LR curve as a first-class output of every run.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d20">
+      <div class="dtop"><span class="dnum">20</span><span class="dcat">optimization</span><span class="dtitle">AdamW decays the LayerNorm gains — model slightly worse, norms tell the story</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Two identical runs except one flag: the worse one applied weight decay to ALL parameters. Gap is small but persistent (~0.5 val ppl). LN gain norms shrink through training in the bad run. Why do norms/biases need exemption, and what's the one param-group idiom?"</p>
+        <pre class="code"><mark class="bad">opt = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.1)</mark>
+# decay pulls EVERY param toward 0 — including LayerNorm γ (should hover ~1)
+# and biases; γ→0 shrinks the effective signal through every block</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Weight decay is a prior toward 0 — apply it only where 0 is a sensible prior:</b> matmul weights. LN gains live around 1 (decaying them fights the network's calibration), biases encode offsets with negligible overfitting risk, embeddings are debated (GPT-2 decayed them; many modern stacks don't).</li><li>Fingerprint in the logs: monotone shrink of γ norms + a small persistent quality gap. Not a crash — a tax. These 'flag-sized' bugs survive because nothing fails.</li><li>The idiom (worth writing from memory): split params by <code>ndim</code> — 2D+ get decay, 1D (norms, biases) get 0. Three lines, standard in every serious trainer (nanoGPT's configure_optimizers).</li></ul></div>
+          <pre class="code">decay, no_decay = [], []
+for n, p in model.named_parameters():
+<mark class="fix">    (decay if p.ndim &gt;= 2 else no_decay).append(p)   # matrices decay; norms/biases don&#x27;t</mark>
+opt = torch.optim.AdamW([
+    dict(params=decay,    weight_decay=0.1),
+<mark class="fix">    dict(params=no_decay, weight_decay=0.0)], lr=3e-4)</mark></pre>
+          <div class="theory"><b>Background.</b> AdamW's decoupled decay is $\theta \mathrel{-}= \eta\lambda\theta$ — a uniform pull toward the origin regardless of gradient — so the question 'is 0 the right prior?' must be answered per-parameter-TYPE: for weights, decay ≈ capacity control; for LN γ (multiplicative, identity at 1) it biases every channel toward silence; for biases it shifts activations for no regularization benefit. This is the classic 'trains fine, quietly worse' (#36-family) bug at the OPTIMIZER level, and the ndim≥2 split is the accepted resolution. Depth for the follow-up: decay interacts with μP/scaling rules, and embedding decay effectively tempers the softmax — reasons frontier configs make these choices explicitly, not by default.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v7">§7 · RL &amp; post-training (21–25)</h2>
+    <div class="drill" id="d21">
+      <div class="dtop"><span class="dnum">21</span><span class="dcat">RL</span><span class="dtitle">Reward-to-go computed with cumsum — the agent only optimizes the OPENING</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "REINFORCE with reward-to-go baseline. The agent gets great at the first few moves and indifferent later — behavior degrades along the episode. The returns line uses a tidy one-liner. What does <code>np.cumsum</code> actually assign to each timestep?"</p>
+        <pre class="code">def returns(r, gamma=0.99):           # r: (T,) rewards of one episode
+<mark class="bad">    return np.cumsum(r)                # G[t] = r_0 + … + r_t  = reward BEFORE-and-at t</mark>
+# reward-to-go must be r_t + r_{t+1} + … : the FUTURE, not the past
+# (and gamma silently ignored)</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Credit must be causal: an action can only be credited with rewards AFTER it.</b> Forward cumsum gives each step the PAST — early actions get weighted by almost nothing, late actions by the whole episode's history they didn't cause. 'Great openings, aimless endgame' is exactly inverted credit.</li><li>Correct one-liners: reversed cumsum <code>cumsum(r[::-1])[::-1]</code>, or the backward recursion <code>G[t] = r[t] + γ·G[t+1]</code> — the same reversed-iteration pattern GAE needs (#47): all return-like quantities are computed BACK-to-front.</li><li>γ dropped is the second bug: undiscounted returns on long episodes = high variance + no horizon. Check: G[T-1] must equal r[T-1] exactly — a one-assert test.</li></ul></div>
+          <pre class="code">def returns(r, gamma=0.99):
+    G = np.zeros_like(r); acc = 0.0
+<mark class="fix">    for t in reversed(range(len(r))):      # future → past, like GAE (#47)</mark>
+<mark class="fix">        acc = r[t] + gamma * acc</mark>
+        G[t] = acc
+    return G                               # G[t] = Σ_{t&#x27;≥t} γ^{t&#x27;-t} r_{t&#x27;}</pre>
+          <div class="theory"><b>Background.</b> The policy-gradient weight for action $a_t$ must be (an estimate of) $Q(s_t,a_t)$ — the expected FUTURE return — because $\nabla\log\pi(a_t)$ scaled by past rewards has zero expectation but pure variance (past rewards are constants w.r.t. $a_t$; this is the same 'action-independent terms cancel' logic as baselines, Q58). cumsum-vs-reversed-cumsum is the cleanest single-line embodiment of RL's credit-assignment direction, and it foreshadows every recursion in the family: reward-to-go, GAE's $\delta$ recursion (#47), and TD(λ) all iterate from the end of time backwards. If an RL loop contains a FORWARD loop over time producing a return-like array, it's guilty until proven innocent.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d22">
+      <div class="dtop"><span class="dnum">22</span><span class="dcat">RL</span><span class="dtitle">Time-limit truncation treated as death: values near the horizon are poisoned</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "PPO on a locomotion env with a 1000-step time limit. Return curves fine early, then the policy becomes weirdly conservative near episode ends; value loss creeps up. The env wrapper sets <code>done=True</code> at the time limit. You fixed #47's missing done-mask — this is its sophisticated sequel."</p>
+        <pre class="code"># rollout collection:
+obs, r, done, info = env.step(a)          # done=True BOTH for real termination
+<mark class="bad">buf.add(obs, r, done)                     # and for hitting the 1000-step TIME LIMIT</mark>
+# GAE (correctly masked!):
+# delta = r + gamma * V(s&#x27;) * (1 - done) - V(s)    ← zeros the bootstrap at TRUNCATION too
+# but the state at t=1000 is alive: its future value is NOT zero</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Termination and truncation are different events wearing the same flag.</b> Termination: the future genuinely has value 0 — mask the bootstrap. Truncation: the episode was CUT, the state still has future value — you must bootstrap $\gamma V(s_{T})$. Masking both teaches V that states near the time limit are worthless — the 'conservative near horizon' behavior is the value function flinching at a wall that isn't there.</li><li>Fingerprint: value predictions dip as t approaches the limit on plots stratified by episode time; healthy tasks shouldn't care about wall-clock t (unless time is in the state — the other fix).</li><li>Gymnasium split the API into <code>terminated</code> / <code>truncated</code> for exactly this bug; older code paths (and LLM-RL analogues: max-token cutoffs!) still conflate them.</li></ul></div>
+          <pre class="code">obs, r, terminated, truncated, info = env.step(a)
+<mark class="fix">buf.add(obs, r, terminated)                       # only TRUE death zeros the bootstrap</mark>
+<mark class="fix">if truncated:                                     # cut episode: bootstrap the tail</mark>
+<mark class="fix">    r += gamma * V(obs_next)                      # (or handle in GAE with separate flags)</mark></pre>
+          <div class="theory"><b>Background.</b> The Bellman target $r + \gamma V(s')$ encodes 'the future continues'; done=1 encodes 'the future is empty' — a time limit is a property of the SIMULATOR, not the MDP, so folding it into done changes the optimization target for every state within an episode's reach of the horizon. LLM post-training inherits this exactly: a generation cut by max_tokens is truncation, not termination — treating it as terminal (reward assigned as if the response ended) is a live bug class in RLHF stacks. Pairs with #47 as the two done-flag lessons: forgetting the mask (ghosts across episodes) and over-applying it (walls before the horizon).</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d23">
+      <div class="dtop"><span class="dnum">23</span><span class="dcat">RL / DPO</span><span class="dtitle">DPO run: loss stuck at 0.693 — the reference model is re-synced every epoch</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "You know #49 (ref aliased to policy → margin ≡ 0). This trainer LOADS a separate frozen copy — and still, after the first epoch, loss pins to ~0.693 and stays. Look at what the 'refresh' callback does."</p>
+        <pre class="code">ref = deepcopy(model).eval()                    # correct: a real frozen copy
+for p in ref.parameters(): p.requires_grad_(False)
+...
+class RefreshCallback:                           # &#x27;keep the reference fresh&#x27; — added later
+    def on_epoch_end(self):
+<mark class="bad">        ref.load_state_dict(model.state_dict())  # ref := policy, every epoch</mark>
+# epoch 2 onward: log-ratios start each epoch at 0 and barely move within it → σ(≈0) → ln 2</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>0.693 = ln 2 = −log σ(0): the loss says 'margin is zero,' and margin is β·(policy-vs-ref log-ratio gap) — any mechanism that keeps ref ≈ policy pins it.</b> #49 was aliasing (same object); this is periodic re-sync — same disease with a delay: loss falls epoch 1, then flatlines at ln 2 after the first refresh.</li><li>'Refreshing the reference' isn't inherently wrong (iterated/online DPO does it deliberately, with fresh preference data each round) — but with a FIXED dataset it erases the learning signal: preferences were labeled against the ORIGINAL policy's outputs.</li><li>Debug probe: log mean margin and mean |log-ratio| per epoch. Margin snapping to ~0 at epoch boundaries convicts the callback in one plot.</li></ul></div>
+          <pre class="code">ref = deepcopy(model).eval()
+for p in ref.parameters(): p.requires_grad_(False)
+<mark class="fix"># no refresh with a static preference dataset: ref stays the SFT/init policy</mark>
+<mark class="fix"># (iterated DPO = refresh ref AND regenerate/relabel preferences each round — a data</mark>
+<mark class="fix">#  collection loop, not a callback)</mark></pre>
+          <div class="theory"><b>Background.</b> DPO's implicit reward is $\beta\log\frac{\pi_\theta(y|x)}{\pi_{ref}(y|x)}$ — the reference is the MEASUREMENT ORIGIN; move it to the policy and every reward reads zero (loss $-\log\sigma(0)=\ln 2$). The three ways teams accidentally zero the margin: aliasing (#49), re-syncing (this), and loading ref from the same in-training checkpoint path (a config bug). The 0.693-triage generalizes: <em>any</em> pairwise-logistic loss frozen at ln 2 means its two branches are computing identical quantities — check object identity, then state provenance, then the data (are chosen and rejected accidentally the same strings? — v2-48's cousin).</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d24">
+      <div class="dtop"><span class="dnum">24</span><span class="dcat">RL / DPO</span><span class="dtitle">DPO loss decreases nicely — win-rate drops. Margins are up, both logps are DOWN</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "No 0.693 here: loss falls, margins grow, dashboard green. Human evals get WORSE, and a probe shows the log-prob of the CHOSEN responses is falling through training. How can margin rise while the model un-learns the good answers — and which logged quantity was missing?"</p>
+        <pre class="code">loss = -F.logsigmoid(beta * ((pi_w - ref_w) - (pi_l - ref_l))).mean()
+# margin ↑ is satisfied by:  π(chosen) ↑ … or π(rejected) ↓↓ FASTER than π(chosen) ↓
+<mark class="bad"># nothing in the loss anchors ABSOLUTE likelihood: both can sink together</mark>
+<mark class="bad"># logged: loss, margin.  not logged: pi_w, pi_l separately  ← the blind spot</mark></pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>DPO optimizes a DIFFERENCE — it is perfectly happy to push both responses down, rejected harder.</b> Probability mass leaks to off-distribution garbage; generations degrade while every pairwise metric improves. Logging π_w and π_l separately (not just the margin) is the difference between seeing this and shipping it.</li><li>Known failure mode (esp. with similar chosen/rejected pairs, e.g. edit-distance-close): the gradient's easiest direction is 'suppress the shared tokens.' Mitigations: add an SFT/NLL anchor term on chosen, DPO-positive variants (DPOP), IPO's bounded objective, or simply higher-quality/more-distinct pairs.</li><li>Eval discipline: pair every preference-loss dashboard with (a) chosen-logp trend and (b) a small fixed generation suite scored by humans/judge — margin alone is unfalsifiable.</li></ul></div>
+          <pre class="code"><mark class="fix">loss = -F.logsigmoid(beta * ((pi_w - ref_w) - (pi_l - ref_l))).mean() \</mark>
+<mark class="fix">       - lam * pi_w.mean()                        # NLL anchor: chosen likelihood may not sink</mark>
+<mark class="fix"># and log pi_w, pi_l as first-class metrics beside the margin</mark></pre>
+          <div class="theory"><b>Background.</b> The Bradley-Terry likelihood constrains only $r_w - r_l$; DPO inherits that gauge freedom, and SGD exploits it wherever 'both down, rejected faster' is the path of least resistance — empirically common because chosen/rejected share most tokens, so their gradients nearly cancel except on the differences. This is Goodhart INSIDE the loss (proxy = margin, target = quality), the same shape as #50 at reward-model level — post-training's recurring theme: every optimized proxy needs one unoptimized anchor metric watching it. The margin-up/quality-down signature also appears with noisy labels (mislabeled pairs teach anti-preferences — v2-48).</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d25">
+      <div class="dtop"><span class="dnum">25</span><span class="dcat">RL / RLHF</span><span class="dtitle">Reward whitening turned the KL penalty into a LENGTH SUBSIDY</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "PPO-RLHF with per-batch reward whitening (standard) and per-token KL penalty folded into the reward (standard). Reward climbs; median response length triples; humans report rambling. Each piece is 'best practice' — the bug is their composition. Trace what whitening does to the penalty."</p>
+        <pre class="code">kl_t = logp_policy_t - logp_ref_t                 # per-token KL penalty (correct sign)
+r_seq = RM(prompt, response)                       # sequence-level reward
+<mark class="bad">r_t = -beta * kl_t                                 # penalty spread over tokens</mark>
+<mark class="bad">r_t[T-1] += r_seq</mark>
+<mark class="bad">r_all = (r_all - r_all.mean()) / r_all.std()       # whiten ACROSS the batch, AFTER mixing:</mark>
+# long responses have many small negative kl tokens → whitening recenters them toward 0,
+# and the per-SEQUENCE total penalty no longer scales with length — length becomes cheap</pre>
+        <details class="sol" open><summary>Bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Whitening after mixing rescales the reward:penalty ratio per sequence:</b> the mean-shift redistributes penalty mass by token COUNT, so a longer response dilutes its own per-token penalty — β effectively shrinks with length. Optimizer's conclusion: length is subsidized. Composition bugs like this pass every unit test because each component is individually correct.</li><li>Order rule: normalize the LEARNED reward (the noisy, drifting part), then add the KL penalty un-normalized — the penalty is a trusted quantity with meaningful absolute scale; whitening a trusted signal destroys its calibration.</li><li>Length is the canary for the whole RLHF failure family (#50): log length percentiles beside reward, always. Reward↑ + length↑↑ + KL↑ = hack in progress, whatever the dashboards say.</li></ul></div>
+          <pre class="code">r_seq = RM(prompt, response)
+<mark class="fix">r_seq = (r_seq - r_seq.mean()) / (r_seq.std() + 1e-8)   # whiten ONLY the RM output</mark>
+kl_t = logp_policy_t - logp_ref_t
+<mark class="fix">r_t = -beta * kl_t                                       # penalty added AFTER, unscaled</mark>
+r_t[T-1] += r_seq</pre>
+          <div class="theory"><b>Background.</b> The KL term in $\max E[r] - \beta\,\mathrm{KL}$ is the constraint keeping the policy where the reward model is valid (#50's lesson); any transformation applied after mixing — whitening, clipping, EMA-normalizing — re-weights that constraint in ways the math no longer states, and batch statistics make it DATA-DEPENDENT: the penalty a response pays depends on what else was sampled with it. Composition-of-correct-parts is the signature bug of mature RLHF stacks (reward norm × KL × length × batch stats interact combinatorially); defense is invariant-based: per-sequence total KL cost must be monotone in actual divergence, length-matched prompts must pay length-proportional penalties — assert these on synthetic rollouts, not by reading the code.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="part" id="p2">Part 2 — Practice (sessions 26–50)</h2>
+    <p style="color:var(--muted)">Solutions collapsed. Top-2 hypotheses out loud → point at the line → name the one-line probe → reveal. ≤5 minutes each.</p>
+    <h2 class="section" id="v8">§8 · Numerics &amp; losses (26–30)</h2>
+    <div class="drill" id="d26">
+      <div class="dtop"><span class="dnum">26</span><span class="dcat">numerics</span><span class="dtitle">Hand-rolled logsumexp overflows — at step 40k, not step 1</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Custom contrastive loss uses a hand-written <code>log(sum(exp(s)))</code> over similarity scores. Clean for 40k steps, then inf→NaN. Why does this bug WAIT, and what's the two-line fix?"</p>
+        <pre class="code">def lse(s):                             # s: (B, B) similarity logits
+<mark class="bad">    return np.log(np.exp(s).sum(-1))     # exp overflows fp32 at s ≈ 88.7</mark>
+# early training: scores small, harmless. As embeddings sharpen + temperature divides,
+# max score crosses ~88 → exp = inf → log(inf)=inf → grad NaN</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Overflow bugs are SCHEDULED by training progress:</b> exp(s) blows past fp32 at s≈88.7 (fp16: ~11!) — early scores are small, so the bug detonates exactly when the model gets good (same 'broke by improving' shape as #7/v2-1, opposite tail: overflow, not underflow).</li><li>The max-subtraction identity is free: lse(s) = max + log Σ exp(s−max) — largest exponent becomes exp(0)=1, all others ≤1. Every stable softmax/CE/lse is this one trick.</li><li>Temperature intensifies it: dividing scores by τ=0.07 multiplies logits ~14× — contrastive losses hit the ceiling far sooner than plain classifiers. Check the scale of s/τ, not s.</li></ul></div>
+          <pre class="code">def lse(s):
+<mark class="fix">    m = s.max(-1, keepdims=True)</mark>
+<mark class="fix">    return (m + np.log(np.exp(s - m).sum(-1, keepdims=True))).squeeze(-1)   # exp arg ≤ 0</mark></pre>
+          <div class="theory"><b>Background.</b> $\mathrm{lse}(s) = m + \mathrm{lse}(s-m)$ exactly, for any m; choosing m = max bounds every exponent by 0, trading overflow for benign underflow (a 0 inside a sum that already contains 1). CLIP-style losses divide by a LEARNED temperature that shrinks through training — the score scale is nonstationary, so 'it ran for days' is zero evidence of numerical safety. Habit: any exp/log written by hand gets the extreme-value test at code-review time (what is exp of your largest plausible input, in YOUR dtype?), because the training curve will find it later.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d27">
+      <div class="dtop"><span class="dnum">27</span><span class="dcat">numerics</span><span class="dtitle">The clamp that lied: NaN "fixed" with clamp(min=1e-8), real bug lives on</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "History: model NaN'd; someone added <code>.clamp(min=1e-8)</code> inside the log; NaNs gone, everyone moved on. Months later you find val loss has been subtly optimistic and gradients on hard examples are zero. What did the clamp hide, and what's the honest version?"</p>
+        <pre class="code">p = probs.gather(-1, y[:, None])          # prob of the true class
+<mark class="bad">loss = -p.clamp(min=1e-8).log().mean()     # NaN gone… and so is the gradient:</mark>
+# wherever p &lt; 1e-8 (the HARDEST examples), d loss/d p = 0 — those tokens stop training.
+# upstream, the reason p underflowed (a masking bug feeding softmax garbage) still exists</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Clamp inside a log is a tourniquet: it stops the NaN and kills the signal.</b> clamp is flat where it binds → zero gradient exactly on the highest-loss examples. Model silently stops learning from its hardest cases; average loss looks fine.</li><li>A NaN is EVIDENCE — clamping destroys the evidence without treating the cause (here: an upstream mask bug produced genuinely-zero probs). Rule: fix the numerics with log-space math (log_softmax / logsumexp), reserve clamps for true edge legality, and alert when they bind: <code>(p < 1e-8).float().mean()</code> as a logged metric.</li><li>Review heuristic: grep for clamp/nan_to_num/eps added in bugfix commits — each is a suppressed crime scene until proven a considered choice.</li></ul></div>
+          <pre class="code"><mark class="fix">logp = F.log_softmax(logits, -1).gather(-1, y[:, None])   # stable by construction</mark>
+loss = -logp.mean()
+<mark class="fix">clamp_rate = (logp &lt; math.log(1e-8)).float().mean()        # if this is ever &gt; 0, INVESTIGATE</mark>
+# the underlying mask bug now surfaces as a visible metric, not a silent clamp</pre>
+          <div class="theory"><b>Background.</b> Every numerical guard has a gradient shadow: clamp is zero-gradient where active, nan_to_num backprops zeros through poison, eps inside a sqrt changes curvature (v1 #67's eps-placement lesson) — guards should be chosen for their BACKWARD behavior, not just for making the forward finite. The meta-lesson interviewers fish for: distinguish 'making the number finite' from 'making the computation correct'; the former is one line, the latter requires knowing why the extreme value arrived. A guard that never fires costs nothing to monitor; a guard that fires silently is a bug with tenure.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d28">
+      <div class="dtop"><span class="dnum">28</span><span class="dcat">numerics</span><span class="dtitle">A softmax helper written for vectors, reused for batches: loss stuck at ln C</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Utility <code>softmax(z)</code> was written for a 1-D vector in a notebook and later imported into batched training code. Loss pins near ln(C) from step 0 (the #6 symptom) — but the cause is a default-argument, not a mask. Spot it and state the blast radius."</p>
+        <pre class="code">def softmax(z):
+<mark class="bad">    e = np.exp(z - z.max())               # z.max() over the WHOLE (B, C) matrix (ok-ish)</mark>
+<mark class="bad">    return e / e.sum()                    # sum over ALL B·C entries: each row divided by</mark>
+                                          # the BATCH&#x27;s total mass → rows sum to 1/B, not 1
+# downstream CE: log of ~p/B → loss offset; gradients scaled/coupled across the batch</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Reduction without <code>axis=</code> is a 1-D assumption in disguise</b> — the #1 hazard when notebook helpers graduate into library code. Here every row is normalized by the whole batch: outputs are valid-looking small numbers, nothing crashes, loss just sits near ln C (+ ln B offset — arithmetic tell if you look).</li><li>Blast radius question is the senior part: every call site with 2-D+ input is wrong, including any eval code importing the same helper — 'the metric agreed with the loss' means nothing when they share the bug.</li><li>Defense: axis-explicit reductions ALWAYS (<code>axis=-1, keepdims=True</code>), plus a shape-polymorphic unit test: softmax of a (3,C) batch must equal stacking three 1-D calls.</li></ul></div>
+          <pre class="code">def softmax(z, axis=-1):
+<mark class="fix">    e = np.exp(z - z.max(axis=axis, keepdims=True))</mark>
+<mark class="fix">    return e / e.sum(axis=axis, keepdims=True)      # rows sum to 1, any batch shape</mark>
+# test: np.allclose(softmax(Z), np.stack([softmax(z) for z in Z]))</pre>
+          <div class="theory"><b>Background.</b> NumPy's silent full-reduction default (vs PyTorch's required dim) is a genuine API trap: code is CORRECT for the 1-D case it was born in and wrong for every batched reuse, so it enters the codebase through the door marked 'tested.' The ln C family of symptoms (#6, #18) gains a member: here the model CAN learn a little (relative order within rows survives), so the curve creeps below ln C then stalls — 'almost flat, slightly below random-loss' is this bug's precise fingerprint vs the exactly-flat #6 causes. Same disease elsewhere: <code>mean()</code> over all axes in metrics, <code>norm()</code> without dim in grad-clipping code.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d29">
+      <div class="dtop"><span class="dnum">29</span><span class="dcat">gradients</span><span class="dtitle">Gradcheck fails ONLY on the layers after dropout — the forward is stochastic</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Finite-difference check (correct: fp64, centered, relative error) passes for layers before dropout and fails for everything after it. The backprop is provably right. What assumption of finite differences does dropout break, and the two standard remedies?"</p>
+        <pre class="code">def gradcheck(f, w, ...):
+    # f runs the FULL training-mode forward:
+<mark class="bad">    #   h = dropout(h, p=0.1)          ← fresh random mask EVERY call</mark>
+    # f(w+eps) and f(w-eps) see DIFFERENT masks: the difference measures
+    # mask noise (O(1)), not the derivative (O(eps))</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Finite differences assume f is the SAME deterministic function at w+ε and w−ε.</b> Any per-call randomness (dropout, augmentation, sampling, nondeterministic kernels) turns the difference into noise/eps — which explodes as eps shrinks. 'Fails only downstream of layer X' localizes the stochastic op: everything before it sees identical computation.</li><li>Remedies: (1) eval-mode / disable stochastic layers for the check; (2) freeze the randomness — fix the mask once and reuse it inside both evaluations (checks the dropout op itself too).</li><li>Same discipline appears in production as: seeding before loss-parity tests, <code>torch.use_deterministic_algorithms(True)</code>, and being suspicious of any 'flaky' numerical test — flaky = stochastic = something unseeded.</li></ul></div>
+          <pre class="code"><mark class="fix">mask = (np.random.rand(*h.shape) &gt; p) / (1 - p)   # sample ONCE, outside the check</mark>
+def f_fixed(w):
+    ...
+<mark class="fix">    h = h * mask                                   # same mask for f(w+eps) and f(w-eps)</mark>
+    ...
+# (or simply: model.eval() for the check — dropout=identity — then check train-mode ops separately)</pre>
+          <div class="theory"><b>Background.</b> A derivative is defined for a function; a stochastic forward is a DISTRIBUTION over functions, and finite differences across two independent draws measure $f_1(w{+}\epsilon)-f_2(w{-}\epsilon)$ — dominated by $f_1-f_2$ mask noise. Fixing the noise (common random numbers) recovers a well-defined function whose derivative includes the mask — exactly what backprop computes for that draw, so the check becomes exact again. This completes the gradcheck trilogy: v1 #9 (checker convicts the gradient), v2-4 (gradient convicts the checker's numerics), v2-29 (both innocent; the FUNCTION wasn't a function). The general habit: before checking gradients, enumerate every source of nondeterminism in the forward and pin each one.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d30">
+      <div class="dtop"><span class="dnum">30</span><span class="dcat">losses</span><span class="dtitle">Label smoothing applied to the LOGITS: loss has a weird floor, calibration is off</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Someone implemented label smoothing as <code>logits = logits * (1 - eps)</code> ('soften the predictions'). Training runs; val CE has an odd floor and the model is badly calibrated. What is smoothing supposed to soften, what did this do instead, and what's the correct target?"</p>
+        <pre class="code"><mark class="bad">logits = logits * (1 - 0.1)                 # &#x27;smoothing&#x27;… this is temperature ×1.11</mark>
+loss = F.cross_entropy(logits, y)           # targets still hard one-hot
+# label smoothing must modify the TARGET distribution:
+#   q = (1-eps)·onehot + eps/V              # not the model&#x27;s outputs</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Smoothing the logits is just temperature</b> — a monotone rescale that changes sharpness, not the training target; hard one-hot targets still demand infinite logit gaps. Real label smoothing replaces the target with a mixture q = (1−ε)·onehot + ε/V, which caps the optimal logit gap and adds a positive loss floor at exactly H(q) — a KNOWN number; check it: floor ≈ ε·ln V + H_binary(ε) for large V.</li><li>'Loss has a floor above 0' is EXPECTED under correct smoothing (CE(q,p) ≥ H(q) > 0) — teams have 'fixed' healthy floors before; the bug here is the floor is wrong AND calibration worsened (temperature scaling miscalibrates; smoothing typically improves calibration).</li><li>One-line correct: <code>F.cross_entropy(logits, y, label_smoothing=0.1)</code> — and knowing what it expands to is the interview point.</li></ul></div>
+          <pre class="code"><mark class="fix">loss = F.cross_entropy(logits, y, label_smoothing=0.1)</mark>
+# equivalent by hand:
+#   logp = logits.log_softmax(-1)
+#   loss = -( (1-eps)*logp.gather(-1,y[:,None]).squeeze()
+#             + eps * logp.mean(-1) ).mean()</pre>
+          <div class="theory"><b>Background.</b> CE against smoothed targets = $(1-\epsilon)\,\mathrm{CE}(\text{onehot}) + \epsilon\,\mathrm{CE}(\text{uniform})$ — the second term penalizes over-confidence, bounding optimal logits and (empirically) improving calibration and robustness; scaling logits by a constant is a completely different operation (inference-time temperature, useful for post-hoc calibration, meaningless as a training-time 'smoothing'). Knowing each regularizer's LOSS FLOOR is a working skill: smoothed CE ≥ H(q), KD losses have temperature-scaled floors, DPO's is 0 not ln2 — 'is this plateau a bug or the floor?' (v1 #49's 0.693, v2-23) is answered by arithmetic, not vibes.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v9">§9 · Data &amp; eval (31–35)</h2>
+    <div class="drill" id="d31">
+      <div class="dtop"><span class="dnum">31</span><span class="dcat">data / labels</span><span class="dtitle">Dataset pre-shifted AND trainer shifts: the model learns to predict t+2</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "A tokenized dataset ships as (input, target) already shifted by one. The trainer, following convention, shifts again. Nothing crashes; loss converges but plateaus clearly above the reference and generations feel 'one step ahead of themselves.' Diagnose from the two snippets."</p>
+        <pre class="code"># dataset builder (upstream repo):
+x, y = ids[:-1], ids[1:]                     # shift #1
+# trainer collate (your repo):
+<mark class="bad">x, y = x[:, :-1], y[:, 1:]                   # shift #2: now y[t] = ids[t+2] given ids[..t]</mark>
+# the model is trained to SKIP a token — a strictly harder, wrong task</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Double-shift is the quiet sibling of no-shift (#33):</b> no-shift makes the task trivially easy (loss ↓ 0); double-shift makes it strictly HARDER (predict t+2 without seeing t+1) — loss plateaus a fixed gap ABOVE reference. Both are collator contract bugs; the loss direction tells you which.</li><li>The interface bug: 'shift' is a convention with no owner — dataset repos and trainer repos each 'helpfully' apply it. Contract must state whether stored pairs are already offset. Print-one-example (x[0,:8], y[0,:8]) settles it in 5 seconds: offset should be exactly 1.</li><li>Generation tell: a t+2 model at inference emits sequences whose bigrams are skip-grams — locally fluent-ish, off-by-one feeling. Trust the print, not the vibes.</li></ul></div>
+          <pre class="code"># pick ONE owner for the shift. e.g. dataset stores RAW ids; trainer shifts:
+<mark class="fix">x, y = ids[:, :-1], ids[:, 1:]               # the only shift</mark>
+<mark class="fix">assert (x[0, 1:] == y[0, :-1]).all()          # invariant: y is x advanced by one</mark></pre>
+          <div class="theory"><b>Background.</b> Every tensor interface carries silent conventions — shifted-or-raw, normalized-or-not (#30/#43), padded-with-what (#33/#34-family), channels-first-or-last — and 'both sides apply the fix' is as common as 'neither side does.' The assert shown is the general medicine: encode the convention as a checked invariant at the boundary, so a second shift (or a missing one) fails loudly at step 0 instead of costing a plateau investigation at step 50k. Reading loss RELATIVE to a reference is the diagnostic axis here: too-good = leak (#20/#33), too-bad-but-converging = wrong task (this, #31's double-softmax, v2-38).</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d32">
+      <div class="dtop"><span class="dnum">32</span><span class="dcat">evaluation</span><span class="dtitle">Val metric noisy ±3 points run-to-run — augmentation left on in the eval loader</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Same checkpoint evaluated twice gives 71.2 then 74.0. The eval code calls model.eval() and no_grad correctly. The variance is coming from the DATA side. Find it, and state the general rule for eval-time preprocessing."</p>
+        <pre class="code">eval_tf = transforms.Compose([
+<mark class="bad">    transforms.RandomResizedCrop(224),        # RANDOM crop in the EVAL pipeline</mark>
+<mark class="bad">    transforms.RandomHorizontalFlip(),        # coin flip per image per run</mark>
+    transforms.ToTensor(), normalize])
+val_loader = DataLoader(val_ds.with_transform(eval_tf), shuffle=False)</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>A metric that changes across evaluations of the SAME weights = randomness in the eval path;</b> model-mode is handled (eval(), no_grad), so the loader/transforms are next: random crops/flips at eval = each run scores a different dataset.</li><li>Eval preprocessing must be deterministic AND match training's expected statistics: Resize(256)→CenterCrop(224) is the ImageNet-standard eval pair for RandomResizedCrop training. (Mismatch here is also the accuracy-gap #43-family bug.)</li><li>Test-time augmentation (averaging over augmented copies) is a deliberate technique — the sin isn't augmenting at eval, it's doing it UNKNOWINGLY, singly, and unseeded. Rule: an eval is a measurement; every source of variance must be either eliminated or averaged.</li></ul></div>
+          <pre class="code">eval_tf = transforms.Compose([
+<mark class="fix">    transforms.Resize(256),</mark>
+<mark class="fix">    transforms.CenterCrop(224),               # deterministic: same pixels every run</mark>
+    transforms.ToTensor(), normalize])</pre>
+          <div class="theory"><b>Background.</b> Benchmarks are functions of (weights, data, procedure); leaving stochastic transforms in eval makes the reported number a SAMPLE, and ±3 points of eval noise both hides real regressions and mints fake improvements (a re-run 'gain' that is pure crop luck will get someone promoted). The audit generalizes beyond vision: LLM eval with temperature>0 sampling, retrieval with nondeterministic ANN search, and dataloader worker races all produce run-to-run metric noise — the discipline is one line in every eval harness: evaluate the same checkpoint twice, assert the numbers are identical (or report the variance as part of the metric).</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d33">
+      <div class="dtop"><span class="dnum">33</span><span class="dcat">data / labels</span><span class="dtitle">ignore_index=-100 configured — but pads were labeled 0, which is a real token</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "SFT trainer sets <code>ignore_index=-100</code> like the docs say. But the collator pads LABELS with 0 — and token id 0 is <code>&lt;unk&gt;</code>/an actual vocab entry. Two symptoms: loss slightly wrong, and generations sprinkle the id-0 token. Connect the dots (#34's cousin)."</p>
+        <pre class="code">labels = torch.full((B, T), 0)               # pad value 0 = a REAL token id
+labels[:, :n_real] = real_ids
+<mark class="bad">loss = F.cross_entropy(logits.view(-1, V), labels.view(-1), ignore_index=-100)</mark>
+# nothing is ever -100: every pad position trains the model to predict token 0</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>ignore_index only ignores what you actually WRITE as the sentinel:</b> configuring −100 while padding with 0 protects nothing — thousands of positions per batch supervise 'emit token 0.' Generations sprinkling &lt;unk&gt;/id-0 is the trained-in behavior (the mechanism of #34, with the mask silently disconnected instead of absent).</li><li>Sentinel bugs are interface bugs: the collator and the loss must agree on ONE value; −100 is chosen BECAUSE it can't be a real id. Padding labels with pad_token_id is the classic mistake — pad_token IS a real id.</li><li>One assert kills the class: <code>assert ((labels == -100) | (labels < V)).all()</code> and — the real one — <code>assert (labels == -100).any()</code> if this batch is padded: 'the mask is actually being used.'</li></ul></div>
+          <pre class="code"><mark class="fix">labels = torch.full((B, T), -100)            # the sentinel the loss was told about</mark>
+labels[:, :n_real] = real_ids
+loss = F.cross_entropy(logits.view(-1, V), labels.view(-1), ignore_index=-100)
+<mark class="fix"># sanity: fraction of ignored positions ≈ expected pad fraction — log it once</mark></pre>
+          <div class="theory"><b>Background.</b> Configuration is not behavior: ignore_index is a contract between two code sites that never see each other (collator writes, loss reads), and nothing validates it — the framework can't know your 0 meant 'pad.' The pattern generalizes to attention-mask vs loss-mask divergence, pad_token_id vs eos_token_id conflation (GPT-2 famously has no pad token; people alias it to EOS and then accidentally mask real EOS supervision away — the inverse bug, which kills stopping like v2-12). The logged 'ignored fraction' metric is the cheap invariant: it should match your padding statistics batch after batch.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d34">
+      <div class="dtop"><span class="dnum">34</span><span class="dcat">data / eval</span><span class="dtitle">Same figure, four disguises: text-dedup passed, the benchmark image is in train</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "MM pretraining corpus 'fully deduped and decontaminated' by URL + text near-dup. A DocVQA-style score looks 2 points too good. Audit finds the benchmark's chart images in training — as a PDF render, a re-JPEG'd crop, and a screenshot with different alt-text. Design the check that would have caught it."</p>
+        <pre class="code">dedup = minhash(text) ∪ exact(url)            # text-space only
+<mark class="bad"># the same IMAGE re-enters as: pdf-render / crop / re-encode / screenshot,</mark>
+<mark class="bad"># each with DIFFERENT text and DIFFERENT url → text pipeline is structurally blind</mark></pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Decontamination must run in the space where the leak lives:</b> eval questions are about the IMAGE; its pixels re-enter under fresh text/urls, so text dedup is blind by construction. Image-space check: pHash for near-exact + embedding-NN (CLIP-space, cosine ≥ ~0.95) vs ALL eval images, run BEFORE any recaptioning (synthetic captions inherit their generator's contamination).</li><li>Suspiciously-good on ONE benchmark, normal elsewhere = contamination's fingerprint (uniform lift suggests real capability). Per-benchmark deltas vs a trusted baseline are the alarm.</li><li>The transformations that defeat pHash (crops, heavy re-encodes) are what the embedding-NN layer is for — two tiers, not one.</li></ul></div>
+          <pre class="code"><mark class="fix">contam = phash_match(train_imgs, eval_imgs) ∪ knn_cosine(clip(train), clip(eval), thr=0.95)</mark>
+<mark class="fix">drop(contam)                                  # …and re-run AFTER every new synthetic-data round</mark>
+report(overlap_by_benchmark)                   # publish the number with the score</pre>
+          <div class="theory"><b>Background.</b> Contamination is a semantic-identity problem: 'the same content' survives rendering, cropping, re-encoding, and re-captioning, so any single-representation dedup under-counts — the reason unique-token counts flatter you and eval lifts inflate (the Master doc's §7.5/#P3 territory). The senior framing: decontamination is an EVAL-integrity property, not a data-cleaning chore — it must be re-established every time data is regenerated (synthetic pipelines re-import their teacher's contamination), and the honest deliverable is score + measured-overlap, not score alone. v1 #35's train/val leakage is this disease at tabular scale; multimodality just multiplies the disguises.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d35">
+      <div class="dtop"><span class="dnum">35</span><span class="dcat">evaluation</span><span class="dtitle">Accuracy 0.0% and nobody believes it: preds LongTensor, labels float, == is False</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "A metric refactor: accuracy comes back exactly 0.000 on a model whose loss says ~80% of examples are classified right. The comparison line 'looks fine.' Explain the exact-0 (not near-0!) reading, and the two dtype/shape sins."</p>
+        <pre class="code">preds = logits.argmax(-1)                     # LongTensor, shape (B,)
+<mark class="bad">y = batch[&#x27;label&#x27;].float().unsqueeze(1)       # FloatTensor, shape (B, 1) — from a loss refactor</mark>
+<mark class="bad">acc = (preds == y).float().mean()             # (B,)==(B,1) broadcasts to (B,B):</mark>
+# off-diagonal comparisons dominate → near 0; float equality after transforms → exact 0</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>EXACTLY zero is a different clue than nearly zero:</b> near-0 suggests broadcast dilution ((B,)==(B,1)→(B,B), the #32-v1 disease); exactly-0 says NO comparison ever succeeded — dtype/value mismatch (labels went through float ops; 3.0000001 == 3 is False).</li><li>Two invariants before any ==: same shape (assert, don't trust), integer dtypes on both sides for categorical comparison.</li><li>Metric code deserves unit tests with KNOWN answers more than model code: feed 10 hand-labeled examples where accuracy must be exactly 0.7 — one test, kills the whole family (v1 #32, this, and every future refactor).</li></ul></div>
+          <pre class="code">preds = logits.argmax(-1)                     # (B,) long
+<mark class="fix">y = batch[&#x27;label&#x27;].long().view(-1)            # (B,) long: same shape, same dtype</mark>
+<mark class="fix">assert preds.shape == y.shape</mark>
+acc = (preds == y).float().mean()
+# test: accuracy(known_logits, known_labels) == 0.7 exactly</pre>
+          <div class="theory"><b>Background.</b> Comparison ops are where PyTorch's permissiveness bites hardest: broadcasting silently reshapes your semantics ((B,B) 'accuracy' is a similarity MATRIX mean), and float round-trips make equality a coin with ~0 heads probability. The double-symptom decoding — magnitude of wrongness → mechanism — is the transferable skill: 97% when truth is 34% (v1 #32) = inflation via broadcast+argmax-axis; 0.000 exactly = comparison never true; ~1/C = predictions constant. Metrics are the instruments you diagnose everything else with; a broken instrument costs more than a broken model, because it lies about every experiment that follows.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v10">§10 · Attention &amp; transformer (36–40)</h2>
+    <div class="drill" id="d36">
+      <div class="dtop"><span class="dnum">36</span><span class="dcat">masks</span><span class="dtitle">Prefix-LM mask built with | instead of &: the suffix can read the future</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Prefix-LM: bidirectional attention over the prompt, causal over the response. Val loss beats every baseline; generation quality doesn't. One operator in the mask builder. (Blend of #20's leak and #22's mask algebra — say exactly which positions leak.)"</p>
+        <pre class="code">prefix = np.zeros((T, T), dtype=bool)
+prefix[:, :P] = True                        # everyone may see the prompt (bidirectional over prefix)
+causal = np.tril(np.ones((T, T), dtype=bool))
+<mark class="bad">allowed = prefix | causal                   # UNION: response position t gets causal</mark>
+# rights AND prefix rights — but so does everything else that either mask grants…
+# check row t ≥ P, column j in (t, T): causal says no; prefix says no… ok — but
+# column j in (P, t]? fine. The leak: rows t &lt; P (prompt rows) get causal | prefix =
+# they may see FUTURE PROMPT (intended!) …and rows ≥ P are correct?? Verify with the probe —
+# the actual leak: allowed[t&lt;P, j&gt;P] — prompt rows read the RESPONSE via causal? No: j&gt;t covered? …</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Stop hand-simulating — write the probe.</b> Mask algebra defeats intuition (the buggy comment above is the interviewer watching you flounder); the correct spec is a per-cell predicate: allowed[t,j] = (j < P) OR (j ≤ t). The | of the two matrices happens to EQUAL that spec only if 'causal' was built full-causal and 'prefix' column-limited — but the shipped code built <code>prefix[:, :P]</code> = every ROW may see prompt columns… which is the spec. So where's the leak? Rows t<P: allowed = all prompt columns ∪ j≤t — prompt tokens see FUTURE PROMPT tokens: intended for prefix-LM. The REAL bug: labels — with bidirectional prefix rows, any loss on prefix positions (#13!) is loss on positions that SEE their own targets.</li><li>That's the lesson: prefix-LM's mask is fine; prefix-LM's LOSS MASK must exclude the prefix (its rows are bidirectional → every prefix target is visible to itself). 'Val loss too good' came from scoring bidirectional positions.</li><li>Probe that settles any mask design in 10 lines: build the boolean matrix for T=8, P=3 and PRINT it; then assert no supervised position can attend to its own label's source.</li></ul></div>
+          <pre class="code">allowed = prefix | causal                    # the attention mask was actually correct
+<mark class="fix">labels[:, :P] = -100                          # the LOSS mask was the bug: never supervise</mark>
+                                             # bidirectional (prefix) positions
+# probe: for every t with labels[t] != -100, assert not allowed[t, t+1:].any()</pre>
+          <div class="theory"><b>Background.</b> Prefix-LM couples two masks — attention and loss — and the invariant spans them: <em>a position may be supervised only if its attention row is strictly-past</em>. Bidirectional prefix rows violate it by design, so they must be unsupervised; forgetting that reproduces #20's 'target visible' leak through a legal mask. This is why the sanity probe is stated over the PAIR (attention row, loss mask) rather than either alone — and why suspiciously-good loss (#20/#33/v2-16) always gets the same triage regardless of architecture: find any supervised position that can see information derived from its own target.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d37">
+      <div class="dtop"><span class="dnum">37</span><span class="dcat">transformer</span><span class="dtitle">KV-cache RoPE: position taken AFTER append — every query is one step in the future</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "RoPE decoder, KV cache. The #37-v1 equivalence test (cache vs full forward) fails from the SECOND generated token, by a consistent pattern. Position for the new token is computed from the cache length. Read the order of operations."</p>
+        <pre class="code">def decode_step(x_t, W, cache):
+    k = rope(x_t @ W.k, pos=len(cache.K))     # position BEFORE append: correct for k? …
+<mark class="bad">    cache.K = append(cache.K, k)              # append FIRST …</mark>
+<mark class="bad">    q = rope(x_t @ W.q, pos=len(cache.K))     # … then q reads len AFTER append: pos+1</mark>
+    return attend(q, cache), cache            # q rotated one step ahead of its own k</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>q and k of the SAME token must receive the SAME position.</b> Here k gets pos=n, q gets pos=n+1 (len changed by the append between them) — every relative angle is off by one exactly, so attention consistently looks 'one token back.' Off-by-CONSISTENT-pattern divergence = position bookkeeping; random divergence = numerics.</li><li>The v1 #38 lesson was 'cache stores POST-RoPE k at absolute positions'; this is its sequel: within one step, position must be read ONCE into a local, then used for both projections — never re-derived from mutating state.</li><li>Equivalence test refinement: don't just compare tokens — compare the attention maps at step 2; an off-by-one position bug shows as the whole map shifted one diagonal.</li></ul></div>
+          <pre class="code">def decode_step(x_t, W, cache):
+<mark class="fix">    pos = len(cache.K)                        # read the mutating state ONCE</mark>
+<mark class="fix">    q = rope(x_t @ W.q, pos=pos)</mark>
+<mark class="fix">    k = rope(x_t @ W.k, pos=pos)              # same pos for q and k of this token</mark>
+    cache.K = append(cache.K, k)
+    return attend(q, cache), cache</pre>
+          <div class="theory"><b>Background.</b> RoPE encodes position as rotation, and attention scores depend only on ANGLE DIFFERENCES $\theta(q)-\theta(k)$; a q/k position mismatch within one token adds a constant phase error to every score — geometry consistently skewed, not noisy, which is why generations degrade smoothly (repetition, off-by-one attention) instead of crashing. The engineering rule is snapshot-before-mutate: any value derived from state that the same function mutates (cache length, step counters, RNG state) is read once into a local at the top. Cousins everywhere: schedulers reading step-after-increment (v2-19), metrics reading weights mid-update, and v1 #37's attend-before-append — all 'the state moved under me' bugs.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d38">
+      <div class="dtop"><span class="dnum">38</span><span class="dcat">transformer</span><span class="dtitle">Scores scaled by 1/√T instead of 1/√d_k — all tests pass, long-context degrades</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "A refactor changed the attention scale to <code>1/sqrt(seq_len)</code>. Every unit test passes (they run at T=64=d_k). At 4k context the model underperforms baseline noticeably. Why is the scale d_k and not T, and why did tests bless the bug?"</p>
+        <pre class="code"><mark class="bad">A = softmax(Q @ K.T / np.sqrt(T)) @ V        # T = sequence length — WRONG dimension</mark>
+# the dot product q·k sums d_k products: its variance grows with d_k, not with T.
+# tests ran at T == d_k == 64: the two scalings are IDENTICAL there</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>The √d_k comes from the variance of the dot product:</b> q·k = Σ over d_k terms → std ~√d_k; dividing by √d_k keeps logits O(1) so softmax starts un-saturated. T never enters the per-score statistics; scaling by √T makes score SHARPNESS depend on context length — at T≫d_k, logits shrink, attention flattens toward uniform, long-context retrieval dies.</li><li>Tests passing because T==d_k is the coincidence trap (v1 #44's square-inputs cousin at the formula level): dimension-confusable code must be tested at UNEQUAL sizes — T=128, d_k=32.</li><li>Follow-up worth volunteering: the modern refinements (μP's 1/d_k, entropy-targeting scales, YaRN's temperature for length extrapolation) all start from this same variance argument.</li></ul></div>
+          <pre class="code"><mark class="fix">A = softmax(Q @ K.T / np.sqrt(d_k)) @ V      # scale by the CONTRACTED dimension</mark>
+# test at T != d_k, and assert attention entropy is stable as T grows</pre>
+          <div class="theory"><b>Background.</b> With unit-variance q,k the score variance is exactly d_k — the contracted axis — so $1/\sqrt{d_k}$ is a variance normalizer, not a magic constant (v1's attention sessions derive it; this session is the disguise: right formula, wrong variable). The bug's length-dependence is its signature: quality fine at training lengths near d_k, degrading with context — easily misdiagnosed as 'the model can't do long context' and 'fixed' with expensive data interventions. Any formula containing multiple same-order dimensions (T, d, d_k, V) deserves a test where they're all distinct primes; equal-size test fixtures are how dimension bugs get tenure.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d39">
+      <div class="dtop"><span class="dnum">39</span><span class="dcat">transformer</span><span class="dtitle">masked_fill with -1e9 works in fp32, NaNs in fp16 — and -inf has its own trap</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Port to fp16: attention NaNs at step 1. The mask line uses <code>-1e9</code>, 'the standard trick.' In fp32 it was fine. Explain the fp16 failure, why switching to <code>-inf</code> can ALSO NaN (you know this one), and the dtype-correct idiom."</p>
+        <pre class="code"><mark class="bad">S = S.masked_fill(~mask, -1e9)              # fp16 max finite ≈ 65504: -1e9 overflows to -inf…</mark>
+# …ok, -inf is what we wanted? But S already holds fp16 values; ADDITIVE variants
+# (S + mask*-1e9) produce -inf + something → fine, and -inf - (-inf) → NaN in softmax&#x27;s
+# max-subtraction when a row is fully masked (#22), and inf*0 → NaN in fused kernels</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Mask constants are dtype-dependent:</b> −1e9 doesn't exist in fp16 (silently becomes −inf via overflow — you're now running the −inf regime unknowingly); bf16 holds it fine. The portable idiom: <code>torch.finfo(S.dtype).min</code> (or /2 for additive headroom).</li><li>−inf is exact but brittle: fully-masked rows → NaN (#22), and some fused kernels produce inf·0 NaNs. Large-finite degrades gracefully (fully-masked row → uniform, garbage-but-finite, then the loss mask saves you) — the reason production kernels prefer finite min.</li><li>Mixed-precision port checklist for attention: mask constant per-dtype, softmax in fp32 (or use SDPA/Flash which handles it), loss in fp32 (v2-2) — three lines that prevent 90% of fp16 NaN reports.</li></ul></div>
+          <pre class="code"><mark class="fix">neg = torch.finfo(S.dtype).min / 2          # representable in THIS dtype, headroom for adds</mark>
+S = S.masked_fill(~mask, neg)
+<mark class="fix">A = S.float().softmax(-1).to(S.dtype)        # softmax in fp32: max-subtract &amp; sum are safe</mark></pre>
+          <div class="theory"><b>Background.</b> The 'large negative' trick assumes 'large' is representable and 'negative enough' dominates real scores — both dtype-relative claims: fp16's ±65504 range breaks the first, and post-scale logits of O(10) make −1e4 sufficient where −65504/2 is safer. The −inf-vs-finite trade is exactness vs graceful degradation under mask-intersection accidents (#22/v2-14/15): finite min turns 'NaN poisons the batch' into 'one garbage row the loss mask ignores' — production kernels choose graceful. This is the numerics capstone of the mask family: correctness of a mask isn't just WHICH cells, it's WHAT VALUE, in WHAT dtype, through WHAT softmax.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d40">
+      <div class="dtop"><span class="dnum">40</span><span class="dcat">transformer</span><span class="dtitle">GQA refactor: repeat vs repeat_interleave — heads read the WRONG groups KV</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Migrating MHA→GQA (8 query heads, 2 KV groups). Code expands KV with <code>repeat</code>. Trains, converges, quietly ~4% worse (the #36 signature). Draw the head↔group alignment both ops produce and say which matches the convention <code>q.view(B,T,G,H//G,dh)</code> implies."</p>
+        <pre class="code">k = k.view(B, T, G, dh)                      # G=2 KV groups
+<mark class="bad">k = k.repeat(1, 1, H // G, 1)                 # tiles WHOLE group blocks: [g0,g1,g0,g1,g0,g1,g0,g1]</mark>
+# query heads are grouped CONTIGUOUSLY: heads 0-3 → group0, heads 4-7 → group1
+# repeat gives heads 0-3 the pattern [g0,g1,g0,g1] → half the heads read the WRONG group</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>repeat tiles the whole tensor; repeat_interleave repeats each element in place:</b> [g0,g1]→repeat→[g0,g1,g0,g1,…] vs →interleave→[g0,g0,g0,g0,g1,g1,g1,g1]. Contiguous head-grouping needs INTERLEAVE. Half the heads attending via the wrong group's keys is still valid attention math — hence trains-but-worse, the #36 disease via a different memory-layout confusion.</li><li>The unit test that catches it at write-time: GQA with G=H (every head its own group) must reproduce MHA exactly — bitwise. repeat fails it; repeat_interleave passes.</li><li>Same instinct as #36/#41: any reshape/tile/expand that regroups a semantic axis gets verified by tracking ONE labeled element through the op — 'where does head 5's KV come from?' — not by shape-checking.</li></ul></div>
+          <pre class="code">k = k.view(B, T, G, dh)
+<mark class="fix">k = k.repeat_interleave(H // G, dim=2)       # [g0×4, g1×4]: matches contiguous head grouping</mark>
+# test: G == H must equal plain MHA output exactly</pre>
+          <div class="theory"><b>Background.</b> GQA's entire content is a MAPPING (which query head reads which KV group); shapes are identical under both expansion ops, so only the mapping is at stake — the definition of a layout bug (#36's stripes, #41's patches, this). The equivalence-test discipline generalizes across every architecture migration: MHA→GQA (G=H ⇒ MHA), dense→MoE (1 expert ⇒ dense), full→sliding attention (w≥T ⇒ full) — each refactor ships with the degenerate-case bitwise test, because 'trains fine, quietly worse' is invisible to every other check you have.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v11">§11 · Init, depth &amp; regularization (41–44)</h2>
+    <div class="drill" id="d41">
+      <div class="dtop"><span class="dnum">41</span><span class="dcat">init</span><span class="dtitle">48L pre-norm: grad spikes traced to missing depth-scaled init on out-projections</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Practice twin of v2-8, from the logs side: a 48-layer run shows residual-stream RMS growing ~√depth and loss spikes beginning at layer-40+ gradients around step 30k. State the mechanism, the one-line init, and the two modern alternatives."</p>
+        <pre class="code"># per-layer RMS at init:  layer1: 1.0   layer12: 2.5   layer24: 3.5   layer48: 4.9  (~√(2L))
+# grad-norm heatmap: top layers 30-60× layer-1 by step 25k, spikes follow
+<mark class="bad"># init: every Linear std=0.02 — including attn.out_proj and mlp.down_proj (the branch OUTPUTS)</mark></pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>√depth stream growth at INIT is the tell</b> (measure it before training — free): 2L equal-variance branch additions with no shrinkage. Late-layer activations dominate → their grads dominate → spikes start at the top and late (when weights have grown into the headroom).</li><li>One-line fix (GPT-2): branch OUTPUT projections initialized at std·(2L)^{-1/2}. Alternatives to name: DeepNet-style residual scaling (α·x + β·f(x)), and normalizing the stream itself (e.g. post-block RMSNorm à la Gemma).</li><li>Distinguish from #39 in one glance at the SAME plot: #39's grad norms decay geometrically toward layer 1 (vanishing); this grows toward layer 48 (accumulation). One plot, two opposite diseases, two different fixes.</li></ul></div>
+          <pre class="code">for n, p in model.named_parameters():
+<mark class="fix">    if n.endswith((&#x27;out_proj.weight&#x27;, &#x27;down_proj.weight&#x27;)):</mark>
+<mark class="fix">        nn.init.normal_(p, std=0.02 / math.sqrt(2 * n_layers))</mark>
+# verify: per-layer RMS at init roughly FLAT (measure again — 30 seconds)</pre>
+          <div class="theory"><b>Background.</b> The guided version (v2-8) derived Var(x_L) ∝ L; this practice version is about RECOGNIZING it from instrumentation: RMS-vs-layer at init (√L curve), grad-heatmap direction (top-heavy = accumulation, bottom-vanishing = #39, constant-factor = gain #v2-6). These three plots cost nothing and disambiguate the entire depth-pathology family before a single training run — which is the actual skill: at 48 layers, every one of these bugs costs a day of cluster time to discover empirically, and 30 seconds to rule out from init-time statistics.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d42">
+      <div class="dtop"><span class="dnum">42</span><span class="dcat">regularization</span><span class="dtitle">Dropout moved onto the residual STREAM: deep model degrades, shallow fine</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "A refactor changed <code>x = x + dropout(f(ln(x)))</code> into <code>x = dropout(x + f(ln(x)))</code>. At 6 layers: no visible difference. At 32 layers: train fine, eval clearly worse, and the train/eval gap GROWS with depth. Why does placement matter multiplicatively?"</p>
+        <pre class="code"><mark class="bad">x = F.dropout(x + attn(ln1(x)), p=0.1, training=self.training)   # zeroes the STREAM</mark>
+<mark class="bad">x = F.dropout(x + mlp(ln2(x)),  p=0.1, training=self.training)    # 2L bernoulli hits on the highway</mark>
+# branch form: only the new CONTRIBUTION is regularized; the identity path stays clean</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>The residual stream is the gradient/information highway — dropout ON it applies 2L independent zero-outs to the carried signal:</b> per-unit survival (0.9)^{64} ≈ 0.001 at 32 layers. Train time, the network adapts to a noisy highway; eval time the highway is suddenly clean and rescaled — a train/eval distribution gap that COMPOUNDS with depth (v1 #12's gap, exponentiated).</li><li>Placement rule: stochastic regularizers go on the BRANCH (the new information), never the identity path — same principle that forbids LN on the skip in pre-norm, and why stochastic-depth drops whole BRANCHES (x + b·f(x)), which is the legitimate way to regularize deep residual nets.</li><li>Fingerprint vs plain #12: both are train/eval gaps; this one scales with L (plot gap-vs-depth: linear-ish growth convicts stream placement).</li></ul></div>
+          <pre class="code"><mark class="fix">x = x + F.dropout(attn(ln1(x)), p=0.1, training=self.training)   # branch only</mark>
+<mark class="fix">x = x + F.dropout(mlp(ln2(x)),  p=0.1, training=self.training)    # identity path untouched</mark></pre>
+          <div class="theory"><b>Background.</b> Residual networks work because the identity path is exact — every operation placed on it (dropout here, but also LN, projections, or v1 #39's removal) converts an additive ensemble into a multiplicative chain, resurrecting depth-exponential behavior that residuals were invented to kill. Inverted dropout's E[out]=x guarantee (v2-9) holds per-application; 2L applications still change the VARIANCE structure the network adapts to, and eval removes all of it at once. The three dropout sessions compose the complete picture: the mechanism's contract (v2-9), the framework's mode-handling (#12), and the architectural placement (this) — three independent ways the same regularizer breaks.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d43">
+      <div class="dtop"><span class="dnum">43</span><span class="dcat">transformer</span><span class="dtitle">Weight tying by copy: emb and head drift apart silently after checkpoint resume</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Head is 'tied' to the embedding. Fresh runs behave tied. After any save/load-resume, quality dips slightly and the two matrices are no longer bitwise-equal. Explain the difference between sharing a Parameter and copying data — and where the resume broke it."</p>
+        <pre class="code"><mark class="bad">self.head.weight.data = self.tok_emb.weight.data     # copies the SAME STORAGE today…</mark>
+# state_dict() saves head.weight and tok_emb.weight as TWO tensors;
+# load_state_dict() loads them into TWO fresh storages → tie severed on resume;
+# optimizer now updates two params that merely started equal</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Tying means ONE Parameter object referenced twice</b> (<code>head.weight = tok_emb.weight</code> — assignment of the Parameter, not <code>.data</code>): one storage, one grad accumulation (both call-sites' grads sum), one optimizer slot, one state_dict entry. <code>.data</code>-copy aliasing survives only until anything re-materializes storage: load_state_dict, <code>.to(device)</code> in some orders, FSDP wrapping.</li><li>Silent-drift detection is one assert at resume: <code>model.head.weight.data_ptr() == model.tok_emb.weight.data_ptr()</code> — pointer equality, not allclose.</li><li>Cousins: EMA copies that alias instead of clone (the inverse bug — v1 #29's family), and DDP buckets breaking exotic aliasing. Rule: aliasing intent must be re-ASSERTED after any operation that rebuilds tensors.</li></ul></div>
+          <pre class="code"><mark class="fix">self.head.weight = self.tok_emb.weight               # share the Parameter itself</mark>
+# after EVERY load/resume:
+<mark class="fix">assert model.head.weight.data_ptr() == model.tok_emb.weight.data_ptr()</mark>
+# (HF models re-run tie_weights() after from_pretrained for exactly this reason)</pre>
+          <div class="theory"><b>Background.</b> Tied weights implement the linear-map-and-its-transpose view of embedding/unembedding (input: token→vector; output: vector→token similarities) and save V·d params; the tie is an OBJECT-GRAPH property, invisible to value-space checks (equality today ≠ tied tomorrow) — which is why frameworks re-tie after deserialization rather than trusting the loaded graph. The debugging skill generalized: some invariants live in values (norms, losses), some in STRUCTURE (aliasing, requires_grad, registration #40, device placement) — structural invariants need structural asserts (data_ptr, id(), .grad_fn), and every serialization boundary is where they die.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d44">
+      <div class="dtop"><span class="dnum">44</span><span class="dcat">training loop</span><span class="dtitle">A frozen-encoder refactor wrapped the backbone in no_grad — LoRA inside never trains</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "'We froze the vision backbone' — by wrapping its forward in <code>torch.no_grad()</code>. Later, LoRA adapters were added INSIDE the backbone. They initialize, they're in the optimizer, their grads are always None. No error. Explain why requires_grad couldn't save them, and the right freezing idiom."</p>
+        <pre class="code">with torch.no_grad():                       # &#x27;freeze the backbone&#x27;
+<mark class="bad">    feats = self.backbone(pixels)            # NO GRAPH is built inside this block —</mark>
+                                             # LoRA params (requires_grad=True!) get no grad_fn:
+                                             # autograd never sees them; .grad stays None forever
+head_out = self.head(feats)                  # head trains fine — the confusing part</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>no_grad and requires_grad are different switches:</b> requires_grad marks LEAVES; no_grad suppresses GRAPH CONSTRUCTION for a region — inside it, even requires_grad=True params produce no grad_fn. Freezing-by-region silently freezes everything anyone later adds to that region (LoRA, prompts, tuned norms — the modern PEFT stack).</li><li>Diagnosis in one line: <code>feats.requires_grad</code> is False / <code>feats.grad_fn</code> is None at the block's exit — the graph's severed edge is visible right there. (#40's cousin: there the optimizer couldn't SEE params; here autograd can't REACH them.)</li><li>Right idiom: freeze by PARAMETER (<code>p.requires_grad_(False)</code> loop), keep the graph; no_grad is for inference/metrics only. Backbone-frozen-but-graph-alive costs activation memory — the trade you name out loud.</li></ul></div>
+          <pre class="code"><mark class="fix">for p in self.backbone.parameters():</mark>
+<mark class="fix">    p.requires_grad_(False)                  # freeze by leaf, not by region</mark>
+feats = self.backbone(pixels)                # graph exists: gradients can FLOW THROUGH
+                                             # frozen weights into LoRA/prompts/head
+# check after one step: all(lora.grad is not None), backbone grads None</pre>
+          <div class="theory"><b>Background.</b> Gradients must FLOW THROUGH frozen modules to reach trainable ones upstream or inside — freezing the weights (leaves) preserves the chain rule's path; killing the graph (no_grad) amputates it. The distinction defines the PEFT era: adapters/LoRA/prefix-tuning all live inside 'frozen' giants and depend on through-flow. Completes the silent-freeze family: #40 (invisible to optimizer), v2-43 (tie severed), this (invisible to autograd) — three mechanisms, one four-line audit after step 1: <em>for every param: in optimizer? requires_grad? grad not None? data_ptr expected?</em> Print it once per run; it reads out all three bugs.</div>
+        </details>
+      </div>
+    </div>
+    <h2 class="section" id="v12">§12 · RL &amp; post-training (45–50)</h2>
+    <div class="drill" id="d45">
+      <div class="dtop"><span class="dnum">45</span><span class="dcat">RL</span><span class="dtitle">GAE with values[t] bootstrapped instead of values[t+1]: advantages ≈ rewards, critic decorative</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "PPO learns, but barely better than REINFORCE; the critic's value loss LOOKS fine. Print of advantages shows them nearly proportional to raw rewards. One index in the delta line. (You've fixed #47's dones and direction — this is the third way GAE breaks.)"</p>
+        <pre class="code">def gae(r, V, dones, gamma=0.99, lam=0.95):     # V: (T+1,) includes bootstrap value
+    adv, last = np.zeros(len(r)), 0.0
+    for t in reversed(range(len(r))):            # direction ✓   dones ✓
+<mark class="bad">        delta = r[t] + gamma * (1 - dones[t]) * V[t] - V[t]     # V[t] twice: should be V[t+1]</mark>
+        last = delta + gamma * lam * (1 - dones[t]) * last
+        adv[t] = last
+    return adv</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>delta collapses algebraically — read what the code MEANS:</b> r + γV[t] − V[t] = r − (1−γ)V[t] ≈ r − 0.01·V[t]: the value function almost cancels OUT of the advantage. Advantages ≈ discounted rewards → you're running REINFORCE with extra steps; the critic trains (its loss is separate — 'value loss healthy') but influences nothing.</li><li>'Advantages correlate ~1.0 with raw rewards' is the smoking-gun metric — log that correlation; healthy GAE decorrelates them substantially.</li><li>TD indexing rule said aloud: δ_t compares V(s_t) against r_t + γV(s_{t+1}) — one step APART. Any δ with the same index twice is wrong by inspection, no simulation needed.</li></ul></div>
+          <pre class="code"><mark class="fix">        delta = r[t] + gamma * (1 - dones[t]) * V[t + 1] - V[t]   # next-state bootstrap</mark>
+        last = delta + gamma * lam * (1 - dones[t]) * last
+        adv[t] = last
+# probe: corr(adv, r) should drop well below 1; A2C-degenerate check: lam=0 ⇒ adv == delta</pre>
+          <div class="theory"><b>Background.</b> The TD error is the Bellman residual — it must span one transition (t → t+1) to carry any information about the DYNAMICS; same-index forms degenerate into reward-minus-small-constant, quietly deleting the critic from the algorithm while every individual component 'works.' This completes GAE's three failure axes across #47/v2-21/this: masking (episode boundaries), direction (time's arrow), indexing (the transition span). When asked to write GAE cold, say the three checks as you write: 'reversed loop, dones gate both terms, V[t+1] in delta' — that sentence is the difference between knowing the formula and having debugged it.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d46">
+      <div class="dtop"><span class="dnum">46</span><span class="dcat">RL / RLHF</span><span class="dtitle">Reward model scored the policys outputs under the WRONG chat template — reward is fiction</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "PPO-RLHF: reward climbs beautifully. KL modest, lengths sane — the #50 dashboard looks clean! Human evals: no improvement at all. The RM was trained on conversations in template A; the policy generates with template B. What is the RM actually scoring, and what's the check that catches template drift?"</p>
+        <pre class="code"># RM training data:   &#x27;&lt;|user|&gt;\n{q}\n&lt;|assistant|&gt;\n{a}&lt;|end|&gt;&#x27;      (template A)
+<mark class="bad">reward = RM(tokenize(&#x27;[INST] &#x27; + q + &#x27; [/INST] &#x27; + a))                 # policy stack: template B</mark>
+# the RM has never seen &#x27;[INST]&#x27; — it scores OUT-OF-DISTRIBUTION strings;
+# its output is dominated by template-token artifacts the policy learns to exploit</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>A reward model is only calibrated ON ITS TRAINING DISTRIBUTION — the template is part of the distribution.</b> Off-template, the RM still emits confident numbers (models don't say 'I don't know this format'); PPO then optimizes RM-artifacts. Reward↑ + humans-flat with CLEAN KL/length dashboards is the fingerprint that the reward CHANNEL itself is broken, not hacked.</li><li>Checks: (1) score a fixed suite of known-good/known-bad responses through the exact production path — a broken channel misranks them; (2) assert the RM input string round-trips from the same formatter the RM's training data used (share the formatter as CODE, not as documentation).</li><li>This is the ops twin of #50: there the objective was mis-specified (KL sign); here the objective is fine and the PLUMBING lies. Both end as 'metric up, humans unimpressed' — bracket them in your triage.</li></ul></div>
+          <pre class="code"><mark class="fix">format = rm_repo.chat_formatter                      # ONE shared formatter object, imported</mark>
+reward = RM(tokenize(format(q, a)))                   # bitwise-identical preprocessing
+<mark class="fix"># release gate: RM ranks a frozen good/bad response suite correctly through THIS exact path</mark></pre>
+          <div class="theory"><b>Background.</b> Reward models inherit every input-sensitivity of LLMs — template tokens, whitespace, truncation, tokenizer version — and RLHF turns any systematic sensitivity into an exploitable gradient (the policy will find what the RM overrates, including formatting artifacts). Template mismatch is the most common industrial version (RM and policy teams evolve prompts independently); defense is architectural: preprocessing shared as code + a behavioral release-gate (fixed suite, exact path). Grand rule of the reward stack, worth saying verbatim: <em>the reward the optimizer sees is the reward, whatever you intended</em> — #50 (sign), v2-25 (whitening), v2-46 (template) are three ways intended ≠ optimized.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d47">
+      <div class="dtop"><span class="dnum">47</span><span class="dcat">RL / PPO</span><span class="dtitle">Entropy "bonus" with a sign error: policy collapses deterministic in 200 updates</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "PPO: within a few hundred updates the policy entropy crashes to ~0, exploration dies, and the run plateaus at a mediocre local optimum. The entropy term was added 'to encourage exploration.' Read the total-loss line's signs carefully — all three terms."</p>
+        <pre class="code"># maximize reward  →  minimize -objective:
+loss = -ppo_clip_objective(...)                     # ✓ minimize negative objective
+       + vf_coef * value_loss                       # ✓ minimize value error
+<mark class="bad">       + ent_coef * entropy                          # ✗ MINIMIZES entropy: pays to be certain</mark>
+# exploration bonus must REWARD entropy: subtract it from the loss</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>In a minimized loss, every 'bonus' enters with a minus sign.</b> +ent_coef·H actively pays the policy to collapse — entropy→0 in a few hundred updates is faster and cleaner than natural convergence, which is the tell (healthy entropy declines slowly and plateaus above 0).</li><li>Sign errors in composite losses hide because each term is individually plausible; the audit is per-term: 'if this term dominated, what would the model do?' — a 10-second thought experiment that catches this, #50's +βKL, and reward-as-cost bugs.</li><li>Entropy-vs-steps belongs on the default RL dashboard next to reward and KL: cliff = sign bug or lr blowup; instant-max = the opposite sign bug (policy paid to be uniform — also seen in the wild).</li></ul></div>
+          <pre class="code">loss = -ppo_clip_objective(...) \
+       + vf_coef * value_loss \
+<mark class="fix">       - ent_coef * entropy                          # bonus: higher entropy → lower loss</mark></pre>
+          <div class="theory"><b>Background.</b> Composite objectives (policy + value + entropy + KL + auxiliary) are sign-error factories because the optimizer direction flips between 'objective' and 'loss' conventions per term, and frameworks differ; the per-term domination test is the universal audit. Entropy regularization itself: it bounds the policy away from premature determinism so the ratio-clipping machinery keeps getting informative samples — losing it doesn't just stop exploration, it starves PPO's own importance weights (everything becomes on-policy-certain). Fingerprint triad for collapsed entropy: sign bug (cliff), ent_coef=0 typo (slow fade), reward hacking via a deterministic exploit (cliff + reward spike, #50-family) — the reward curve disambiguates.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d48">
+      <div class="dtop"><span class="dnum">48</span><span class="dcat">RL / DPO</span><span class="dtitle">A third of the preference pairs have chosen/rejected SWAPPED — margins go bimodal</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "DPO run: loss falls, but win-rate against the SFT baseline is worse. Per-example margin histogram is clearly bimodal: a big positive mode and a substantial NEGATIVE mode centered symmetric to it. What does the negative mode mean, where did it come from, and why is the model worse (not just diluted)?"</p>
+        <pre class="code">df = pd.merge(responses_a, responses_b, on=&#x27;prompt&#x27;)     # merge from two generation jobs
+<mark class="bad">chosen, rejected = df.response_x, df.response_y           # column order from the MERGE,</mark>
+# not from the LABELS: for ~1/3 of prompts the annotator preferred response_y
+# → those rows train the OPPOSITE preference, at full gradient strength</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>A symmetric negative mode in the margin histogram = a coherent subpopulation being optimized BACKWARDS</b> (label noise would be a smear, not a mode). Coherent flips come from JOIN/merge bugs, not annotators: column order, id collisions, off-by-one in pairing.</li><li>Why worse, not diluted: DPO's gradient weights confidently-wrong pairs MOST (the σ(−margin) factor is largest when the model disagrees) — so the swapped third, as the model learns the true preference, gets progressively UP-weighted: the bug fights hardest exactly when the model is right. Anti-preference data is actively toxic, not noise.</li><li>Audit before any preference run: sample 20 pairs, read them; assert chosen ≠ rejected strings; plot the margin histogram at init AND mid-training (bimodality emerges with learning). Data provenance for pairs is a first-class artifact.</li></ul></div>
+          <pre class="code"><mark class="fix">chosen  = np.where(df.label == &#x27;a&#x27;, df.response_x, df.response_y)   # order from the LABEL</mark>
+<mark class="fix">rejected = np.where(df.label == &#x27;a&#x27;, df.response_y, df.response_x)</mark>
+assert (chosen != rejected).all()
+# gate: margin histogram unimodal-ish at convergence; inspect the negative tail by hand</pre>
+          <div class="theory"><b>Background.</b> DPO's per-pair gradient scales with $\sigma(-\beta\,\text{margin})$ — the confidently-contradicted pairs dominate — so systematically flipped labels don't average out like classification noise; they escalate (IPO/cDPO/robust-DPO exist to soften exactly this). The margin distribution is the preference-training equivalent of the loss curve: bimodality = flipped subpopulation, mass near zero = duplicate/near-identical pairs (v2-23's data cousin), heavy positive saturation = overfitting to easy pairs (v2-24's leak precursor). One histogram, four diagnoses — put it on the dashboard before the run, because every one of these is invisible in the scalar loss.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d49">
+      <div class="dtop"><span class="dnum">49</span><span class="dcat">RL / sampling</span><span class="dtitle">Best-of-16 pipeline sampled all 16 at temperature 0 — "RL did nothing"</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "A rejection-sampling (BoN + distill) loop reports zero improvement over the base model. The RM is validated; the distillation step is fine. The generation config for the 16 candidates is the bug. Why does this reduce EXACTLY to Bo1, and what's the diversity checklist for BoN?"</p>
+        <pre class="code">gen_cfg = dict(max_new_tokens=512,
+<mark class="bad">               temperature=0.0,               # greedy: argmax at every step</mark>
+               num_return_sequences=16)       # 16 IDENTICAL rollouts (modulo rare kernel ties)
+best = responses[rm_scores.argmax()]          # argmax over 16 copies of one string</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>BoN's entire value is the spread of the candidate distribution:</b> greedy decoding is deterministic → 16 copies of one completion → argmax over duplicates = Bo1 = the base model. 'Search did nothing' + candidates identical is a 10-second check: <code>len(set(responses))</code>.</li><li>Same-bug-different-mask variants: temperature>0 but a per-call re-seeded RNG (v1 #46!), top_k=1, or do_sample=False silently overriding temperature (HF's classic config foot-gun — the flag SILENTLY wins).</li><li>BoN checklist: do_sample=True; temperature/top-p tuned for DIVERSITY (often hotter than serving); distinct-n / self-BLEU logged over candidates; and RM-score variance across the n — zero variance = no search happened.</li></ul></div>
+          <pre class="code">gen_cfg = dict(max_new_tokens=512,
+<mark class="fix">               do_sample=True, temperature=0.9, top_p=0.95,   # spread is the point</mark>
+               num_return_sequences=16)
+<mark class="fix">assert len(set(responses)) &gt; 1, &#x27;BoN degenerated to Bo1&#x27;</mark>
+best = responses[rm_scores.argmax()]</pre>
+          <div class="theory"><b>Background.</b> BoN improves the policy by $\mathbb E[\max_i r(y_i)]$ over i.i.d. DRAWS — the max of n identical values is the value: candidate diversity isn't a quality knob, it's the mechanism. The KL-vs-quality math of BoN ($\mathrm{KL} \le \log n$) prices how much distributional spend you're converting to reward; at zero diversity you spend nothing and buy nothing. Ties this family together: sampling bugs (#45/#46) silently defeat SEARCH-based post-training (BoN, MCTS-style, self-consistency) before any learning happens — whenever 'scaling test-time compute did nothing,' audit the sampler's actual entropy first, the scorer second, the learner last.</div>
+        </details>
+      </div>
+    </div>
+    <div class="drill" id="d50">
+      <div class="dtop"><span class="dnum">50</span><span class="dcat">RL / RLHF</span><span class="dtitle">Per-token KL clamped at zero "because KL cant be negative" — the meter under-reads while the policy drifts</span></div>
+      <div class="dbody">
+        <p class="ask"><b>Interviewer:</b> "Capstone. Dashboard KL stays comfortingly low all run; reward climbs; late in training, generations degrade and humans revolt. The KL ESTIMATOR was 'fixed' by a well-meaning clamp: per-token values that came out negative were floored at 0. Why are negative per-token values CORRECT, and what did the clamp do to the control loop?"</p>
+        <pre class="code">kl_t = logp_policy[t] - logp_ref[t]           # single-sample estimate of KL per token
+<mark class="bad">kl_t = kl_t.clamp(min=0)                       # &#x27;KL is nonnegative, so clamp the noise&#x27;</mark>
+kl_penalty = beta * kl_t.sum()
+# KL(π‖ref) = E_π[log π - log ref] ≥ 0 holds for the EXPECTATION —
+# individual samples log π(y_t) - log ref(y_t) are legitimately negative whenever
+# the sampled token happens to be one the ref likes MORE. Clamping keeps only the
+# positive noise → E[clamped] &gt; true KL? No: it BIASES the ESTIMATE UP per token but
+# kills the negative feedback where π &lt; ref … net effect: the penalty stops being a KL</pre>
+        <details class="sol"><summary>Reveal — bug · fix · theory</summary>
+          <div class="look"><b>What to look for</b><ul><li><b>Nonnegativity of KL is a property of the EXPECTATION, not of samples.</b> The single-sample estimator k1 = log π − log ref is unbiased BECAUSE its negative excursions cancel its positive ones; clamping deletes the negative half → a biased meter whose error grows exactly as the policy concentrates on tokens ref dislikes. The control loop (β against measured KL, or adaptive-β) is now regulating a fiction.</li><li>Meters that are also OBJECTIVES corrupt doubly: the clamped penalty stops penalizing the specific drift pattern 'high π, low ref, occasionally ref-favored tokens' — a canyon for the optimizer to hide divergence in.</li><li>The known-good tool: the k3 estimator (r − 1 − log r, r = ref/π ratio) — nonnegative BY CONSTRUCTION and still unbiased-in-the-limit-useful; this is what mainstream RLHF stacks use precisely so nobody is tempted to clamp. If your per-token KL never prints negative and you didn't choose k3 on purpose, someone clamped.</li></ul></div>
+          <pre class="code">ratio = (logp_ref - logp_policy).exp()         # r = ref/π per token
+<mark class="fix">kl_t = ratio - 1 - (logp_ref - logp_policy)    # k3: ≥ 0 pointwise AND low-bias (Schulman)</mark>
+kl_penalty = beta * kl_t.sum()
+<mark class="fix"># dashboard: also log raw k1 mean (may be negative early — that&#x27;s HEALTH, not a bug)</mark></pre>
+          <div class="theory"><b>Background.</b> Estimator design is invisible until it's load-bearing: k1 (unbiased, high variance, sign-free), k2 (½(log r)², biased low-var), k3 (nonneg, low bias) are all 'the KL' in code review, and the difference only matters once a controller or a gradient consumes the number — then a clamp quietly converts an unbiased meter into a permissive one, and Goodhart does the rest (#50-v1's lesson: divergence must COST; this session's: the cost must be MEASURED honestly). Full-circle close for the casebook: the maths said nonnegative, the samples said negative, and the bug was born in the gap between a property of a distribution and a property of its estimates — precisely the kind of 'fix' that only a team WITHOUT this casebook ships.</div>
+        </details>
+      </div>
+    </div>
+    <div class="callout keyidea"><span class="label">After a pass</span> Flag misses with <em>don't know</em>, hit <em>Copy list for Claude</em>, paste into chat — round 3 will target exactly those. v2 flags are stored separately from v1 (prefix dbg2_), so both lists survive.</div>
+  </main>
+</div>
+<button class="back-top" id="backTop" aria-label="Back to top">↑</button>
+<script>
+  const prog = document.getElementById('progress');
+  const backTop = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    prog.style.width = (h.scrollTop)/(h.scrollHeight - h.clientHeight)*100 + '%';
+    backTop.style.display = h.scrollTop > 600 ? 'block' : 'none';
+  });
+
+  // don't-know flags (localStorage prefix dbg2_)
+  document.querySelectorAll('.drill').forEach((dr) => {
+    const num = dr.querySelector('.dnum').textContent.trim();
+    const dkey = 'dbg2_dk_' + num;
+    const lbl = document.createElement('label');
+    lbl.className = 'dk';
+    lbl.innerHTML = '<input type="checkbox">don’t know';
+    const cb = lbl.querySelector('input');
+    cb.checked = localStorage.getItem(dkey) === '1';
+    dr.classList.toggle('dontknow', cb.checked);
+    cb.addEventListener('change', () => {
+      dr.classList.toggle('dontknow', cb.checked);
+      localStorage.setItem(dkey, cb.checked ? '1' : '0');
+      updateDk();
+    });
+    dr.querySelector('.dtop').appendChild(lbl);
+    // persist open/closed state of the solution
+    const det = dr.querySelector('details.sol');
+    const okey = 'dbg2_open_' + num;
+    const saved = localStorage.getItem(okey);
+    if (saved === '1') det.open = true;
+    if (saved === '0') det.open = false;
+    det.addEventListener('toggle', () => localStorage.setItem(okey, det.open ? '1' : '0'));
+  });
+
+  function dkFlagged(){
+    const out = [];
+    document.querySelectorAll('.drill.dontknow').forEach((dr) => {
+      out.push(dr.querySelector('.dnum').textContent.trim() + '. ' +
+               dr.querySelector('.dtitle').textContent.trim());
+    });
+    return out;
+  }
+  function updateDk(){
+    const n = dkFlagged().length;
+    document.getElementById('dkCount').textContent = n ? n + " flagged as don't-know" : '';
+  }
+  function toggleDkOnly(){
+    const on = document.body.classList.toggle('dkonly');
+    document.getElementById('dkOnly').textContent = on ? 'Show all sessions' : "Show only don't-knows";
+  }
+  function copyDk(){
+    const list = dkFlagged();
+    const text = list.length
+      ? "ML debugging v2 sessions I don't know (" + list.length + "/50):\n" + list.map(s => '- ' + s).join('\n')
+      : 'No debugging sessions flagged yet.';
+    const done = () => {
+      const b = document.getElementById('dkCopy'), old = b.textContent;
+      b.textContent = 'Copied ✓';
+      setTimeout(() => { b.textContent = old; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => copyDkFallback(text, done));
+    } else { copyDkFallback(text, done); }
+  }
+  function copyDkFallback(text, done){
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } finally { document.body.removeChild(ta); }
+  }
+  updateDk();
+
+  function setAll(open){
+    document.querySelectorAll('.drill').forEach((dr) => {
+      const det = dr.querySelector('details.sol');
+      det.open = open;
+      localStorage.setItem('dbg2_open_' + dr.querySelector('.dnum').textContent.trim(), open ? '1' : '0');
+    });
+  }
+
+  // TOC active highlighting
+  const tocLinks = [...document.querySelectorAll('nav.toc a')];
+  const sections = tocLinks.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll', () => {
+    let current = sections[0];
+    for (const s of sections) { if (s.getBoundingClientRect().top <= 120) current = s; }
+    if (current) tocLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+  });
+</script>
+</body></html>

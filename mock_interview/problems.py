@@ -900,6 +900,184 @@ _check("the 'abba' stale-index trap", _t_abba)
       "solution": "def longest_unique(s):\n    seen = {}\n    left = 0\n    best = 0\n    for right, c in enumerate(s):\n        if c in seen:\n            left = max(left, seen[c] + 1)   # never move left backward\n        seen[c] = right\n        best = max(best, right - left + 1)\n    return best"
     }
   ]
+},
+
+# =====================================================================
+# M1 — Classic ML warm-up: k-means + kNN (distance-based, from scratch)
+# =====================================================================
+{
+  "id": "m1",
+  "interviewer": "A",
+  "persona": "Classic-ML screen — vectorized NumPy, no sklearn. Distance tricks, degenerate cases (empty clusters, ties, zero vectors), complexity called out.",
+  "title": "Classic ML: k-means & kNN",
+  "minutes": 35,
+  "intro": "Today is classic ML from scratch — plain NumPy, no sklearn. We'll build one distance primitive and then reuse it twice: first unsupervised (k-means), then supervised (a kNN classifier). Vectorize everything; I'll be listening for shapes, degenerate cases, and complexity.",
+  "closing": "That's the whole ladder — a distance primitive, an unsupervised loop on top of it, a supervised vote on top of it. Nice working with you.",
+  "stages": [
+    {
+      "id": "m1s1",
+      "title": "Vectorized pairwise distances",
+      "prompt": "Everything today sits on one primitive, so let's build it well: all pairwise **squared Euclidean distances** between two point sets.\n\n```\ndef pairwise_sq_dists(A, B):\n```\n`A` is `(n, d)`, `B` is `(m, d)`. Return the `(n, m)` matrix where entry `(i, j)` is `||A[i] - B[j]||²`.\n\nNo Python loops — one vectorized expression. Talk me through the algebra you're using.",
+      "starter": "import numpy as np\n\ndef pairwise_sq_dists(A, B):\n    # A: (n, d), B: (m, d)  ->  (n, m)\n    pass\n",
+      "hints": [
+        "Expand the square: ||a - b||² = ||a||² - 2·a·b + ||b||². The cross term for ALL pairs at once is a single matmul: A @ B.T. Row norms with keepdims give you (n, 1) and (1, m) — broadcasting does the rest.",
+        "Two details: sum the squares along axis=1 (keepdims=True, transpose one of them to (1, m)), and clip the result with np.maximum(D, 0) — floating-point cancellation on near-duplicate points can produce tiny negative values, and a downstream sqrt would NaN."
+      ],
+      "probe": {
+        "q": "Your version does one big matmul; a nested loop does the same FLOPs. Why is yours much faster, and what does it cost you?",
+        "a": "Same O(nmd) FLOPs, wildly different constants: the matmul hits BLAS — cache-blocked, SIMD, multithreaded — while the Python loop pays interpreter overhead per pair. Costs: the (n, m) matrix must materialize (memory — tile/chunk for large n·m), and the expansion trick loses precision when points are far from the origin relative to their separation, so clip negatives (the direct (A[:,None]-B[None])**2 sum is exact but needs O(nmd) memory)."
+      },
+      "tests": """
+def _ref_pd(A, B):
+    n, m = A.shape[0], B.shape[0]
+    D = np.empty((n, m))
+    for i in range(n):
+        for j in range(m):
+            diff = A[i] - B[j]
+            D[i, j] = diff @ diff
+    return D
+
+def _t_shape():
+    rng = np.random.default_rng(0)
+    A = rng.standard_normal((5, 3)); B = rng.standard_normal((7, 3))
+    D = pairwise_sq_dists(A, B)
+    assert D is not None, "function returned None"
+    assert D.shape == (5, 7), f"expected shape (5, 7) = (n, m), got {D.shape}"
+_check("output shape is (n, m)", _t_shape)
+
+def _t_ref():
+    rng = np.random.default_rng(1)
+    for _ in range(3):
+        A = rng.standard_normal((6, 4)); B = rng.standard_normal((5, 4))
+        got = pairwise_sq_dists(A, B)
+        assert np.allclose(got, _ref_pd(A, B), atol=1e-6), "values don't match a loop reference (check the ||a||^2 - 2ab + ||b||^2 expansion and the broadcast shapes)"
+_check("matches loop reference", _t_ref)
+
+def _t_nonneg():
+    rng = np.random.default_rng(2)
+    A = rng.standard_normal((50, 3)) * 1e4
+    B = A + rng.standard_normal((50, 3)) * 1e-6
+    D = pairwise_sq_dists(A, B)
+    assert np.isfinite(D).all(), "non-finite distances on near-duplicate points"
+    assert (D >= 0).all(), "negative squared distance on near-duplicate points -- the expansion trick cancels catastrophically; clip with np.maximum(D, 0) so downstream sqrt can't NaN"
+_check("non-negative on near-duplicate points", _t_nonneg)
+""",
+      "solution": "def pairwise_sq_dists(A, B):\n    # ||a-b||^2 = ||a||^2 - 2 a.b + ||b||^2 ; the cross term is ONE matmul\n    aa = (A * A).sum(axis=1, keepdims=True)    # (n, 1)\n    bb = (B * B).sum(axis=1, keepdims=True).T  # (1, m)\n    D = aa - 2.0 * (A @ B.T) + bb              # (n, m) by broadcasting\n    return np.maximum(D, 0.0)                  # cancellation can dip below 0"
+    },
+    {
+      "id": "m1s2",
+      "title": "k-means (Lloyd's algorithm)",
+      "prompt": "Now use it: full **k-means**.\n\n```\ndef kmeans(X, k, init, n_iters=100):\n```\n`X` is `(n, d)`; `init` is `(k, d)` initial centroids (I'm handing you the init so we can test deterministically). Repeat up to `n_iters` times: assign every point to its nearest centroid, then move each centroid to the mean of its assigned points. Stop early once assignments stop changing. Return `(centroids, labels)` — a `(k, d)` float array and a `(n,)` int array.\n\nOne requirement I care about: a cluster can end up **empty** mid-run. Don't crash, don't produce NaN — an empty cluster keeps its previous centroid.",
+      "starter": None,
+      "hints": [
+        "The assignment step is one line with your primitive: labels = pairwise_sq_dists(X, C).argmin(axis=1). The update step: for each j, C[j] = X[labels == j].mean(axis=0) — the axis=0 matters.",
+        "Two traps: the mean of an EMPTY slice is NaN (guard with `if mask.any():` and otherwise keep the old centroid), and the early stop compares this iteration's labels to the previous iteration's — break when they're all equal."
+      ],
+      "probe": {
+        "q": "What objective does k-means optimize, and why is it guaranteed to terminate?",
+        "a": "Within-cluster sum of squared distances J = Σᵢ ||xᵢ − c_{label(i)}||². The assignment step can't increase J (each point moves to its nearest centroid) and the update step can't increase J (the mean is the argmin of summed squared distance to a fixed set). J is non-increasing and there are finitely many partitions of n points into k clusters, so it terminates — at a LOCAL optimum. No global guarantee: init decides which basin, hence k-means++ or restarts."
+      },
+      "tests": """
+def _blobs(seed=0):
+    rng = np.random.default_rng(seed)
+    centers = np.array([[0.0, 0.0], [10.0, 10.0], [-10.0, 10.0]])
+    X = np.vstack([c + rng.standard_normal((20, 2)) * 0.5 for c in centers])
+    true = np.repeat(np.arange(3), 20)
+    return X, centers, true
+
+def _t_blobs():
+    X, centers, true = _blobs()
+    out = kmeans(X, 3, init=centers + 0.7)
+    assert out is not None, "function returned None"
+    C, labels = out
+    labels = np.asarray(labels)
+    assert C.shape == (3, 2), f"centroids shape {C.shape}, expected (3, 2)"
+    assert labels.shape == (60,), f"labels shape {labels.shape}, expected (60,)"
+    for j in range(3):
+        exp = X[true == j].mean(axis=0)
+        assert np.allclose(C[j], exp, atol=1e-6), f"centroid {j} should converge to its blob's mean (check mean over axis=0)"
+        assert (labels[true == j] == j).all(), "all points of one blob must share one label"
+_check("recovers three separated blobs", _t_blobs)
+
+def _t_fixed_point():
+    X, centers, true = _blobs(1)
+    C1, l1 = kmeans(X, 3, init=centers + 0.7)
+    C2, l2 = kmeans(X, 3, init=C1)
+    assert np.allclose(C1, C2, atol=1e-8), "converged centroids must be a fixed point -- rerunning from them changes nothing"
+    assert (np.asarray(l1) == np.asarray(l2)).all(), "labels must also be stable at the fixed point"
+_check("converged result is a fixed point", _t_fixed_point)
+
+def _t_empty_cluster():
+    X, centers, true = _blobs(2)
+    init = np.vstack([centers + 0.7, [[1e6, 1e6]]])   # 4th centroid never wins a point
+    C, labels = kmeans(X, 4, init=init)
+    assert np.isfinite(C).all(), "centroids contain NaN/inf -- the mean of an empty slice is NaN; guard the empty-cluster case"
+    assert np.allclose(C[3], [1e6, 1e6]), "an empty cluster must keep its previous centroid"
+    assert not (np.asarray(labels) == 3).any(), "no point should be assigned to the far-away centroid"
+_check("empty cluster: centroid kept, all finite", _t_empty_cluster)
+
+def _t_self_consistent():
+    X, centers, true = _blobs(3)
+    C, labels = kmeans(X, 3, init=centers + 0.7)
+    D = ((X[:, None, :] - C[None, :, :]) ** 2).sum(axis=-1)
+    assert (np.asarray(labels) == D.argmin(axis=1)).all(), "returned labels must be nearest-centroid assignments under the returned centroids"
+_check("labels consistent with returned centroids", _t_self_consistent)
+""",
+      "solution": "def kmeans(X, k, init, n_iters=100):\n    C = init.astype(float).copy()\n    labels = None\n    for _ in range(n_iters):\n        new = pairwise_sq_dists(X, C).argmin(axis=1)   # assign: (n,)\n        if labels is not None and (new == labels).all():\n            break                                       # assignments frozen -> converged\n        labels = new\n        for j in range(k):\n            mask = labels == j\n            if mask.any():                              # empty cluster keeps old centroid\n                C[j] = X[mask].mean(axis=0)             # axis=0: mean per coordinate\n    return C, labels"
+    },
+    {
+      "id": "m1s3",
+      "title": "kNN classifier",
+      "prompt": "Last one, supervised: a **k-nearest-neighbors classifier**.\n\n```\ndef knn_predict(X_train, y_train, X_test, k):\n```\n`y_train` is `(n_train,)` non-negative integer class labels. For each test point, find the `k` training points with the smallest Euclidean distance and return the **majority class** among them; on a tied vote, return the **smallest** tied label (deterministic). Return a `(n_test,)` int array.\n\nNo loops over training points — reuse your distance matrix. A loop over test rows is fine.",
+      "starter": None,
+      "hints": [
+        "pairwise_sq_dists(X_test, X_train) gives every distance at once — and squared distance has the same RANKING as distance, so no sqrt needed. Per row: idx = np.argsort(row)[:k], votes = y_train[idx], count them.",
+        "np.bincount(votes).argmax() implements the tie rule for free — argmax returns the FIRST maximum, i.e. the smallest label. Efficiency point worth saying out loud: np.argpartition(row, k-1)[:k] is O(n) selection vs argsort's O(n log n), and majority vote doesn't need the k sorted."
+      ],
+      "probe": {
+        "q": "Cost of classifying one query, and what happens to kNN in high dimensions?",
+        "a": "Per query: O(n_train · d) for distances plus O(n_train) selection with argpartition — all the cost is at inference, none at training (opposite of parametric models). High dimensions: distance concentration — the ratio of nearest to farthest distance tends to 1, so 'nearest' stops being informative — and covering the space needs exponentially more data. Also Euclidean distance weights every feature equally, so feature scaling/normalization matters a lot."
+      },
+      "tests": """
+def _ref_knn(Xtr, ytr, Xte, k):
+    out = []
+    for x in Xte:
+        d = ((Xtr - x) ** 2).sum(axis=1)
+        idx = np.argsort(d)[:k]
+        out.append(int(np.bincount(ytr[idx]).argmax()))
+    return np.array(out)
+
+def _t_separated():
+    rng = np.random.default_rng(0)
+    X0 = rng.standard_normal((15, 2)) * 0.5
+    X1 = rng.standard_normal((15, 2)) * 0.5 + 8.0
+    Xtr = np.vstack([X0, X1]); ytr = np.array([0] * 15 + [1] * 15)
+    Xte = np.array([[0.2, -0.1], [7.9, 8.2], [0.0, 0.4], [8.5, 7.6]])
+    got = np.asarray(knn_predict(Xtr, ytr, Xte, 3))
+    assert got.shape == (4,), f"expected shape (4,), got {got.shape}"
+    assert (got == np.array([0, 1, 0, 1])).all(), "clearly separated clusters were misclassified"
+_check("separated clusters, k=3", _t_separated)
+
+def _t_ref():
+    rng = np.random.default_rng(1)
+    Xtr = rng.standard_normal((40, 3)); ytr = rng.integers(0, 4, 40)
+    Xte = rng.standard_normal((10, 3))
+    for k in (1, 3, 7):
+        got = np.asarray(knn_predict(Xtr, ytr, Xte, k))
+        exp = _ref_knn(Xtr, ytr, Xte, k)
+        assert (got == exp).all(), f"predictions don't match reference at k={k}"
+_check("matches reference for k in 1/3/7", _t_ref)
+
+def _t_tie():
+    Xtr = np.array([[0.0], [1.0], [2.0], [3.0]])
+    ytr = np.array([1, 1, 0, 0])
+    got = np.asarray(knn_predict(Xtr, ytr, np.array([[1.5]]), 4))
+    assert got[0] == 0, f"2-vs-2 tie must return the smallest tied label (0), got {got[0]} -- np.bincount + argmax gives this for free"
+_check("tie-break: smallest label wins", _t_tie)
+""",
+      "solution": "def knn_predict(X_train, y_train, X_test, k):\n    D = pairwise_sq_dists(X_test, X_train)     # squared dist: same ranking, no sqrt\n    preds = np.empty(len(X_test), dtype=int)\n    for i, row in enumerate(D):\n        idx = np.argpartition(row, k - 1)[:k]  # O(n) selection of the k nearest\n        votes = np.bincount(y_train[idx])\n        preds[i] = votes.argmax()              # first max -> smallest tied label\n    return preds"
+    }
+  ]
 }
 ]
 

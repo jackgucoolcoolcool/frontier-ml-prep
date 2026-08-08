@@ -722,6 +722,141 @@ _check("window shrink logic", _t_shrink)
     "solution": "def longest_k_distinct(s, k):\n    if k == 0:\n        return 0\n    counts = {}\n    left = best = 0\n    for right, c in enumerate(s):\n        counts[c] = counts.get(c, 0) + 1\n        while len(counts) > k:\n            lc = s[left]\n            counts[lc] -= 1\n            if counts[lc] == 0:\n                del counts[lc]        # keep len(counts) == true distinct count\n            left += 1\n        best = max(best, right - left + 1)\n    return best"
   }
 ],
+
+# ---------------- M1: classic ML (k-means + kNN) ----------------
+"m1s1": [
+  {
+    "label": "cosine similarity",
+    "prompt": "Same shape of problem, different metric this time: a **cosine similarity** matrix.\n```\ndef cosine_sim(A, B):\n```\n`A` is `(n, d)`, `B` is `(m, d)`; return the `(n, m)` matrix with entry `(i, j)` = `A[i]·B[j] / (||A[i]|| ||B[j]||)`. No Python loops.\n\nOne degenerate case: an all-zero row must produce similarity 0 (not NaN) — guard the norms with a small eps (1e-12 on the denominator).",
+    "starter": None,
+    "hints": [
+      "Normalize the rows first: An = A / (norm + eps) with np.linalg.norm(A, axis=1, keepdims=True). Then the entire matrix is one matmul: An @ Bn.T.",
+      "Put the eps on the DENOMINATOR: A / (norm + 1e-12). A zero row then normalizes to a zero row, and every similarity involving it is exactly 0 — no NaN, no special-casing."
+    ],
+    "tests": """
+def _ref_cos(A, B):
+    n, m = A.shape[0], B.shape[0]
+    S = np.zeros((n, m))
+    for i in range(n):
+        for j in range(m):
+            na, nb = np.linalg.norm(A[i]), np.linalg.norm(B[j])
+            if na > 0 and nb > 0:
+                S[i, j] = A[i] @ B[j] / (na * nb)
+    return S
+
+def _t_ref():
+    rng = np.random.default_rng(0)
+    A = rng.standard_normal((6, 4)); B = rng.standard_normal((5, 4))
+    got = cosine_sim(A, B)
+    assert got is not None, "function returned None"
+    assert got.shape == (6, 5), f"expected shape (6, 5), got {got.shape}"
+    assert np.allclose(got, _ref_cos(A, B), atol=1e-6), "values don't match a loop reference (normalize rows, then one matmul)"
+_check("matches loop reference", _t_ref)
+
+def _t_scale_invariant():
+    rng = np.random.default_rng(1)
+    A = rng.standard_normal((4, 3)); B = rng.standard_normal((4, 3))
+    assert np.allclose(cosine_sim(A * 7.0, B * 0.01), cosine_sim(A, B), atol=1e-6), "cosine similarity must be scale-invariant"
+    assert np.allclose(np.diag(cosine_sim(A, A)), 1.0, atol=1e-6), "self-similarity of a nonzero vector must be 1"
+_check("scale-invariance and unit self-similarity", _t_scale_invariant)
+
+def _t_zero_row():
+    A = np.array([[0.0, 0.0], [1.0, 0.0]])
+    B = np.array([[3.0, 4.0]])
+    S = cosine_sim(A, B)
+    assert np.isfinite(S).all(), "zero vector produced NaN/inf -- guard the norm with eps in the denominator"
+    assert abs(S[0, 0]) < 1e-6, "an all-zero row must give similarity 0"
+_check("zero-vector row stays finite and 0", _t_zero_row)
+""",
+    "solution": "def cosine_sim(A, B):\n    An = A / (np.linalg.norm(A, axis=1, keepdims=True) + 1e-12)  # zero row -> zero row\n    Bn = B / (np.linalg.norm(B, axis=1, keepdims=True) + 1e-12)\n    return An @ Bn.T"
+  }
+],
+
+"m1s2": [
+  {
+    "label": "debug: broken k-means",
+    "prompt": "Debugging flavor this time. This k-means came out of a real screen and it returns garbage. There are **two distinct bugs** — find both, fix them in place, and tell me what symptom each one causes. Same contract as before: `(centroids, labels)`, and an empty cluster keeps its previous centroid.",
+    "starter": "import numpy as np\n\ndef kmeans(X, k, init, n_iters=100):\n    C = init.astype(float).copy()\n    labels = None\n    for _ in range(n_iters):\n        D = ((X[:, None, :] - C[None, :, :]) ** 2).sum(axis=-1)\n        new = D.argmin(axis=1)\n        if labels is not None and (new == labels).all():\n            break\n        labels = new\n        for j in range(k):\n            C[j] = X[labels == j].mean()\n    return C, labels\n",
+    "hints": [
+      "Run it on three obvious blobs and print C after one update — every centroid turns into a constant row. What does X[mask].mean() with NO axis argument compute, and what happens when you assign that scalar into C[j]?",
+      "The second bug only fires when a cluster loses all its points: the mean of an empty slice is NaN, and the poisoned centroid never recovers. Guard the update with `if mask.any():`."
+    ],
+    "tests": """
+def _blobs(seed=0):
+    rng = np.random.default_rng(seed)
+    centers = np.array([[0.0, 0.0], [10.0, 10.0], [-10.0, 10.0]])
+    X = np.vstack([c + rng.standard_normal((20, 2)) * 0.5 for c in centers])
+    true = np.repeat(np.arange(3), 20)
+    return X, centers, true
+
+def _t_blobs():
+    X, centers, true = _blobs()
+    C, labels = kmeans(X, 3, init=centers + 0.7)
+    labels = np.asarray(labels)
+    for j in range(3):
+        exp = X[true == j].mean(axis=0)
+        assert np.allclose(C[j], exp, atol=1e-6), f"centroid {j} is wrong -- what axis does .mean() reduce over by default?"
+        assert (labels[true == j] == j).all(), "all points of one blob must share one label"
+_check("recovers three separated blobs (bug 1)", _t_blobs)
+
+def _t_empty_cluster():
+    X, centers, true = _blobs(2)
+    init = np.vstack([centers + 0.7, [[1e6, 1e6]]])   # 4th centroid never wins a point
+    C, labels = kmeans(X, 4, init=init)
+    assert np.isfinite(C).all(), "centroids contain NaN -- the empty-cluster update is still broken"
+    assert np.allclose(C[3], [1e6, 1e6]), "an empty cluster must keep its previous centroid"
+_check("empty cluster survives (bug 2)", _t_empty_cluster)
+
+def _t_fixed_point():
+    X, centers, true = _blobs(1)
+    C1, l1 = kmeans(X, 3, init=centers + 0.7)
+    C2, l2 = kmeans(X, 3, init=C1)
+    assert np.allclose(C1, C2, atol=1e-8), "converged centroids must be a fixed point"
+_check("converged result is a fixed point", _t_fixed_point)
+""",
+    "solution": "def kmeans(X, k, init, n_iters=100):\n    C = init.astype(float).copy()\n    labels = None\n    for _ in range(n_iters):\n        D = ((X[:, None, :] - C[None, :, :]) ** 2).sum(axis=-1)\n        new = D.argmin(axis=1)\n        if labels is not None and (new == labels).all():\n            break\n        labels = new\n        for j in range(k):\n            mask = labels == j\n            if mask.any():                       # bug 2: empty slice -> NaN centroid\n                C[j] = X[mask].mean(axis=0)      # bug 1: mean() with no axis is a SCALAR\n    return C, labels"
+  }
+],
+
+"m1s3": [
+  {
+    "label": "kNN regression",
+    "prompt": "Regression flavor this time — **inverse-distance-weighted kNN**:\n```\ndef knn_regress(X_train, y_train, X_test, k):\n```\n`y_train` is `(n_train,)` floats. For each test point take the `k` nearest training points by Euclidean distance `d_i` and return the weighted average of their targets with weights `w_i = 1 / (d_i + 1e-8)` — note: distance, **not** squared distance. Return a `(n_test,)` float array.\n\nSanity property: a query that coincides with a training point should return (essentially) that point's target.",
+    "starter": None,
+    "hints": [
+      "Weights need TRUE distances: np.sqrt of your squared-distance matrix. Per row: idx = np.argsort(row)[:k], w = 1/(row[idx] + 1e-8), prediction = (w * y_train[idx]).sum() / w.sum().",
+      "The exact-match case works by itself: d = 0 gives weight 1e8, which swamps the other neighbors — that's exactly why the eps goes on the DISTANCE, not anywhere else."
+    ],
+    "tests": """
+def _ref_knnr(Xtr, ytr, Xte, k):
+    out = []
+    for x in Xte:
+        d = np.sqrt(((Xtr - x) ** 2).sum(axis=1))
+        idx = np.argsort(d)[:k]
+        w = 1.0 / (d[idx] + 1e-8)
+        out.append((w * ytr[idx]).sum() / w.sum())
+    return np.array(out)
+
+def _t_ref():
+    rng = np.random.default_rng(0)
+    Xtr = rng.standard_normal((30, 3)); ytr = rng.standard_normal(30)
+    Xte = rng.standard_normal((8, 3))
+    for k in (1, 3, 5):
+        got = np.asarray(knn_regress(Xtr, ytr, Xte, k))
+        exp = _ref_knnr(Xtr, ytr, Xte, k)
+        assert np.allclose(got, exp, atol=1e-6), f"mismatch vs reference at k={k} -- weights use DISTANCE + 1e-8, not squared distance"
+_check("matches reference for k in 1/3/5", _t_ref)
+
+def _t_exact_match():
+    Xtr = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    ytr = np.array([5.0, -2.0, 3.0])
+    got = np.asarray(knn_regress(Xtr, ytr, Xtr[:1], 3))
+    assert abs(got[0] - 5.0) < 1e-4, "a query equal to a training point must return ~that point's target (its weight 1/eps dominates)"
+_check("exact-match query returns its own target", _t_exact_match)
+""",
+    "solution": "def knn_regress(X_train, y_train, X_test, k):\n    D = np.sqrt(pairwise_sq_dists(X_test, X_train))  # true distances for the weights\n    preds = np.empty(len(X_test))\n    for i, row in enumerate(D):\n        idx = np.argpartition(row, k - 1)[:k]        # O(n) selection, order irrelevant\n        w = 1.0 / (row[idx] + 1e-8)                  # exact match -> weight 1e8, dominates\n        preds[i] = (w * y_train[idx]).sum() / w.sum()\n    return preds"
+  }
+],
 }
 
 

@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MMU ⇄ MMGen — The Transfer Question</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --border: #2a3340;
+    --code-bg: #11161d; --table-head: #1f2937; --reveal-bg: #16241f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 16.5px; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); z-index: 100; transition: width 0.1s ease-out; }
+  .layout { display: flex; max-width: 1240px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+    width: 280px; min-width: 280px; padding: 24px 16px 60px 20px; border-right: 1px solid var(--border); font-size: 13.5px; }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 0 8px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; margin: 1px 0; border-left: 2px solid transparent; }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+  main { flex: 1; min-width: 0; padding: 40px 48px 120px; }
+  header.hero { border: 1px solid var(--border); background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 14px; padding: 28px 30px; margin-bottom: 36px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 29px; }
+  header.hero .sub { color: var(--muted); margin: 4px 0; font-size: 15px; }
+  .bar-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent-2); padding: 4px 11px; border-radius: 20px; font-size: 13px; }
+  h2.section { font-size: 24px; margin: 52px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h3 { font-size: 19px; margin: 30px 0 10px; color: #eaf0f7; }
+  h4 { font-size: 16px; margin: 20px 0 8px; color: var(--accent-2); }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1.5px 6px; border-radius: 5px; font-size: 14px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #e8c98a; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; }
+  pre code { background: none; padding: 0; color: #c7d3e0; font-size: 13.5px; line-height: 1.55; }
+  ul, ol { padding-left: 24px; } li { margin: 6px 0; }
+  strong { color: #f0f4f9; }
+  table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--table-head); color: #eaf0f7; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .tablewrap { overflow-x: auto; }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; border: 1px solid var(--border); }
+  .callout .label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .practice { background: rgba(255,180,84,0.07); border-color: rgba(255,180,84,0.35); } .practice .label { color: var(--warn); }
+  .keyidea { background: rgba(126,224,192,0.07); border-color: rgba(126,224,192,0.3); } .keyidea .label { color: var(--accent-2); }
+  .frontier { background: rgba(180,130,255,0.08); border-color: rgba(180,130,255,0.4); } .frontier .label { color: #c7a4ff; }
+  .caution { background: rgba(229,115,115,0.07); border-color: rgba(229,115,115,0.35); } .caution .label { color: #e57373; }
+  .qa { border: 1px solid var(--border); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+  .qa .q { padding: 12px 16px; cursor: pointer; background: var(--panel); font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .qa .q:hover { background: var(--panel-2); }
+  .qa .q .chev { color: var(--muted); transition: transform .2s; font-size: 13px; }
+  .qa.open .q .chev { transform: rotate(90deg); }
+  .qa .a { display: none; padding: 14px 16px; background: var(--reveal-bg); border-top: 1px solid var(--border); }
+  .qa.open .a { display: block; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 18px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .back-top { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; z-index: 50; }
+  .back-top:hover { border-color: var(--accent); color: var(--accent); }
+  .cap { font-size: 12px; color: var(--muted); margin: 4px 0 14px; }
+  .flowsvg { width: 100%; background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; margin: 10px 0; }
+  .ev { display:inline-block; padding:1px 9px; border-radius:12px; font-size:11.5px; font-weight:700; letter-spacing:.03em; white-space:nowrap; }
+  .ev.prod { background:rgba(126,224,192,.15); color:#7ee0c0; border:1px solid rgba(126,224,192,.4); }
+  .ev.strong { background:rgba(110,168,254,.15); color:#6ea8fe; border:1px solid rgba(110,168,254,.4); }
+  .ev.emerg { background:rgba(255,180,84,.13); color:#ffb454; border:1px solid rgba(255,180,84,.4); }
+  .ev.contest { background:rgba(229,115,115,.13); color:#e57373; border:1px solid rgba(229,115,115,.4); }
+  @media (max-width: 880px) { nav.toc { display: none; } main { padding: 24px 18px 100px; } }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="layout">
+  <nav class="toc" id="toc">
+    <h2>Contents</h2>
+    <a href="#top">Overview</a>
+    <a href="#s0">§0 · Framing: what "transfer" means</a>
+    <h2>Part I · MMU → MMGen</h2>
+    <a href="#s1">§1 · Critique &amp; self-correction</a>
+    <a href="#s2">§2 · Recaptioning &amp; prompt optimization</a>
+    <a href="#s3">§3 · Code-sketching &amp; structured intermediates</a>
+    <a href="#s4">§4 · More: REPA, CoT planning, knowledge, rewards</a>
+    <h2>Part II · MMGen → MMU</h2>
+    <a href="#s5">§5 · Representation learning (Transfusion &amp; co.)</a>
+    <a href="#s6">§6 · Dense output</a>
+    <a href="#s7">§7 · Thinking with images</a>
+    <a href="#s8">§8 · More: world models, gen. classifiers, data</a>
+    <h2>Part III · Synthesis</h2>
+    <a href="#s9">§9 · The verdict: evidence scoreboard</a>
+    <a href="#s10">§10 · Interview angles + self-test</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="top">
+      <h1>MMU ⇄ MMGen — Does Unifying Actually Transfer?</h1>
+      <div class="sub"><strong>The question:</strong> unified models promise that multimodal understanding (MMU) and multimodal generation (MMGen) help each other. Where is that transfer real, where is it absent, and where is it actually <em>negative</em>? Mechanism by mechanism, with the evidence.</div>
+      <div class="sub"><strong>Thesis in one line:</strong> today's proven transfer is <strong>asymmetric and mostly indirect</strong> — MMU→MMGen is large and production-critical (captions, critics, rewards, plans, aligned features), while MMGen→MMU is real but flows through <em>interfaces and pretrained artifacts</em> (dense-output heads, diffusion features, synthetic data), not through the joint training objective itself. The joint-objective synergy is the open bet of the field.</div>
+      <div class="sub"><strong>Companions:</strong> <a href="VLM_VLA_Unified_Omni.html">VLM/VLA → Unified Omni</a> (architecture map) · <a href="Meta_Muse_MSL_Deep_Dive.html">Muse deep dive</a> (§1 critique loop in production) · <a href="Proposal_JEPA_Latent_VLM.html">LatentFusion</a> (§8.1 is your proposal's home turf) · <a href="Science_of_MM_Data_Master.html">Science of MM Data</a> (§2 is CapForge's theory).</div>
+      <div class="bar-meta">
+        <span class="pill">8 mechanisms, each in depth</span>
+        <span class="pill">Evidence-graded scoreboard</span>
+        <span class="pill">Equations + 7 figures</span>
+        <span class="pill">Self-test at the end</span>
+      </div>
+    </header>
+
+    <h2 class="section" id="s0">§0 · Framing: what "transfer" would even mean</h2>
+
+    <p><strong>Definitions.</strong> <em>MMU</em> = image/video in → language out (VQA, captioning, reasoning, grounding). <em>MMGen</em> = language (± image) in → image/video out (T2I, editing, video). A <em>unified model</em> couples them somewhere. The critical insight for this whole document: <strong>"transfer" is not one claim — it is five different mechanisms with independent truth values</strong>, and papers that argue about "whether unification helps" are usually talking past each other because they mean different mechanisms.</p>
+
+    <h3>The five coupling channels</h3>
+    <ol>
+      <li><strong>Data-level:</strong> one side manufactures training data for the other (recaptioning, synthetic images, edit-pair engines). No shared weights needed.</li>
+      <li><strong>Representation-level:</strong> one side's learned features initialize, regularize, or serve as the latent space for the other (REPA, RAE, diffusion features for perception).</li>
+      <li><strong>Objective/parameter-level:</strong> literally one network trained on both losses — the strongest claim (Chameleon, Transfusion, Emu3, BAGEL). This is where most of the negative evidence lives.</li>
+      <li><strong>Inference-loop-level:</strong> one side is called as a subroutine at test time by the other (self-critique, prompt rewriting, visual CoT). Needs only an interface, not shared weights.</li>
+      <li><strong>Reward-level:</strong> one side scores the other's RL rollouts (VQA-based rewards, unified reward models).</li>
+    </ol>
+
+    <div class="callout keyidea">
+      <span class="label">Key idea — the operational test</span>
+      Positive transfer at the objective level has a precise definition: at <strong>matched total compute and parameters</strong>, the jointly trained model beats the pair of specialists on at least one side without losing on the other. Almost no paper actually runs this control cleanly (joint models get more total data; specialists get all their FLOPs on one task), which is why the literature is contradictory. Saying this sentence in an interview is itself a research-taste signal.
+    </div>
+
+    <svg class="flowsvg" viewBox="0 0 860 430" xmlns="http://www.w3.org/2000/svg" role="img">
+      <title>Transfer map between MMU and MMGen</title>
+      <style>.t{fill:#d7dee8;font:600 13px -apple-system,sans-serif}.s{fill:#8b97a7;font:11px -apple-system,sans-serif}.g{fill:#7ee0c0;font:600 12px -apple-system,sans-serif}.b{fill:#6ea8fe;font:600 12px -apple-system,sans-serif}.o{fill:#ffb454;font:600 11px -apple-system,sans-serif}</style>
+      <defs>
+        <marker id="ag" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#7ee0c0"/></marker>
+        <marker id="ab" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#6ea8fe"/></marker>
+      </defs>
+      <rect x="30" y="40" width="200" height="350" rx="12" fill="#161b22" stroke="#7ee0c0" stroke-width="1.5"/>
+      <text x="130" y="68" class="g" text-anchor="middle" font-size="15">MMU (understanding)</text>
+      <text x="130" y="88" class="s" text-anchor="middle">VQA · caption · ground · reason</text>
+      <rect x="630" y="40" width="200" height="350" rx="12" fill="#161b22" stroke="#6ea8fe" stroke-width="1.5"/>
+      <text x="730" y="68" class="b" text-anchor="middle" font-size="15">MMGen (generation)</text>
+      <text x="730" y="88" class="s" text-anchor="middle">T2I · edit · video · render</text>
+      <!-- MMU -> MMGen arrows -->
+      <line x1="230" y1="130" x2="630" y2="130" stroke="#7ee0c0" stroke-width="2" marker-end="url(#ag)"/>
+      <text x="430" y="122" class="g" text-anchor="middle">§1 critique / verify / reward the samples</text>
+      <line x1="230" y1="170" x2="630" y2="170" stroke="#7ee0c0" stroke-width="2" marker-end="url(#ag)"/>
+      <text x="430" y="162" class="g" text-anchor="middle">§2 recaption training data · rewrite prompts</text>
+      <line x1="230" y1="210" x2="630" y2="210" stroke="#7ee0c0" stroke-width="2" marker-end="url(#ag)"/>
+      <text x="430" y="202" class="g" text-anchor="middle">§3 plan in code / layout before rendering</text>
+      <line x1="230" y1="250" x2="630" y2="250" stroke="#7ee0c0" stroke-width="2" marker-end="url(#ag)"/>
+      <text x="430" y="242" class="g" text-anchor="middle">§4 semantic features anchor gen (REPA) · knowledge</text>
+      <!-- MMGen -> MMU arrows -->
+      <line x1="630" y1="300" x2="230" y2="300" stroke="#6ea8fe" stroke-width="2" marker-end="url(#ab)"/>
+      <text x="430" y="292" class="b" text-anchor="middle">§5 generative pretraining → representations</text>
+      <line x1="630" y1="335" x2="230" y2="335" stroke="#6ea8fe" stroke-width="2" marker-end="url(#ab)"/>
+      <text x="430" y="327" class="b" text-anchor="middle">§6 dense output head · §7 visual thoughts</text>
+      <line x1="630" y1="370" x2="230" y2="370" stroke="#6ea8fe" stroke-width="2" marker-end="url(#ab)"/>
+      <text x="430" y="362" class="b" text-anchor="middle">§8 world models · gen. classifiers · synthetic data</text>
+      <text x="430" y="415" class="o" text-anchor="middle">⚠ shared-weights conflict zone: semantics-vs-pixels (Janus §5) sits under ALL of these</text>
+    </svg>
+    <p class="cap">Fig. 0 — The transfer map. Green arrows (MMU→MMGen) are mostly production-proven; blue arrows (MMGen→MMU) are real but mostly indirect. The contested question is whether the two columns should share one set of weights.</p>
+
+    <h3>Why there might be conflict at all: the granularity mismatch</h3>
+    <p>Understanding compresses: a good MMU representation is <strong>invariant</strong> — it throws away texture, lighting, exact position to expose semantics (CLIP/SigLIP training is explicitly contrastive compression). Generation must reconstruct: a good MMGen latent is <strong>equivariant/complete</strong> — it must retain everything needed to paint every pixel back. Formally, MMU wants low $I(z; x)$ given task sufficiency (information bottleneck), MMGen wants $I(z;x)$ high enough that $p(x\mid z)$ is nearly deterministic. One encoder serving both masters sits on a Pareto frontier between invariance and completeness — this is the single sentence that explains Janus's decoupling, the tokenizer wars (VILA-U, TokenFlow), and why REPA works (§4.1). Keep it loaded.</p>
+
+    <hr>
+    <h2 class="section" id="s1">§1 · MMU → MMGen: critique &amp; self-correction</h2>
+
+    <p><strong>The core asymmetry that makes this work:</strong> for images, <em>verification is genuinely easier than generation</em>. Checking "is the cat left of the dog? is there exactly one clock?" is a VQA problem — MMU models are strong at it — while getting it right in one diffusion pass requires the sampler to satisfy a conjunction of constraints it was never explicitly trained to satisfy. Wherever a generator–verifier gap exists, you can buy quality with test-time compute by looping: <em>generate → critique → revise</em>. This is the image-domain version of the reasoning-model bet.</p>
+
+    <h3>1a · The critique primitive: QA-decomposition scoring</h3>
+    <p>The load-bearing trick is turning a prompt into <strong>atomic checkable claims</strong>. TIFA (2023) and DSG ("Davidsonian Scene Graph", 2023) use an LLM to decompose a prompt into simple questions; a VQA model answers each against the generated image:</p>
+    $$\text{faithfulness}(x, c) \;=\; \frac{1}{|Q(c)|}\sum_{q \in Q(c)} \mathbf{1}\!\left[\text{VQA}(x, q) = a_q\right]$$
+    <p>DSG's refinement: questions form a <strong>dependency graph</strong> (don't ask "what color is the dog's collar?" if "is there a dog?" failed) — skipping invalidated children removes a big source of false credit. VQAScore (Lin et al., 2024) simplified further and won: score $= P(\text{"Yes"} \mid x, \text{"Does this figure show } c\text{?"})$ from a VQA model with a bidirectional-ish adaptation (CLIP-FlanT5) — a single soft probability, no decomposition, currently among the best-correlating automatic metrics for compositional T2I. <strong>Why the soft score matters:</strong> it is differentiable-in-spirit — usable as a dense reward — whereas binary QA accuracy is sparse.</p>
+
+    <h3>1b · Inference-time loops (no training)</h3>
+    <ul>
+      <li><strong>Idea2Img (2023):</strong> GPT-4V wrapped around any T2I model as a black box: draft prompts → generate N → <em>select</em> best draft (MMU as ranker) → <em>reflect</em> on what's wrong (MMU as critic) → <em>revise</em> prompts. Three MMU skills — ranking, critique, rewriting — none requiring generation weights. The whole loop is transfer channel #4 (inference-loop).</li>
+      <li><strong>SLD — Self-correcting LLM-controlled Diffusion (2024):</strong> makes the critique <em>spatial</em>: parse the prompt into expected objects; run an open-vocab detector on the output; diff expected vs found; an LLM emits latent-space edit ops (<code>add</code>, <code>delete</code>, <code>move</code>, <code>resize</code> object) executed by inpainting/composition. Key upgrade over Idea2Img: the fix is a <em>local edit</em>, not a full resample — it preserves what was already right. This is the published ancestor of the "locally edit vs fully regenerate" decision Meta describes in Muse (<a href="Meta_Muse_MSL_Deep_Dive.html">deep dive §3</a>).</li>
+      <li><strong>OPT2I (2024):</strong> LLM as black-box optimizer over prompt space, hill-climbing a consistency score (DSG/CLIP-based) — no gradients, just critique-guided search.</li>
+    </ul>
+
+    <h3>1c · Training-time: critique becomes reward</h3>
+    <p>Once the critic emits a scalar, it plugs into everything you know from RL post-training (<a href="Post_Training_and_RL_Deep_Dive.html">RL deep dive</a>):</p>
+    <ul>
+      <li><strong>Preference RMs vs MMU-based rewards.</strong> First-gen T2I RLHF used trained preference models (ImageReward, PickScore, HPSv2) — accurate on aesthetics, weak on compositional faithfulness, very hackable (saturation, oversaturated colors). VQA-decomposed rewards (VQAScore, DSG-as-reward) are harder to hack because the reward is a <em>conjunction of grounded checks</em> — hacking requires actually satisfying the prompt. This mirrors the RLVR move in language: replace a learned monolithic RM with (semi-)verifiable structure.</li>
+      <li><strong>T2I-R1 (2025):</strong> the cleanest "reasoning-model recipe transplanted to generation" paper. Built on a unified LMM (Janus-Pro base), it optimizes a <strong>bi-level CoT</strong> with GRPO: <em>semantic-level CoT</em> (a textual plan of the scene, generated before any image token) and <em>token-level CoT</em> (the AR image-token rollout itself), with a reward ensemble of vision experts (detector + VQA + preference). Both levels trained jointly with group-relative advantages — literally your GRPO math (<a href="RL_Coding_Interview_Pack.html">pack §6</a>) with images as the rollout.</li>
+      <li><strong>Self-rewarding unified models.</strong> A unified model can score <em>its own</em> samples with its own understanding head (SILMM-style: self-ask compositional questions, self-answer, DPO on best-vs-worst of its own generations). Muse Image is the production statement of this: Meta reports self-refinement <em>emerged</em> during RL post-training rather than being scripted — the model discovered that invoking its own critique mid-chain raises reward.</li>
+    </ul>
+
+    <div class="callout caution">
+      <span class="label">⚠ The self-critique correlation trap</span>
+      When the same weights generate and judge, errors correlate: the blind spots that caused the mistake also hide it from the judge (the model that doesn't bind "left of" correctly also answers the VQA probe wrong). Empirically self-critique still helps in images — more than in pure text — because image verification uses a genuinely different pathway (perception of a rendered artifact) than generation (sampling). The rendered image is an <strong>externalized state</strong> the model re-perceives; a text CoT never leaves the model's own distribution. This "re-perception breaks correlation" argument is a strong interview point. But it degrades exactly when the shared vision encoder is the weak link (e.g., counting: the encoder that can't count can't verify counts) — then you need an external critic (detector, OCR) — cf. the verifier hierarchy in <a href="Self_Improving_VLMs.html">Self-Improving VLMs</a>.
+    </div>
+
+    <svg class="flowsvg" viewBox="0 0 860 250" xmlns="http://www.w3.org/2000/svg" role="img">
+      <title>Generate–critique–revise loop</title>
+      <style>.t2{fill:#d7dee8;font:600 12.5px -apple-system,sans-serif}.s2{fill:#8b97a7;font:10.5px -apple-system,sans-serif}</style>
+      <defs><marker id="a2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#6ea8fe"/></marker></defs>
+      <rect x="30" y="90" width="130" height="60" rx="10" fill="#161b22" stroke="#2a3340"/><text x="95" y="116" class="t2" text-anchor="middle">prompt c</text><text x="95" y="134" class="s2" text-anchor="middle">+ plan (§3, §4.2)</text>
+      <rect x="220" y="90" width="140" height="60" rx="10" fill="#1c2530" stroke="#6ea8fe"/><text x="290" y="116" class="t2" text-anchor="middle">GEN: sample x</text><text x="290" y="134" class="s2" text-anchor="middle">diffusion / AR tokens</text>
+      <rect x="420" y="90" width="180" height="60" rx="10" fill="#1c2530" stroke="#7ee0c0"/><text x="510" y="110" class="t2" text-anchor="middle">MMU: decompose &amp; verify</text><text x="510" y="128" class="s2" text-anchor="middle">Q(c) → VQA(x,q) each · DSG deps</text><text x="510" y="142" class="s2" text-anchor="middle">or soft VQAScore P(yes|x,c)</text>
+      <rect x="660" y="30" width="170" height="52" rx="10" fill="#16241f" stroke="#7ee0c0"/><text x="745" y="52" class="t2" text-anchor="middle">pass → ship / reward+</text><text x="745" y="70" class="s2" text-anchor="middle">(or RL: advantage &gt; 0)</text>
+      <rect x="660" y="160" width="170" height="66" rx="10" fill="#241a16" stroke="#ffb454"/><text x="745" y="182" class="t2" text-anchor="middle">fail → choose repair</text><text x="745" y="200" class="s2" text-anchor="middle">local edit (SLD ops) vs</text><text x="745" y="214" class="s2" text-anchor="middle">full regen w/ revised prompt</text>
+      <line x1="160" y1="120" x2="220" y2="120" stroke="#6ea8fe" stroke-width="2" marker-end="url(#a2)"/>
+      <line x1="360" y1="120" x2="420" y2="120" stroke="#6ea8fe" stroke-width="2" marker-end="url(#a2)"/>
+      <line x1="600" y1="102" x2="660" y2="62" stroke="#7ee0c0" stroke-width="2" marker-end="url(#a2)"/>
+      <line x1="600" y1="138" x2="660" y2="182" stroke="#ffb454" stroke-width="2" marker-end="url(#a2)"/>
+      <path d="M660 210 C 400 250, 300 210, 290 155" fill="none" stroke="#ffb454" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a2)"/>
+      <text x="430" y="238" class="s2" text-anchor="middle">revise loop: each iteration conditions on the diagnosed failure → sequential, compounds (≻ best-of-N)</text>
+    </svg>
+    <p class="cap">Fig. 1 — The critique loop. The MMU pass converts an unverifiable "is it good?" into a conjunction of checkable claims; the repair branch chooses between local edit (preserves correct content) and full regeneration (escapes bad modes).</p>
+
+    <h3>1d · Why sequential critique beats best-of-N (the math you can say)</h3>
+    <p>Best-of-N draws i.i.d. samples and takes the max: if per-sample constraint-satisfaction probability is $p$, then $P(\text{some sample passes}) = 1-(1-p)^N$ — for a conjunction of $k$ hard constraints $p \approx \prod_i p_i$ collapses exponentially in $k$, so BoN needs $N \sim 1/p$. Critique-and-repair instead fixes constraints <em>one at a time while freezing satisfied ones</em> (especially with local edits): expected cost scales roughly <em>additively</em> in the number of violated constraints, $\sum_i 1/p_i^{\text{fix}}$, not multiplicatively. That is the mechanism behind Muse's claimed log-linear test-time scaling vs the $\log\log N$ flattening of BoN (extreme-value scaling). Conditioning on the failure is the whole game.</p>
+
+    <hr>
+    <h2 class="section" id="s2">§2 · MMU → MMGen: recaptioning &amp; prompt optimization</h2>
+
+    <p><strong>This is the single most load-bearing MMU→MMGen transfer in production — and it needs no shared weights at all.</strong> Every frontier image generator since 2023 is trained on captions written by an understanding model, not by humans or alt-text.</p>
+
+    <h3>2a · Why captions are the bottleneck (the probabilistic view)</h3>
+    <p>A T2I model learns $p_\theta(x \mid c)$ from pairs $(x, c)$. Web alt-text is short, wrong, or about metadata ("IMG_2024.jpg", SEO spam). Two consequences:</p>
+    <ul>
+      <li><strong>High conditional entropy:</strong> if $c$ barely describes $x$, then $H(x\mid c)$ stays close to $H(x)$ — the model learns that the condition can be ignored, so at inference it under-obeys prompts. Better captions raise the mutual information $I(x;c)$ the model can exploit; prompt-following ability is upper-bounded by the $I(x;c)$ of the training pairs. This is the cleanest way to say why recaptioning works.</li>
+      <li><strong>Missing vocabulary for composition:</strong> alt-text almost never states spatial relations, counts, attributes-bound-to-objects ("the <em>red</em> cup <em>left of</em> the laptop"). A model can't condition on language it never saw paired with evidence.</li>
+    </ul>
+
+    <h3>2b · The evidence chain: DALL·E 3 → PixArt-α → SD3</h3>
+    <ul>
+      <li><strong>DALL·E 3 ("Improving Image Generation with Better Captions", 2023)</strong> — the paper that made this canonical. Train a bespoke captioner, produce <em>descriptive synthetic captions</em> (long, spatial, attribute-dense); ablate the blend ratio of synthetic-vs-original captions; best results near <strong>95% synthetic / 5% original</strong>. The 5% original is kept deliberately: it prevents the conditioning distribution from drifting so far from human-typed text that real prompts become OOD.</li>
+      <li><strong>PixArt-α (2023):</strong> LLaVA-generated dense captions (on SAM imagery) cited as a main reason it trained to competitive quality at a tiny fraction of Imagen/SD compute — caption density substitutes for data volume: fewer pairs, but each pair carries more usable bits of $I(x;c)$.</li>
+      <li><strong>SD3 (2024):</strong> CogVLM synthetic captions blended <strong>50/50</strong> with originals — same recipe, explicitly ablated in the paper.</li>
+    </ul>
+
+    <div class="callout caution">
+      <span class="label">⚠ The train–test prompt-distribution shift</span>
+      Training on dense 100-word captions creates a mismatch: users type "a cat wizard". Two fixes, both MMU-powered: (1) <strong>inference-time prompt upsampling</strong> — DALL·E 3 routes user prompts through GPT-4 to expand them into the training-caption style (so the LLM is a distribution adapter between human text and the generator's learned conditioning distribution); (2) <strong>bidirectional caption-length/style buckets</strong> at training time so short prompts stay in-distribution. Also name the second-order risk: <strong>hallucination transfer</strong> — whatever the captioner systematically imagines (wrong counts, invented text) becomes ground truth for the generator; captioner errors are correlated across the dataset, unlike random human noise, so they don't average out. This is precisely the CapForge critic problem (<a href="Science_of_MM_Data_Projects.html">MM-Data projects</a>) — the render-vs-extraction verification loop exists to catch it.
+    </div>
+
+    <h3>2c · Learned prompt optimization</h3>
+    <ul>
+      <li><strong>Promptist (2022):</strong> RL-finetune a prompt rewriter (relevance reward from CLIP + aesthetic reward) — prompt engineering distilled into a policy.</li>
+      <li><strong>OPT2I / Idea2Img (§1):</strong> the same rewriting done at inference by a frozen LLM inside a critique loop — no training, pure search.</li>
+      <li><strong>Unified-model endgame:</strong> in a Janus/BAGEL-style model the "rewrite" becomes an internal CoT — the model expands the user's prompt in its own reasoning tokens before emitting image tokens (§4.2). The pipeline stages (captioner → rewriter → generator) collapse into one forward pass, which is the practical argument for unification even absent representation synergy.</li>
+    </ul>
+
+    <div class="callout keyidea">
+      <span class="label">Speakable summary</span>
+      "Recaptioning is understanding models manufacturing the conditioning distribution for generators: it raises the mutual information between caption and image that prompt-following is bounded by. DALL·E 3 runs ~95% synthetic captions, SD3 50% — and then closes the loop at inference by using an LLM to map user prompts back into the dense-caption distribution. It's the clearest one-way transfer in the field: no shared weights, enormous effect."
+    </div>
+
+    <hr>
+    <h2 class="section" id="s3">§3 · MMU → MMGen: code-sketching &amp; structured intermediates</h2>
+
+    <p><strong>The mechanism:</strong> LLMs (the backbone of any MMU model) are superb at emitting <em>programs</em> — and a program is a compositional, exact, verifiable specification of visual structure. Diffusion samplers are weak precisely where programs are strong: counting, text rendering, geometry, alignment, relational layout. So route the "exactness" through code and let the pixel model do what it's good at — texture, lighting, style. Formally, insert a structured latent $z$ (a program/layout) between prompt and image:</p>
+    $$p(x \mid c) \;=\; \sum_{z} \underbrace{p_{\text{LLM}}(z \mid c)}_{\text{symbolic competence}} \; \underbrace{p_{\text{gen}}(x \mid z, c)}_{\text{rendering competence}}$$
+    <p>The factorization moves the hard constraint satisfaction into $z$-space where the LLM's code/reasoning training transfers directly, and where $z$ can be <strong>checked before rendering</strong> (execute it, lint it, count the boxes).</p>
+
+    <h3>3a · Layout as code</h3>
+    <ul>
+      <li><strong>LayoutGPT (2023):</strong> prompt → CSS-like layout spec (object, x, y, w, h) purely from the LLM's world knowledge of plausible arrangements; feed boxes to a layout-conditioned generator (GLIGEN). Demonstrated LLMs carry usable <em>numerical spatial priors</em> — furniture ends up at plausible heights — an MMU-side capability (spatial language grounding) driving generation.</li>
+      <li><strong>LLM-grounded Diffusion (LMD, 2023):</strong> same two-stage split, with the diffusion side controlled per-box via attention manipulation; big gains on negation ("no cats"), counting, spatial prompts — exactly the categories raw SD fails.</li>
+      <li><strong>RPG (2024):</strong> MLLM as <em>recaptioner + planner</em>: split the prompt into subprompts, assign image regions, generate regionally, then optionally critique-and-replan (closing the loop with §1). Notable because the planner is a <em>multimodal</em> LLM: it can look at the draft when replanning.</li>
+    </ul>
+
+    <h3>3b · Code as the image itself</h3>
+    <ul>
+      <li><strong>SVG / TikZ / matplotlib / HTML:</strong> for charts, diagrams, QR codes, logos, UI mocks, the right output is <em>source code, rendered deterministically</em> — AutomaTikZ (scientific figures), StarVector &amp; Chat2SVG (SVG generation/editing), Design2Code (the inverse task, proving the representation is shared). Rendering is exact by construction: every bar height is a number the LLM chose, every label is real text — zero diffusion involvement.</li>
+      <li><strong>Muse Image in production (<a href="Meta_Muse_MSL_Deep_Dive.html">deep dive §2</a>):</strong> executes code inside the generative loop — accurate plots and QR codes are rendered by code, then optionally used as <em>conditioning</em> for the pixel model (render the exact chart, restyle it diffusively). That conditioning trick is the mature pattern: <strong>code for correctness, diffusion for appearance</strong>, composed via image-to-image.</li>
+      <li><strong>Execution feedback:</strong> code intermediates unlock a verifier for free — run it. A rendered SVG can be diffed against the spec (does the QR decode? does the chart have 7 bars?), giving RLVR-grade rewards in a domain that otherwise only has preferences. This is manufactured verifiability (<a href="Scaled_RL_Data_Brainstorm.html">Scaled RL Data</a>) applied to images.</li>
+    </ul>
+
+    <h3>3c · Why diffusion alone fails at exactness (the argument to give)</h3>
+    <p>Three compounding reasons: (1) <strong>tokenizer/latent smoothing</strong> — VAE latents and patch tokens are lossy at stroke-level detail (small text dies in the autoencoder before the diffusion model even sees it); (2) <strong>no sequential constraint propagation</strong> — a U-Net/DiT denoises all positions in parallel under soft attention; nothing enforces "exactly 7" as a hard global constraint, so counts are sampled approximately i.i.d. per region; (3) <strong>training signal dilution</strong> — pixel-space losses weight a wrong letter the same as a texture wobble. AR image models fix (2) partially (GPT-4o's text rendering), programs fix all three by moving constraints into a discrete space with an interpreter. This three-part answer is a strong "why" question response.</p>
+
+    <hr>
+    <h2 class="section" id="s4">§4 · MMU → MMGen: the rest of the arsenal</h2>
+
+    <h3>4a · Representation alignment: REPA, VA-VAE, RAE — understanding features as generation scaffolding</h3>
+    <p>The most surprising recent MMU→MMGen result: <strong>generation trains dramatically faster when its internal features are pulled toward a pretrained understanding encoder.</strong></p>
+    <ul>
+      <li><strong>REPA (2024):</strong> add to the diffusion loss a regularizer aligning an intermediate DiT/SiT layer's features (projected by a small MLP $h_\phi$) with frozen DINOv2 features of the clean image:
+      $$\mathcal{L} = \mathcal{L}_{\text{diff}} \;-\; \lambda \, \mathbb{E}\!\left[\tfrac{1}{N}\sum_{n} \cos\!\big(h_\phi(f_\theta(x_t)_n),\, g_{\text{DINO}}(x_0)_n\big)\right]$$
+      Result: SiT-XL reaches its baseline FID with <strong>~17.5× fewer iterations</strong>. Interpretation: a diffusion model must implicitly learn semantics <em>and</em> rendering from scratch; handing it the semantics (which the SSL encoder already distilled from data at scale) leaves only rendering to learn. Generation ⊃ understanding as a subtask.</li>
+      <li><strong>VA-VAE / LightningDiT (2025):</strong> same idea moved into the <em>tokenizer</em>: align the VAE's latent space with vision-foundation features during autoencoder training. This resolves the known dilemma that higher-dim latents reconstruct better but generate worse (an unstructured latent space is hard for the prior to model) — semantic structure makes the latent space "diffusable". ImageNet 256 FID ≈ 1.35 with ~20× faster convergence.</li>
+      <li><strong>RAE (2025):</strong> the endpoint — drop the learned encoder entirely; use a <em>frozen understanding encoder</em> (DINOv2) as the latent space and train only a decoder + diffusion in that space. The understanding representation literally <em>is</em> the generative latent.</li>
+    </ul>
+    <div class="callout keyidea">
+      <span class="label">Key idea — REPA is the mirror image of Janus</span>
+      Janus (§5) says: one encoder can't serve both masters → decouple. REPA says: generation still <em>wants</em> the understanding representation internally — it just needs pixel completeness <em>added on top</em>, not <em>instead</em>. Reconcile them: semantics should be an <strong>inner scaffold</strong> of generation (aligned mid-features / structured latents), while the input/output interfaces stay role-specific. Most 2025 unified architectures (BAGEL: ViT for understanding + VAE for gen inside one MoT transformer) implement exactly this reconciliation. Delivering this synthesis unprompted is a differentiating interview move.
+    </div>
+
+    <h3>4b · Chain-of-thought planning before generating</h3>
+    <p>Distinct from §1 (critique <em>after</em> sampling): reason <em>before</em> emitting image tokens. GoT ("Generation Chain-of-Thought", 2025) trains a unified MLLM+diffusion system to emit a <em>semantic-spatial reasoning chain</em> — objects, attributes, coordinates — before generation, on millions of annotated chains; editing becomes reasoning about what changes. ImageGen-CoT and the semantic level of T2I-R1 (§1c) are the same move; Muse "reasons before generating" in production. Why it helps, information-theoretically: the plan $z$ is emitted <em>autoregressively in language space</em>, where the model can enforce consistency (counts, relations) cheaply; conditioning the pixel sampler on $(c, z)$ reduces the effective conditional entropy it must handle — the sampler executes rather than decides. And because plans are text, RL on plans inherits all LLM-RL machinery.</p>
+
+    <h3>4c · World knowledge injection</h3>
+    <p>Prompts like "the national flower of Japan in a vase" require <em>retrieval + inference before rendering</em>. Pipeline T2I models fail unless the prompt rewriter resolves it; unified models with a strong LLM backbone resolve it internally — the WISE benchmark (2025) measures exactly this ("world knowledge-informed semantic evaluation"), and unified/LLM-backed systems (GPT-4o image gen) dominate pure T2I models on it. This is transfer of the LLM's <em>knowledge</em>, orthogonal to any visual-feature story — and it's the strongest practical argument that the generator should share a brain with the understander: knowledge is too big to pass through a prompt interface.</p>
+
+    <h3>4d · Understanding as the reward model, formalized</h3>
+    <p>UnifiedReward (2025) trains one reward model for <em>both</em> assessment directions (score understanding outputs and generation outputs, pairwise and pointwise) and uses it to DPO both heads of unified models — the reward side becoming its own unified model. The deeper point for your RL story: <strong>reward fidelity is the binding constraint of generation RL</strong> (aesthetic RMs saturate and get hacked in ~1–2k steps), and MMU-grounded rewards (VQA decomposition, detection, OCR) are the current best answer — the verifier hierarchy from <a href="Self_Improving_VLMs.html">Self-Improving VLMs</a> transposed to images.</p>
+
+    <h3>4e · Where MMU→MMGen does NOT transfer (keep the ledger honest)</h3>
+    <ul>
+      <li><strong>Aesthetics:</strong> VQA-style critics are nearly blind to beauty/composition quality; preference models still own this axis (and are hackable). Semantic critics + aesthetic RMs are complementary, not substitutable.</li>
+      <li><strong>Pixel fidelity:</strong> semantic features (CLIP/DINO) can't reconstruct faithful pixels alone — RAE needs a trained decoder; BLIP-3o diffuses <em>CLIP features</em> then needs a pixel decoder. Understanding gives you the "what", never the "exactly how it looks".</li>
+      <li><strong>Small-scale joint training can hurt gen quality:</strong> understanding-optimized data mixtures (text-heavy) starve the generator; UniFluid-style loss-ratio studies show gen quality is sensitive to the mixing weight even when understanding is not (asymmetric fragility).</li>
+    </ul>
+
+    <hr>
+    <h2 class="section" id="s5">§5 · MMGen → MMU: representation learning (the Transfusion question)</h2>
+
+    <p>The oldest hypothesis in the file — Feynman's "what I cannot create, I do not understand" turned into a training objective: <em>if a model can predict/generate pixels, it must have understood the scene</em>. The honest 2026 status: <strong>true for pretrained generative features, contested for joint objectives, with a live scale hypothesis.</strong> Walk it in four steps.</p>
+
+    <h3>5a · The positive base case: generative pretraining does produce understanding features</h3>
+    <ul>
+      <li><strong>iGPT (2020):</strong> autoregressive pixel prediction → linear-probe features competitive with contrastive methods of its day. <strong>MAE (2021):</strong> masked reconstruction → the default ViT pretraining. Reconstruction objectives demonstrably learn semantics.</li>
+      <li><strong>Diffusion features:</strong> DIFT (2023) — raw Stable Diffusion intermediate activations give <em>emergent semantic correspondence</em> beating DINO features on SPair-71k; a text-to-image model trained only to denoise learned to match "left eye of a cat" across species. The <strong>Diffusion Classifier</strong> (2023): classify by comparing conditional denoising losses,
+      $$\hat{y} = \arg\min_{c}\; \mathbb{E}_{t,\epsilon}\big[\, \|\epsilon - \epsilon_\theta(x_t, t, c)\|^2 \,\big]$$
+      — a generative (Bayes) classifier via the ELBO, zero extra training. Notably strong at <em>compositional</em> binding (attribute–object) relative to CLIP: the generative likelihood must account for every patch, so it can't shortcut with bag-of-words features. Weakness: hundreds of function evals per class — analysis-by-synthesis is epistemically right and computationally brutal.</li>
+      <li><strong>The deconstruction caveat — l-DAE (2024):</strong> Kaiming He's group stripped diffusion piece by piece and found most representation benefit survives as "denoising autoencoder with a low-dimensional latent" — the diffusion <em>machinery</em> (noise schedule, many timesteps) isn't the magic; the denoising task + latent bottleneck is. Keeps you from over-crediting "generation" per se.</li>
+    </ul>
+
+    <h3>5b · Transfusion, in detail (the architecture that frames the question)</h3>
+    <p>Transfusion (2024) trains <strong>one transformer</strong> on two losses over mixed sequences: next-token prediction for text tokens, and diffusion for images — each image embedded as patched VAE latents, attended <em>bidirectionally within the image</em> while text stays causal:</p>
+    $$\mathcal{L}_{\text{Transfusion}} = \mathcal{L}_{\text{LM}} + \lambda \,\mathcal{L}_{\text{DDPM}}, \qquad \mathcal{L}_{\text{DDPM}} = \mathbb{E}_{t,\epsilon}\|\epsilon - \epsilon_\theta(x_t, t, \text{ctx})\|^2$$
+    <p>Its headline is a <em>scaling-law comparison</em> (your home turf): FLOP-matched against Chameleon-style discrete AR (VQ tokens, NTP on everything), Transfusion dominates — reaching Chameleon's image-generation quality with roughly <strong>~3× less compute</strong>, and also winning on text perplexity at matched FLOPs. Two distinct lessons hide in that result:</p>
+    <ol>
+      <li><strong>Discretization taxes both sides:</strong> VQ quantization throws away information (hurts gen fidelity) and spends model capacity predicting noisy token identities (hurts everything). Continuous latents + diffusion loss are simply a better image objective inside a transformer.</li>
+      <li><strong>But note what the comparison does NOT show:</strong> it does not show the diffusion loss <em>helping</em> text/understanding — only hurting it less than VQ-NTP does. The cleanest evidence on that question comes from ablations elsewhere, and it points the other way at current scale (next).</li>
+    </ol>
+
+    <h3>5c · The negative/neutral evidence — read it carefully, it's the interesting part</h3>
+    <ul>
+      <li><strong>Janus (DeepSeek, 2024):</strong> the paper that named the conflict. A single visual encoder serving both roles underperforms because understanding wants high-level semantics and generation-conditioning wants low-level structure (§0's granularity mismatch). <strong>Decoupling</strong> — SigLIP encoder for understanding, VQ tokenizer for generation, one AR transformer behind both — improved <em>both</em> tasks. Janus-Pro scaled the recipe. Implication: at the <em>input-representation</em> level, transfer between the roles is negative.</li>
+      <li><strong>LMFusion (2024) &amp; Mixture-of-Transformers (2024):</strong> take a frozen LLM, add <em>parallel modality-specific</em> weights (separate FFN/QKV for image tokens, shared only attention over the joint sequence) trained with the diffusion objective. Language is preserved exactly (frozen!), generation is learned at a fraction of from-scratch cost — MoT matches dense joint training at ~half the FLOPs. Implication: <strong>modality-specific parameters with a shared attention interface lose nothing</strong> — i.e., weight-level sharing between MMU and MMGen wasn't buying anything at these scales. BAGEL adopting MoT is a frontier lab voting with its architecture.</li>
+      <li><strong>MetaMorph (2024) — the asymmetry paper:</strong> visual-predictive instruction tuning (predict SigLIP embeddings as "visual tokens" alongside text). Findings worth quoting: (a) generation ability <em>emerges from strong understanding with very little gen data</em> (understanding is the hard part; gen head is cheap to bolt on); (b) adding understanding data improves generation <em>more</em> than adding generation data improves understanding; (c) gen→understanding gains exist but are modest. Transfer is real and <strong>asymmetric toward MMU→MMGen</strong> — the same asymmetry this whole document keeps finding.</li>
+      <li><strong>UniFluid (2025):</strong> unified AR over continuous tokens for both tasks; careful loss-weight/ratio study finds the two objectives <em>compete</em> at fixed capacity — with a tuned ratio you get slight mutual benefit, with the wrong ratio generation degrades quickly while understanding barely moves. "Transfer sign depends on the mixing weight" is the sober summary.</li>
+    </ul>
+
+    <h3>5d · The scale hypothesis + the tokenizer crux</h3>
+    <ul>
+      <li><strong>Liquid (2024):</strong> reports the understanding/generation interference <em>shrinks as the LLM scales</em> (measured across model sizes) with mutual boost appearing at larger scales under a shared vocabulary. <strong>BAGEL (2025):</strong> "Emerging Properties in Unified Multimodal Pretraining" — with interleaved web/video data at scale, complex editing and generation-with-reasoning appear discontinuously. <strong>GPT-4o native image gen (2025)</strong> is the production exhibit: instruction-following, text rendering, and knowledge-grounded generation far beyond pipeline systems — consistent with joint training paying off at frontier scale (though no controlled baseline exists, and much of the win is plausibly §2/§4 mechanisms internalized).</li>
+      <li><strong>Tokenizer crux:</strong> if one discrete interface must serve both, make it bilingual: VILA-U (unified tokenizer trained with text-contrastive alignment + reconstruction), TokenFlow/QLIP (dual codebooks — semantic + pixel — with shared indexing). These exist precisely because the naive VQGAN codebook is semantically barren (a VQ index knows texture, not "dog"), which is a big part of why early unified models understood poorly.</li>
+    </ul>
+
+    <svg class="flowsvg" viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg" role="img">
+      <title>Shared encoder conflict vs Janus decoupling vs REPA reconciliation</title>
+      <style>.t3{fill:#d7dee8;font:600 12px -apple-system,sans-serif}.s3{fill:#8b97a7;font:10.5px -apple-system,sans-serif}.w3{fill:#ffb454;font:600 11px -apple-system,sans-serif}</style>
+      <defs><marker id="a3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8b97a7"/></marker></defs>
+      <text x="140" y="28" class="t3" text-anchor="middle">① Shared encoder (early unified)</text>
+      <rect x="70" y="45" width="140" height="44" rx="8" fill="#1c2530" stroke="#e57373"/><text x="140" y="63" class="t3" text-anchor="middle">one VQ encoder</text><text x="140" y="80" class="s3" text-anchor="middle">pixels-faithful, semantics-poor</text>
+      <line x1="110" y1="89" x2="90" y2="130" stroke="#8b97a7" stroke-width="1.5" marker-end="url(#a3)"/>
+      <line x1="170" y1="89" x2="190" y2="130" stroke="#8b97a7" stroke-width="1.5" marker-end="url(#a3)"/>
+      <text x="85" y="150" class="s3" text-anchor="middle">MMU 😞</text><text x="195" y="150" class="s3" text-anchor="middle">MMGen 🙂</text>
+      <text x="140" y="180" class="w3" text-anchor="middle">invariance vs completeness:</text>
+      <text x="140" y="196" class="w3" text-anchor="middle">one z can't max both</text>
+
+      <text x="430" y="28" class="t3" text-anchor="middle">② Janus: decouple inputs</text>
+      <rect x="345" y="45" width="80" height="44" rx="8" fill="#16241f" stroke="#7ee0c0"/><text x="385" y="63" class="t3" text-anchor="middle">SigLIP</text><text x="385" y="80" class="s3" text-anchor="middle">semantic</text>
+      <rect x="440" y="45" width="80" height="44" rx="8" fill="#1a1f2b" stroke="#6ea8fe"/><text x="480" y="63" class="t3" text-anchor="middle">VQ tok.</text><text x="480" y="80" class="s3" text-anchor="middle">pixel</text>
+      <rect x="360" y="120" width="145" height="40" rx="8" fill="#1c2530" stroke="#2a3340"/><text x="432" y="145" class="t3" text-anchor="middle">one AR transformer</text>
+      <line x1="385" y1="89" x2="410" y2="120" stroke="#8b97a7" stroke-width="1.5" marker-end="url(#a3)"/>
+      <line x1="480" y1="89" x2="455" y2="120" stroke="#8b97a7" stroke-width="1.5" marker-end="url(#a3)"/>
+      <text x="432" y="182" class="s3" text-anchor="middle">both tasks improve —</text>
+      <text x="432" y="197" class="s3" text-anchor="middle">rep-level transfer was negative</text>
+
+      <text x="710" y="28" class="t3" text-anchor="middle">③ REPA/RAE: semantics inside gen</text>
+      <rect x="630" y="45" width="160" height="44" rx="8" fill="#1a1f2b" stroke="#6ea8fe"/><text x="710" y="63" class="t3" text-anchor="middle">DiT / diffusion</text><text x="710" y="80" class="s3" text-anchor="middle">mid-features ← align → DINOv2</text>
+      <rect x="630" y="120" width="160" height="40" rx="8" fill="#16241f" stroke="#7ee0c0"/><text x="710" y="145" class="t3" text-anchor="middle">frozen SSL encoder</text>
+      <line x1="710" y1="120" x2="710" y2="93" stroke="#7ee0c0" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#a3)"/>
+      <text x="710" y="182" class="s3" text-anchor="middle">~17.5× faster training:</text>
+      <text x="710" y="197" class="s3" text-anchor="middle">gen wants semantics as scaffold,</text>
+      <text x="710" y="212" class="s3" text-anchor="middle">pixels added on top</text>
+
+      <text x="430" y="250" class="t3" text-anchor="middle">Synthesis (BAGEL-era): role-specific interfaces (ViT in, VAE out) + shared core + semantic anchoring</text>
+      <text x="430" y="272" class="s3" text-anchor="middle">"decouple the interfaces, share the brain, align the middle" — the one-line architecture answer for 2025-26 unified models</text>
+    </svg>
+    <p class="cap">Fig. 2 — Three positions on the representation conflict, and the synthesis current frontier models converged on.</p>
+
+    <div class="callout practice">
+      <span class="label">Interview framing</span>
+      If asked "does generation help understanding?", refuse the binary: "Pretrained generative <em>features</em> demonstrably carry understanding (DIFT, diffusion classifiers, MAE). Joint <em>objectives</em> at sub-frontier scale show neutral-to-negative weight-level transfer — Janus had to decouple encoders, LMFusion/MoT show modality-specific weights lose nothing, MetaMorph finds the transfer asymmetric toward understanding→generation. The open question is Liquid/BAGEL's scale hypothesis — interference shrinking with scale — and the honest answer is that the clean FLOP-matched control has never been published at frontier scale."
+    </div>
+
+    <hr>
+    <h2 class="section" id="s6">§6 · MMGen → MMU: dense output</h2>
+
+    <p><strong>The interface argument — the cleanest MMGen→MMU claim, and the least appreciated.</strong> An understanding-only VLM emits text tokens; entire families of vision tasks have answers that are <em>images</em>: segmentation masks, depth maps, optical flow, keypoints, edges, normals. Without a generation head these tasks are squeezed through lossy serializations (polygon coordinates as text, discrete depth bins). A generative image head is exactly $p(y_{\text{image}} \mid x_{\text{image}}, \text{instruction})$ — dense perception becomes conditional generation.</p>
+
+    <h3>6a · Perception as image generation — the existence proofs</h3>
+    <ul>
+      <li><strong>Painter ("Images Speak in Images", 2023):</strong> pose every dense task as masked image inpainting: concatenate an (input, output) example pair with a query input; the model inpaints the query's output panel. Task specification <em>is itself an image</em> — visual in-context learning with no task-specific heads. <strong>SegGPT (2023)</strong> specialized this to universal segmentation: segment anything by giving one visual example.</li>
+      <li><strong>InstructDiffusion / InstructCV (2023):</strong> vision tasks as text-instructed image editing on a diffusion backbone ("mark the man's left shoulder red", "produce the depth map") — one generative interface across detection, segmentation, restoration.</li>
+      <li><strong>Unified-IO 1/2 (2022/2023):</strong> the maximalist version — serialize <em>everything</em> (images, masks, depth, boxes, audio) into one token vocabulary, one seq2seq model over ~90–220 tasks. Proof that a single generative interface can host essentially all of vision, at some cost per task.</li>
+    </ul>
+
+    <h3>6b · Generative priors give zero-shot dense prediction: Marigold &amp; DDVM</h3>
+    <ul>
+      <li><strong>Marigold (2024):</strong> take Stable Diffusion, fine-tune the U-Net only, on just <strong>~74k synthetic</strong> depth pairs (Hypersim + Virtual KITTI) — get <em>state-of-the-art zero-shot</em> affine-invariant monocular depth across real benchmarks. The result is philosophically loud: the T2I prior already contained the geometry; 74k synthetic pairs merely <em>rerouted the output format</em>. You cannot explain this without conceding that generative pretraining learned scene structure — it is arguably the single strongest MMGen→MMU datapoint in the literature.</li>
+      <li><strong>DDVM ("The Surprising Effectiveness of Diffusion Models for Optical Flow and Monocular Depth", 2023):</strong> plain diffusion models, no task-specific architectures (no cost volumes, no warping), competitive-to-SOTA flow/depth — and they <em>capture ambiguity</em>: multimodal posteriors at occlusions and transparent surfaces where regression models must average.</li>
+    </ul>
+
+    <h3>6c · The math: why generation beats regression on dense maps</h3>
+    <p>A regression head trained with MSE learns $\mathbb{E}[y \mid x]$. When the posterior is multimodal — occlusion boundaries (depth could be near or far), transparent/reflective surfaces, ambiguous flow — the conditional mean is a <em>blurry average that lies in no mode</em>:</p>
+    $$\hat{y}_{\text{MSE}} = \mathbb{E}[y\mid x] = \sum_k \pi_k \,\mu_k \quad \text{(possibly far from every } \mu_k\text{)}, \qquad \hat{y}_{\text{gen}} \sim p(y \mid x) \;\to\; \text{some coherent mode } \mu_k$$
+    <p>Diffusion sampling commits to one <em>jointly consistent</em> hypothesis (all pixels agree on which mode), and gives calibrated uncertainty for free by sampling repeatedly and measuring variance — Marigold ensembles ~10 samples exactly this way. Plus iterative refinement is a natural coarse-to-fine solver for globally coupled outputs. This "mode-committing vs mode-averaging" argument is the crisp theory answer for why a generation head is the right dense-output interface.</p>
+
+    <svg class="flowsvg" viewBox="0 0 860 240" xmlns="http://www.w3.org/2000/svg" role="img">
+      <title>Regression averages modes; generative sampling commits to one</title>
+      <style>.t4{fill:#d7dee8;font:600 12px -apple-system,sans-serif}.s4{fill:#8b97a7;font:10.5px -apple-system,sans-serif}</style>
+      <text x="215" y="26" class="t4" text-anchor="middle">bimodal posterior p(depth | pixel at occlusion edge)</text>
+      <g>
+        <line x1="60" y1="180" x2="370" y2="180" stroke="#2a3340" stroke-width="1.5"/>
+        <path d="M70 180 C 100 180, 105 70, 135 70 C 165 70, 170 180, 200 180" fill="none" stroke="#6ea8fe" stroke-width="2.5"/>
+        <path d="M230 180 C 260 180, 265 95, 295 95 C 325 95, 330 180, 360 180" fill="none" stroke="#6ea8fe" stroke-width="2.5"/>
+        <line x1="215" y1="180" x2="215" y2="60" stroke="#e57373" stroke-width="2" stroke-dasharray="6 4"/>
+        <text x="215" y="50" class="s4" text-anchor="middle" fill="#e57373">MSE output = mean (no mode!)</text>
+        <line x1="135" y1="180" x2="135" y2="64" stroke="#7ee0c0" stroke-width="2" stroke-dasharray="2 3"/>
+        <text x="135" y="200" class="s4" text-anchor="middle">near surface</text>
+        <text x="295" y="200" class="s4" text-anchor="middle">far surface</text>
+        <text x="135" y="222" class="s4" text-anchor="middle" fill="#7ee0c0">gen sample commits here (or there) — coherently</text>
+      </g>
+      <g>
+        <text x="640" y="26" class="t4" text-anchor="middle">the interface view</text>
+        <rect x="480" y="50" width="150" height="44" rx="8" fill="#161b22" stroke="#7ee0c0"/><text x="555" y="69" class="t4" text-anchor="middle">MMU-only VLM</text><text x="555" y="86" class="s4" text-anchor="middle">output = text tokens</text>
+        <text x="555" y="118" class="s4" text-anchor="middle">masks/depth/flow forced through</text>
+        <text x="555" y="133" class="s4" text-anchor="middle">lossy text serialization 😞</text>
+        <rect x="660" y="50" width="160" height="44" rx="8" fill="#161b22" stroke="#6ea8fe"/><text x="740" y="69" class="t4" text-anchor="middle">+ generation head</text><text x="740" y="86" class="s4" text-anchor="middle">output = an image</text>
+        <text x="740" y="118" class="s4" text-anchor="middle">dense answer natively:</text>
+        <text x="740" y="133" class="s4" text-anchor="middle">p(y_img | x_img, instr) 🙂</text>
+        <text x="648" y="170" class="s4" text-anchor="middle">Painter/SegGPT: even the TASK is specified as an image pair</text>
+        <text x="648" y="190" class="s4" text-anchor="middle">Marigold: SD prior + 74k synthetic pairs → zero-shot SOTA depth</text>
+        <text x="648" y="210" class="s4" text-anchor="middle">= the prior already knew the geometry; finetune only reroutes format</text>
+      </g>
+    </svg>
+    <p class="cap">Fig. 3 — Left: mode-averaging vs mode-committing at an ambiguous pixel. Right: generation as the missing output interface for dense perception.</p>
+
+    <hr>
+    <h2 class="section" id="s7">§7 · MMGen → MMU: thinking with images</h2>
+
+    <p><strong>The claim:</strong> some reasoning states are cheap to represent visually and expensive to represent in language — so a model that can <em>generate</em> images can use them as intermediate thoughts. Language serializes spatial state lossily: describing an 8×8 maze position-by-position costs hundreds of tokens and invites binding errors ("the wall north of cell (3,5)…"), while one generated image <em>is</em> the state. Careful distinctions first — three levels get conflated constantly:</p>
+
+    <div class="tablewrap"><table>
+      <thead><tr><th>Level</th><th>What produces the image</th><th>Examples</th><th>Is MMGen involved?</th></tr></thead>
+      <tbody>
+        <tr><td><strong>L1 — manipulate</strong></td><td>Deterministic ops on the <em>input</em> image (crop, zoom, rotate)</td><td>OpenAI o3 "thinking with images" (2025)</td><td>No — tool use over existing pixels. Huge gains on fine-detail VQA (V*-style), but it's perception scheduling, not generation.</td></tr>
+        <tr><td><strong>L2 — sketch via tools</strong></td><td>Code/tools render <em>new</em> auxiliary images (plots, drawn lines, boxes)</td><td>Visual Sketchpad (2024): GPT-4o draws with matplotlib/detector overlays for geometry &amp; math</td><td>Half — §3's code-sketching used for <em>reasoning</em> rather than deliverables. Gains on geometry (+14%-ish) and vision tasks.</td></tr>
+        <tr><td><strong>L3 — native visual thoughts</strong></td><td>The model's own generation head emits intermediate images/latents</td><td>MVoT (2025), Visual Planning (2025), "Thinking with Generated Images" (2025), BAGEL interleaved reasoning</td><td>Yes — the real MMGen→MMU claim.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>7a · L3 in detail — what actually exists</h3>
+    <ul>
+      <li><strong>MVoT — Multimodal Visualization-of-Thought (Jan 2025):</strong> fine-tune a unified model (Chameleon-based) to interleave <em>generated image visualizations</em> into its CoT on spatial tasks (maze navigation, FrozenLake, mini-map manipulation). Key technical piece: a <strong>token discrepancy loss</strong> to keep generated visual thoughts faithful to the true state (naive training produced pretty-but-wrong visualizations — see 7b). Beats text-only CoT on the hardest spatial layouts, and — importantly — <em>remains robust where text CoT degrades as spatial complexity grows</em>.</li>
+      <li><strong>Visual Planning / VPRL (2025):</strong> drops text entirely — plan as a <em>sequence of images</em> (states along a navigation path), trained with RL (GRPO-style) over image rollouts; progress toward the goal is the verifiable reward. Beats text-based planning baselines on FrozenLake/maze/mini-BEHAVIOR-style tasks. The manifesto version of the claim: for some problems the whole chain should be visual.</li>
+      <li><strong>Thinking with Generated Images (2025):</strong> unified model spontaneously decomposes goals into <em>generated visual subgoals</em> (intermediate sketches self-critized then refined — §1 loop fused with L3).</li>
+      <li><strong>BAGEL:</strong> reports interleaved reasoning traces improving <em>both</em> its generation quality (CoT before gen — §4b) and multimodal reasoning benchmarks — a unified model exercising both arrow directions in one rollout.</li>
+    </ul>
+
+    <h3>7b · The two honest caveats (say these before the interviewer does)</h3>
+    <ul>
+      <li><strong>Fidelity, not beauty, is the requirement — and it's the failure mode.</strong> A visual thought is only useful if it is <em>causally faithful</em> to the state it claims to represent; a hallucinated wall poisons every downstream step (error compounding is worse than in text CoT because the model re-perceives its own hallucination as evidence — the §1 "re-perception" advantage flips sign). MVoT's token discrepancy loss exists precisely because default generation drifts toward plausible-looking rather than state-accurate images. General principle: <strong>visual CoT needs a verifier or a grounding loss, or it's self-deception with pictures.</strong></li>
+      <li><strong>Evidence is still toy-domain.</strong> Mazes, grid worlds, geometry overlays. No one has shown native visual thoughts moving MMMU/MathVista-scale benchmarks the way L1 cropping demonstrably moved fine-detail VQA. The economically proven parts of "thinking with images" today are L1 and L2 — L3 is the research frontier. (And the cost story is real: an image thought is hundreds-to-thousands of tokens; the information-per-token of a maze sketch is high, of a photorealistic render mostly wasted — which motivates <em>latent</em> visual thoughts.)</li>
+    </ul>
+
+    <div class="callout frontier">
+      <span class="label">Frontier — latent visual thoughts = your proposal's territory</span>
+      If pixel-space thoughts are expensive and fidelity-fragile, think in a <em>latent</em> visual space: predict the next visual state as embeddings (JEPA-style) rather than render it. That is exactly the <a href="Proposal_JEPA_Latent_VLM.html">LatentFusion</a> bet — an LLM predicting future visual content in frozen V-JEPA/DINOv2 space gets the world-simulation benefit of L3 (state evolution you can roll forward and re-read) without paying the rendering tax or the aesthetics-vs-fidelity distraction. When this topic comes up in the research round, this is your bridge from literature review to "and here is what I would do."
+    </div>
+
+    <hr>
+    <h2 class="section" id="s8">§8 · MMGen → MMU: world models, generative classifiers, data flywheels, cycles</h2>
+
+    <h3>8a · Prediction as understanding: world models</h3>
+    <p>The strongest philosophical version of MMGen→MMU: <em>to predict the future of a scene you must implicitly model objects, physics, agents</em> — so temporal generation is understanding's forcing function.</p>
+    <ul>
+      <li><strong>Video generators as physics engines (contested but productive):</strong> Sora-class models show emergent object permanence and rough dynamics alongside spectacular physics violations; the "is it a world model or a pixel interpolator?" fight (Genie-3 and Cosmos on one side, physics-probing benchmarks like Physics-IQ on the other) is unresolved. Best current summary: video gen learns <em>statistical</em> dynamics that transfer to prediction tasks, but optimizing pixel realism provably does not require causal physics, and models exploit that slack.</li>
+      <li><strong>Action-conditioned world models for agents:</strong> Genie-3 (2025) — interactive, promptable environments; NVIDIA Cosmos (2025) — world foundation models explicitly marketed as training grounds for embodied policies. Here MMGen→MMU transfer is <em>operational</em>: the generator produces the experience that trains the understander/policy (transfer via data, channel #1, at simulation scale).</li>
+      <li><strong>The latent counterprogram:</strong> V-JEPA 2 (2025) argues you get the understanding benefits of prediction <em>without generating pixels</em> — predict in representation space, skip rendering. Strong probe results + zero-shot robot planning. This is the intellectually cleanest position in the whole MMGen→MMU debate: <strong>prediction is the objective that teaches; pixels are an implementation detail</strong> — and it's the theoretical foundation of your LatentFusion proposal. Expect a research-round interviewer to push you on "why not just generate pixels?"; the answer is the invariance/completeness split of §0 plus compute per predicted state.</li>
+    </ul>
+
+    <h3>8b · Generative classifiers &amp; analysis-by-synthesis</h3>
+    <p>Covered mechanically in §5a (diffusion classifier); the additional points worth holding: generative classifiers show <strong>better shape bias, better OOD behavior, and human-like error patterns</strong> in controlled studies ("Intriguing properties of generative classifiers", 2023) — consistent with the classic argument that discriminative shortcuts (texture, backgrounds) are pruned when you must explain the whole image. The eternal blocker is inference cost (per-class ELBO estimates × classes × noise samples). Practical compromise that survives: use generative likelihood as a <em>reranker or verifier</em> over a discriminative shortlist — analysis-by-synthesis only where it pays (which is a §1 critique loop with the roles swapped: generation verifying understanding).</p>
+
+    <h3>8c · The synthetic-data flywheel</h3>
+    <ul>
+      <li><strong>StableRep (2023):</strong> contrastive learning where multiple SD samples <em>from the same caption</em> serve as positives — synthetic-only images matching/beating CLIP-on-real at matched caption scale. <strong>SynCLR (2024):</strong> synthetic captions + synthetic images only, rivaling DINOv2-class features on probes. The generator acts as a <em>distribution amplifier</em>: infinitely many consistent views per semantic point — a data-augmentation policy learned from the whole web.</li>
+      <li><strong>Targeted long-tail manufacturing:</strong> generation shines where real data is scarce by construction — rare classes, dangerous scenarios (driving edge cases), robotics domain randomization, privacy-constrained domains (medical). Here MMGen→MMU transfer is simply <em>coverage</em>.</li>
+      <li><strong>Caveats you must attach:</strong> distribution narrowing (generator mode coverage &lt; reality; recursive training on own outputs degrades — model-collapse dynamics), inherited biases and artifacts (understanders can learn to key on diffusion fingerprints), and the verifier requirement — synthetic examples need labels you can trust, which usually means the label came <em>first</em> (generate-from-label), inverting the usual annotation pipeline.</li>
+    </ul>
+
+    <h3>8d · Cycle consistency &amp; interleaved pretraining</h3>
+    <ul>
+      <li><strong>ITIT (2023):</strong> use <em>unpaired</em> data via cycles — image→caption→image reconstructions and text→image→text consistency losses; each direction supervises the other, so generation becomes a training signal for captioning without labels. The CycleGAN idea elevated to the MMU/MMGen pair.</li>
+      <li><strong>DreamLLM (2023):</strong> end-to-end interleaved generation+comprehension pretraining (free-form documents with images generated in place); reports comprehension benchmarks <em>improving</em> from adding the generation objective — one of the few direct positive datapoints for objective-level MMGen→MMU, at modest scale.</li>
+      <li><strong>Self-captioning loops:</strong> a unified model can caption its own generations and check round-trip semantic consistency (embedding distance between $c$ and $\text{caption}(\text{gen}(c))$) — a free self-training signal, and a cousin of the §1 self-reward loop with all the same correlation caveats.</li>
+    </ul>
+
+    <hr>
+    <h2 class="section" id="s9">§9 · The verdict: evidence scoreboard</h2>
+
+    <div class="tablewrap"><table>
+      <thead><tr><th>#</th><th>Mechanism</th><th>Direction</th><th>Channel</th><th>Key evidence</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Recaptioning training data</td><td>MMU→Gen</td><td>data</td><td>DALL·E 3 (95% synth), SD3 (50%), PixArt-α</td><td><span class="ev prod">PRODUCTION</span></td></tr>
+        <tr><td>2</td><td>Prompt upsampling / rewriting</td><td>MMU→Gen</td><td>inference</td><td>DALL·E 3 GPT-4 rewrite; Promptist; OPT2I</td><td><span class="ev prod">PRODUCTION</span></td></tr>
+        <tr><td>3</td><td>Critique / self-correction loops</td><td>MMU→Gen</td><td>inference + reward</td><td>Idea2Img, SLD, VQAScore/DSG; Muse emergent self-refinement</td><td><span class="ev prod">PRODUCTION</span></td></tr>
+        <tr><td>4</td><td>MMU-grounded RL rewards for gen</td><td>MMU→Gen</td><td>reward</td><td>T2I-R1 (BiCoT-GRPO), UnifiedReward, DSG-as-reward</td><td><span class="ev strong">STRONG</span></td></tr>
+        <tr><td>5</td><td>Code / layout intermediates</td><td>MMU→Gen</td><td>inference</td><td>LayoutGPT, LMD, RPG; SVG/TikZ; Muse code tool</td><td><span class="ev prod">PRODUCTION</span></td></tr>
+        <tr><td>6</td><td>Representation alignment for gen training</td><td>MMU→Gen</td><td>representation</td><td>REPA (~17.5× iters), VA-VAE, RAE</td><td><span class="ev strong">STRONG · replicated</span></td></tr>
+        <tr><td>7</td><td>CoT planning before generation</td><td>MMU→Gen</td><td>inference</td><td>GoT, T2I-R1 semantic level, GPT-4o/Muse behavior</td><td><span class="ev strong">STRONG</span></td></tr>
+        <tr><td>8</td><td>World-knowledge-informed generation</td><td>MMU→Gen</td><td>objective (shared LLM)</td><td>WISE benchmark; GPT-4o img gen</td><td><span class="ev strong">STRONG</span></td></tr>
+        <tr><td>9</td><td>Generative pretraining → features</td><td>Gen→MMU</td><td>representation</td><td>MAE/iGPT, DIFT, diffusion classifier; l-DAE caveat</td><td><span class="ev strong">STRONG</span></td></tr>
+        <tr><td>10</td><td>Dense output via gen head</td><td>Gen→MMU</td><td>interface</td><td>Painter/SegGPT, Marigold (74k→zero-shot SOTA), DDVM</td><td><span class="ev strong">STRONG · replicated</span></td></tr>
+        <tr><td>11</td><td>Thinking with images (native, L3)</td><td>Gen→MMU</td><td>inference</td><td>MVoT, Visual Planning/VPRL, BAGEL traces</td><td><span class="ev emerg">EMERGING · toy domains</span></td></tr>
+        <tr><td>12</td><td>Synthetic data for understanding</td><td>Gen→MMU</td><td>data</td><td>StableRep, SynCLR; sim/world-model data (Cosmos)</td><td><span class="ev strong">STRONG · with caveats</span></td></tr>
+        <tr><td>13</td><td>World models / prediction-as-understanding</td><td>Gen→MMU</td><td>objective</td><td>Genie-3, Cosmos vs Physics-IQ critiques; V-JEPA 2 latent counterpoint</td><td><span class="ev emerg">EMERGING · contested</span></td></tr>
+        <tr><td>14</td><td><strong>Joint objective, shared weights, mutual gain</strong></td><td>both</td><td>objective</td><td>For: MetaMorph (asymmetric+), DreamLLM, Liquid scale-trend, BAGEL emergence. Against: Janus decoupling, LMFusion/MoT no-loss-from-separation, UniFluid competition</td><td><span class="ev contest">CONTESTED — the open bet</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>The three-sentence synthesis (memorize this)</h3>
+    <ol>
+      <li><strong>MMU→MMGen transfer is large, proven, and mostly doesn't need shared weights:</strong> understanding models manufacture the generator's data (captions), its rewards (VQA-grounded critics), its plans (CoT/layout/code), and even its internal scaffolding (REPA) — this direction is production reality.</li>
+      <li><strong>MMGen→MMU transfer is real but flows through artifacts and interfaces, not the joint loss:</strong> pretrained generative features (DIFT/Marigold), the dense-output interface, synthetic data — while native visual thinking is promising but toy-stage.</li>
+      <li><strong>The contested core is objective-level synergy in one set of weights:</strong> small-scale evidence says interference (Janus) and separability-without-loss (MoT/LMFusion); the frontier bet (Liquid, BAGEL, GPT-4o) is that interleaved data + scale flips the sign — and the clean FLOP-matched control that would settle it hasn't been published.</li>
+    </ol>
+
+    <div class="callout frontier">
+      <span class="label">What would settle it (say this to sound like a scientist)</span>
+      The experiment the field owes itself: fix total params and FLOPs; train (a) understanding-only, (b) generation-only, (c) joint with tuned loss ratio, (d) joint with modality-split weights (MoT), across 3+ orders of compute; report <em>both</em> capability frontiers and fit the scaling exponents. Transfer is real iff (c) or (d) Pareto-dominates the specialist pair <em>with a widening gap in scale</em> — a slope difference, not an intercept difference (your scaling-law instincts apply verbatim: an intercept win is "shared infrastructure amortization"; only a slope win is genuine synergy). MetaMorph and UniFluid ran fragments of this at one scale; nobody has published the full grid.
+    </div>
+
+    <hr>
+    <h2 class="section" id="s10">§10 · Interview angles + self-test</h2>
+
+    <h3>How to deploy this in the research round</h3>
+    <ul>
+      <li><strong>If asked "should we unify understanding and generation?"</strong> — refuse the binary, enumerate the five channels (§0), give the asymmetry thesis, land on "decouple the interfaces, share the brain, align the middle" (Fig. 2) and the missing FLOP-matched control (§9). That's a complete senior answer in ~90 seconds.</li>
+      <li><strong>Bridge to your proposal:</strong> §7's latent-visual-thoughts and §8a's V-JEPA-2 position are LatentFusion's motivation verbatim — "I want prediction's understanding benefits without rendering's tax" is your thesis sentence.</li>
+      <li><strong>Bridge to your data story:</strong> §2 is CapForge's theory ($I(x;c)$ framing, hallucination transfer, blend ratios); §8c's flywheel caveats echo your verifier-decay insights.</li>
+      <li><strong>Bridge to RL:</strong> §1/§4d — reward fidelity as the binding constraint; T2I-R1 as GRPO transplanted; Muse's emergent self-refinement as the production datapoint.</li>
+    </ul>
+
+    <h3>Self-test</h3>
+    <p class="hint">Click to reveal. Aim for the mechanism + one named system + one caveat per answer.</p>
+
+    <div class="qa"><div class="q">1 · Why does recaptioning improve prompt-following? Give the information-theoretic one-liner and the production numbers.<span class="chev">▶</span></div><div class="a">Prompt-following is bounded by the mutual information $I(x;c)$ in training pairs; alt-text leaves $H(x|c)\approx H(x)$ so the model learns to ignore the condition. Dense MMU-written captions raise the exploitable $I(x;c)$ and introduce compositional vocabulary paired with evidence. DALL·E 3: ~95% synthetic captions (5% original kept to avoid conditioning-distribution drift); SD3: 50/50 CogVLM blend; plus inference-time prompt upsampling to bridge the short-prompt gap. Caveat: hallucination transfer — captioner errors are correlated, not averaging noise.</div></div>
+
+    <div class="qa"><div class="q">2 · Why does sequential critique-and-repair beat best-of-N at matched compute?<span class="chev">▶</span></div><div class="a">BoN over a conjunction of $k$ constraints has per-sample pass rate $p\approx\prod_i p_i$ (exponentially small in $k$), needing $N\sim 1/p$; gains flatten as extreme-value $\log\log N$. Critique-and-repair diagnoses the specific violated constraint and fixes it with a <em>local edit</em> while freezing satisfied ones — cost roughly additive $\sum_i 1/p_i^{\text{fix}}$. Conditioning on the failure is what BoN's i.i.d. draws can't do. Production exhibit: Muse's log-linear test-time scaling claim; published ancestors: Idea2Img, SLD.</div></div>
+
+    <div class="qa"><div class="q">3 · The same weights generate and judge in self-critique. Why isn't that circular — and when does it break?<span class="chev">▶</span></div><div class="a">Because the rendered image is externalized state that gets <em>re-perceived</em> through the perception pathway — a different computation from sampling — unlike text CoT which never leaves the model's own distribution. So error correlation between generator and judge is lower than in text self-critique. It breaks when the shared perception module is itself the weak link (counting, small text): the encoder that can't count can't verify counts — escalate to external verifiers (detector, OCR), i.e., the verifier hierarchy.</div></div>
+
+    <div class="qa"><div class="q">4 · State the Janus argument and the REPA argument. They seem opposed — reconcile them.<span class="chev">▶</span></div><div class="a">Janus: one visual encoder can't serve both roles — understanding wants invariant semantics, generation-conditioning wants complete low-level structure; decoupling improved both. REPA: aligning a diffusion transformer's mid-layer features to frozen DINOv2 gives ~17.5× faster training — generation <em>wants</em> semantics internally. Reconciliation: semantics is the right <em>inner scaffold</em> for generation but the wrong <em>sole interface</em>; so decouple role-specific interfaces (ViT in / VAE out), share the core, anchor the middle to a semantic space — which is the BAGEL-era consensus architecture.</div></div>
+
+    <div class="qa"><div class="q">5 · What did Transfusion actually show — and what didn't it show?<span class="chev">▶</span></div><div class="a">Showed: one transformer with NTP-on-text + diffusion-on-VAE-latents (bidirectional attention within images) FLOP-for-FLOP dominates Chameleon-style discrete-token AR — ~3× less compute to match image quality, better text at matched FLOPs. Lesson: discretization taxes both sides; continuous latents + diffusion is the better image objective. Did NOT show: that the image loss helps text/understanding — only that it hurts less than VQ-NTP. LMFusion/MoT ablations (modality-split weights lose nothing) suggest weight-level synergy is ≈0 at these scales.</div></div>
+
+    <div class="qa"><div class="q">6 · Why is Marigold such a philosophically loud result for the MMGen→MMU direction?<span class="chev">▶</span></div><div class="a">Fine-tuning only Stable Diffusion's U-Net on ~74k <em>synthetic</em> depth pairs yields zero-shot SOTA monocular depth on real benchmarks. 74k pairs cannot teach geometry from scratch — so the geometry was already in the T2I prior, and fine-tuning merely rerouted the output format. It's the cleanest evidence that generative pretraining learned scene structure. Companion: DDVM shows diffusion additionally captures multimodal posteriors (occlusions) that MSE regression must average into blur — mode-committing vs mode-averaging.</div></div>
+
+    <div class="qa"><div class="q">7 · Give the regression-vs-generation math for dense prediction.<span class="chev">▶</span></div><div class="a">MSE regression learns $\mathbb{E}[y|x]$; when $p(y|x)$ is multimodal (occlusion depth: near or far), the mean $\sum_k \pi_k\mu_k$ lies in no mode — blurry, incoherent output. A generative head samples a jointly consistent mode (all pixels agree on the hypothesis) and gives calibrated uncertainty via sample variance (Marigold ensembles ~10 samples). Plus iterative denoising is a natural coarse-to-fine solver for globally coupled outputs, and the gen head is the native interface for image-shaped answers at all (Painter/SegGPT: even the task spec is an image).</div></div>
+
+    <div class="qa"><div class="q">8 · "Thinking with images" — separate the three levels and grade the evidence.<span class="chev">▶</span></div><div class="a">L1 manipulate (crop/zoom the input — o3): tool use, proven at scale on fine-detail VQA, zero generation. L2 sketch-by-code (Visual Sketchpad, matplotlib overlays): §3's code intermediates used for reasoning, solid gains on geometry/math. L3 native generated thoughts (MVoT, Visual Planning/VPRL, Thinking-with-Generated-Images): the real MMGen→MMU claim — beats text CoT on spatial toys and degrades slower with complexity, but needs fidelity control (MVoT's token discrepancy loss) because a hallucinated visual thought gets re-perceived as evidence, and no L3 result yet moves MMMU-scale benchmarks. Frontier: latent visual thoughts (JEPA-style) to skip the rendering tax → LatentFusion.</div></div>
+
+    <div class="qa"><div class="q">9 · What's MetaMorph's asymmetry finding, and why does it matter for data budgeting?<span class="chev">▶</span></div><div class="a">With visual-predictive instruction tuning: (a) generation emerges from a strong understander with very little generation data; (b) understanding data improves generation more than generation data improves understanding; (c) gen→und gains exist but are modest. Budget implication: spend tokens on understanding; treat generation largely as an interface you unlock late and cheaply (also BLIP-3o/MetaQuery's recipe: freeze the MLLM, train a connector+decoder). It's the same asymmetry as the whole field: MMU→MMGen is the strong direction today.</div></div>
+
+    <div class="qa"><div class="q">10 · Design the experiment that would settle objective-level transfer.<span class="chev">▶</span></div><div class="a">Matched params + FLOPs, four arms — (a) MMU-only, (b) MMGen-only, (c) joint shared-dense with tuned loss ratio, (d) joint with modality-split weights (MoT) — swept over ≥3 orders of compute with fixed eval frontiers on both sides; fit scaling exponents per arm. Genuine synergy = (c)/(d) Pareto-dominating the specialists with a <em>slope</em> advantage (widening with scale), not an intercept one (which is just amortized infrastructure). Include interleaved-data on/off as a factor, since BAGEL suggests data format, not loss coupling, may be the active ingredient. Nobody has published this grid — UniFluid/MetaMorph are single-scale fragments.</div></div>
+
+    <div class="qa"><div class="q">11 · Rapid fire: name the flagship system/paper for each — (a) VQA-decomposed T2I eval, (b) GRPO on image generation, (c) understanding features accelerating diffusion, (d) perception as inpainting, (e) unified tokenizer with text alignment, (f) generation grafted on a frozen MLLM.<span class="chev">▶</span></div><div class="a">(a) TIFA/DSG, soft version VQAScore. (b) T2I-R1 (BiCoT-GRPO; also GoT-R1, Visual Planning's VPRL for image-sequence rollouts). (c) REPA (then VA-VAE at the tokenizer, RAE as frozen-encoder endpoint). (d) Painter / SegGPT. (e) VILA-U (also TokenFlow/QLIP dual codebooks). (f) MetaQuery / BLIP-3o (learnable queries → diffusion decoder; sequential training keeps understanding intact).</div></div>
+
+    <div class="qa"><div class="q">12 · Steelman the "never unify" position, then say why frontier labs unify anyway.<span class="chev">▶</span></div><div class="a">Steelman: every production MMU→MMGen win (captions, critics, planners, rewards, REPA) works across an interface with <em>separate</em> weights; Janus shows rep-level conflict; MoT/LMFusion show splitting weights loses nothing; specialists are individually cheaper to iterate and eval. Why unify anyway: (1) knowledge is too big for the prompt interface — WISE-style knowledge-informed generation needs the LLM's brain in the loop; (2) latency/systems — the pipeline's captioner+rewriter+critic collapse into one forward pass; (3) interleaved emergence — editing/visual-CoT behaviors that only appear when one context window holds both abilities (BAGEL, GPT-4o); (4) the scale bet — if Liquid's trend holds, interference→synergy with scale, and you want to already be unified when it flips.</div></div>
+
+    <hr>
+    <p class="hint">Created 2026-07-09 for the research deep-dive round · companions: <a href="VLM_VLA_Unified_Omni.html">Unified Omni map</a> · <a href="Meta_Muse_MSL_Deep_Dive.html">Muse deep dive</a> · <a href="Proposal_JEPA_Latent_VLM.html">LatentFusion proposal</a> · logged as Q95 in the <a href="Interview_QA_Log.html">Q&amp;A log</a>.</p>
+  </main>
+</div>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
+<script>
+  const prog=document.getElementById('progress'),backTop=document.getElementById('backTop');
+  window.addEventListener('scroll',()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';backTop.style.display=h.scrollTop>600?'block':'none';});
+  const KEY=document.title.replace(/\W/g,'_');
+  document.querySelectorAll('.qa').forEach((qa,i)=>{const k=KEY+'_qa_'+i;if(localStorage.getItem(k)==='1')qa.classList.add('open');qa.querySelector('.q').addEventListener('click',()=>{qa.classList.toggle('open');localStorage.setItem(k,qa.classList.contains('open')?'1':'0');});});
+  const tl=[...document.querySelectorAll('nav.toc a')],secs=tl.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  window.addEventListener('scroll',()=>{let cur=secs[0];for(const s of secs){if(s.getBoundingClientRect().top<=120)cur=s;}tl.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+(cur&&cur.id)));});
+</script>
+</body>
+</html>

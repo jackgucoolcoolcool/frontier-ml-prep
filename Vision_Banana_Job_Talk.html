@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vision Banana — Job Talk</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0f15; --bg-2: #10161f; --panel: #141c27; --panel-2: #1a2432;
+    --text: #dde5ef; --muted: #8b98a9; --faint: #5d6a7c;
+    --gold: #f2c94c; --gold-dim: rgba(242,201,76,.14);
+    --teal: #6ee7c8; --teal-dim: rgba(110,231,200,.12);
+    --blue: #7aa8ff; --blue-dim: rgba(122,168,255,.12);
+    --purple: #c4a5ff; --red: #ff8a80; --red-dim: rgba(255,138,128,.10);
+    --border: #263242; --border-lit: #35465c;
+    --code-bg: #0d131b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  /* ---------- deck chrome ---------- */
+  #deck { position: fixed; inset: 0; }
+  .slide { position: absolute; inset: 0; padding: 4.2vh 5vw 7.5vh; display: flex; flex-direction: column;
+    opacity: 0; visibility: hidden; transform: translateX(24px) scale(.995);
+    transition: opacity .32s ease, transform .32s ease, visibility .32s; overflow: hidden; }
+  .slide.active { opacity: 1; visibility: visible; transform: none; }
+  .slide.prev { transform: translateX(-24px) scale(.995); }
+  #hud { position: fixed; left: 0; right: 0; bottom: 0; height: 4.6vh; min-height: 30px; display: flex;
+    align-items: center; justify-content: space-between; padding: 0 5vw; font-size: 12.5px; color: var(--faint);
+    border-top: 1px solid rgba(255,255,255,.045); background: rgba(11,15,21,.7); backdrop-filter: blur(6px); z-index: 20; }
+  #hud .keys b { color: var(--muted); font-weight: 600; }
+  #bar { position: fixed; bottom: 0; left: 0; height: 3px; width: 0;
+    background: linear-gradient(90deg, var(--gold), var(--teal)); z-index: 30; transition: width .25s ease; }
+  #counter { font-variant-numeric: tabular-nums; }
+  /* ---------- typography ---------- */
+  .kicker { font-size: clamp(11px, 1.15vw, 14px); letter-spacing: .17em; text-transform: uppercase;
+    color: var(--gold); font-weight: 700; margin-bottom: 1.2vh; }
+  .kicker.teal { color: var(--teal); } .kicker.blue { color: var(--blue); } .kicker.purple { color: var(--purple); } .kicker.red { color: var(--red); }
+  h1 { font-size: clamp(26px, 3.4vw, 46px); line-height: 1.14; margin: 0 0 1.6vh; font-weight: 750; letter-spacing: -.015em; }
+  h1 .dim { color: var(--muted); font-weight: 500; }
+  .sub { color: var(--muted); font-size: clamp(14px, 1.35vw, 18px); line-height: 1.5; max-width: 62ch; }
+  .body { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-top: 1.6vh; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+  p, li { font-size: clamp(13.5px, 1.28vw, 17.5px); line-height: 1.55; }
+  small, .cap { font-size: clamp(11px, 1vw, 13.5px); color: var(--muted); }
+  strong { color: #f3f7fc; } em { color: #e8eef6; }
+  .gold { color: var(--gold); } .teal { color: var(--teal); } .blue { color: var(--blue); } .red { color: var(--red); } .purple { color: var(--purple); }
+  code { background: var(--code-bg); border: 1px solid var(--border); padding: 1px 7px; border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: .88em; color: #ecc987; }
+  ul, ol { margin: .6vh 0; padding-left: 1.4em; } li { margin: .75vh 0; }
+  li::marker { color: var(--gold); }
+  /* ---------- layout helpers ---------- */
+  .cols { display: grid; gap: 2.2vw; flex: none; align-content: start; }
+  .cols.c2 { grid-template-columns: 1fr 1fr; } .cols.c3 { grid-template-columns: 1fr 1fr 1fr; }
+  .cols > * { min-width: 0; }
+  .cols.c21 { grid-template-columns: 1.25fr 1fr; } .cols.c12 { grid-template-columns: 1fr 1.25fr; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 2vh 1.4vw; }
+  .card h4 { margin: 0 0 .8vh; font-size: clamp(13px, 1.25vw, 17px); color: var(--teal); }
+  .card.goldline { border-top: 3px solid var(--gold); } .card.tealline { border-top: 3px solid var(--teal); }
+  .card.blueline { border-top: 3px solid var(--blue); } .card.redline { border-top: 3px solid var(--red); }
+  .callout { border-radius: 12px; padding: 1.6vh 1.3vw; border: 1px solid var(--border); margin: 1.2vh 0; }
+  .callout .label { font-weight: 800; font-size: clamp(10.5px, .95vw, 12.5px); text-transform: uppercase; letter-spacing: .09em; display: block; margin-bottom: .5vh; }
+  .key { background: var(--teal-dim); border-color: rgba(110,231,200,.35); } .key .label { color: var(--teal); }
+  .warn { background: var(--gold-dim); border-color: rgba(242,201,76,.4); } .warn .label { color: var(--gold); }
+  .risk { background: var(--red-dim); border-color: rgba(255,138,128,.35); } .risk .label { color: var(--red); }
+  .idea { background: rgba(196,165,255,.08); border-color: rgba(196,165,255,.35); } .idea .label { color: var(--purple); }
+  table { border-collapse: collapse; width: 100%; font-size: clamp(12px, 1.12vw, 15.5px); }
+  th, td { border: 1px solid var(--border); padding: 1vh .9vw; text-align: left; vertical-align: top; line-height: 1.4; }
+  th { background: var(--panel-2); color: #f0f5fb; font-weight: 700; }
+  tr:nth-child(even) td { background: rgba(255,255,255,.014); }
+  td.hl { background: var(--gold-dim) !important; }
+  .eq { text-align: center; margin: 1vh 0; overflow-x: auto; font-size: 88%; }
+  mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+  mjx-container svg { vertical-align: middle; }
+  .flowsvg, .diagsvg { width: 100%; height: auto; max-height: 34vh; background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px; }
+  .chartbox { position: relative; flex: 1; min-height: 0; min-width: 0; width: 100%; overflow: hidden; }
+  .canvasrow { display: flex; gap: 1vw; align-items: flex-start; justify-content: center; }
+  .cpanel { flex: 1; min-width: 0; text-align: center; }
+  .cpanel canvas { max-width: 100%; max-height: 24vh; width: auto; height: auto; border: 1px solid var(--border); border-radius: 10px; background: #0d131b; }
+  .cpanel .plab { font-size: clamp(10.5px, .95vw, 13px); color: var(--muted); margin-top: .5vh; line-height: 1.35; }
+  .arrowsep { color: var(--faint); font-size: clamp(16px, 1.8vw, 26px); flex: 0 0 auto; align-self: center; }
+  .pillrow { display: flex; flex-wrap: wrap; gap: .8vw; margin-top: 2vh; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--teal); padding: .6vh 1vw; border-radius: 30px; font-size: clamp(11px, 1.05vw, 14px); }
+  .big-stat { font-size: clamp(30px, 3.6vw, 54px); font-weight: 800; letter-spacing: -.02em; line-height: 1.05; }
+  .stat-cap { color: var(--muted); font-size: clamp(11.5px, 1.05vw, 14px); margin-top: .5vh; }
+  .num { display: inline-flex; align-items: center; justify-content: center; width: 1.75em; height: 1.75em; flex: none;
+    border-radius: 50%; background: var(--panel-2); border: 1px solid var(--border-lit); color: var(--gold); font-weight: 800; font-size: .82em; margin-right: .65em; }
+  .steplist { list-style: none; padding: 0; } .steplist li { display: flex; align-items: baseline; }
+  /* ---------- title slide ---------- */
+  .title-slide { justify-content: center; background:
+    radial-gradient(1100px 480px at 78% -10%, rgba(242,201,76,.09), transparent 60%),
+    radial-gradient(900px 500px at 12% 110%, rgba(110,231,200,.07), transparent 60%), var(--bg); }
+  .title-slide h1 { font-size: clamp(34px, 5vw, 68px); max-width: 22ch; }
+  .banana-mark { font-size: clamp(38px, 4.6vw, 64px); margin-bottom: 1vh; }
+  /* section divider */
+  .divider { justify-content: center; background:
+    radial-gradient(900px 420px at 85% 0%, rgba(122,168,255,.08), transparent 60%), var(--bg); }
+  .divider .actnum { font-size: clamp(60px, 9vw, 130px); font-weight: 850; color: rgba(255,255,255,.055); line-height: 1; margin-bottom: -1vh; }
+  /* ---------- speaker notes ---------- */
+  #notes { position: fixed; right: 0; top: 0; bottom: 4.6vh; width: min(430px, 38vw); background: rgba(13,18,26,.97);
+    border-left: 1px solid var(--border-lit); padding: 22px 24px; overflow-y: auto; z-index: 40;
+    transform: translateX(105%); transition: transform .25s ease; font-size: 14px; line-height: 1.6; color: #c6d0dc; }
+  #notes.show { transform: none; }
+  #notes h5 { margin: 0 0 10px; color: var(--gold); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+  #notes .time { color: var(--teal); font-weight: 700; }
+  .note { display: none; }
+  /* overview mode */
+  #deck.overview .slide { position: static; opacity: 1 !important; visibility: visible !important; transform: none !important;
+    transition: none !important; display: block; width: 31%; height: 220px;
+    overflow: hidden; border: 1px solid var(--border-lit); border-radius: 10px; margin: .8%; padding: 18px; cursor: pointer; zoom: .28; }
+  #deck.overview .slide:hover { border-color: var(--gold); }
+  #deck.overview { overflow-y: auto; display: flex; flex-wrap: wrap; align-content: flex-start; padding: 20px; }
+  .footref { position: absolute; bottom: 5.6vh; right: 5vw; color: var(--faint); font-size: 11.5px; }
+  .dense p, .dense li { font-size: clamp(12.5px, 1.15vw, 16px); line-height: 1.45; }
+  .dense li { margin: .45vh 0; }
+  .dense .callout { padding: 1.1vh 1.1vw; }
+  .dense .card { padding: 1.4vh 1.2vw; }
+  .dense h1 { font-size: clamp(24px, 3vw, 40px); }
+  .dense th, .dense td { padding: .7vh .7vw; font-size: clamp(11.5px, 1.02vw, 14px); }
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+<!-- ============ 1 · TITLE ============ -->
+<section class="slide title-slide">
+  <div class="banana-mark">🍌</div>
+  <div class="kicker">Job talk</div>
+  <h1>Image Generators are<br>Generalist Vision Learners</h1>
+  <p class="sub" style="margin-top:1.5vh"><strong>“Vision Banana”</strong> — Google DeepMind, arXiv 2604.20329 (Apr 2026)<br>
+  A frontier image <em>generator</em>, lightly instruction-tuned, matches an entire zoo of perception specialists — with one set of weights, and while still generating images.</p>
+  <div class="pillrow">
+    <span class="pill">Presented by Yiming Gu</span>
+    <span class="pill">≈ 25–30 min + Q&amp;A</span>
+    <span class="pill">segmentation · metric depth · normals · generation</span>
+  </div>
+  <div class="note"><span class="time">0:00 – 1:00.</span> Open with the one-sentence hook: “What if the best segmentation model of 2026 was never trained to segment?” Frame it as presenting our work: method → results → what it proves and doesn’t → where we take it next. Keys: ←/→ navigate, N notes, O overview.</div>
+</section>
+
+<!-- ============ 2 · CLAIM ============ -->
+<section class="slide">
+  <div class="kicker">The claim</div>
+  <h1>Perception was already inside the generator.<br><span class="dim">Tuning only taught the output format.</span></h1>
+  <div class="body">
+    <div class="cols c2">
+      <div class="card goldline">
+        <h4 style="color:var(--gold)">What we did</h4>
+        <p>Take <strong>Nano Banana Pro</strong> (frontier text-to-image / editing model). Mix a <em>very low ratio</em> of vision-task data into its original training mixture. <strong>No new architecture, no task heads, no auxiliary losses.</strong> Every task answer is re-parameterized as an RGB image.</p>
+      </div>
+      <div class="card tealline">
+        <h4>What we got — one checkpoint</h4>
+        <ul style="margin:0">
+          <li>Semantic / instance / referring / reasoning <strong>segmentation</strong> (open-vocabulary)</li>
+          <li><strong>Metric</strong> monocular depth — absolute meters, no camera intrinsics, zero real 3D training data</li>
+          <li>Surface <strong>normals</strong></li>
+          <li>…while <strong>retaining</strong> image generation &amp; editing</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout key" style="margin-top:1.8vh">
+      <span class="label">Why it matters</span>
+      Strongest public evidence yet that <strong>generative pretraining is the vision analogue of LLM pretraining</strong>: capability lives in the pretrained generator; post-training just installs an interface.
+    </div>
+  </div>
+  <div class="note"><span class="time">1:00 – 2:30.</span> Land the framing early: this is the LIMA / superficial-alignment story, transported to vision. Everything in the talk hangs off this claim — first how we made a generator answer perception queries at all (the encodings), then whether the evidence supports the big claim (it mostly does, with two confounds I’ll be explicit about).</div>
+</section>
+
+<!-- ============ 3 · ROADMAP ============ -->
+<section class="slide">
+  <div class="kicker teal">Roadmap</div>
+  <h1>Five acts</h1>
+  <div class="body">
+    <ul class="steplist" style="max-width:70ch">
+      <li><span class="num">1</span><p><strong>The unification problem</strong> — why vision has a model zoo and language doesn’t; the design space of unified interfaces.</p></li>
+      <li><span class="num">2</span><p><strong>The method</strong> — every task output becomes an RGB image. The encodings and decoders are the technical meat: colors-as-logits, an invertible false-color code for metric depth, a hand-tuned instance decoder.</p></li>
+      <li><span class="num">3</span><p><strong>Results</strong> — one checkpoint vs SAM 3, Depth Anything 3, Lotus-2; and the retention story on generation.</p></li>
+      <li><span class="num">4</span><p><strong>What it proves — and doesn’t</strong> — the mechanism argument, the honest limits of the claim, and the ablations we still owe.</p></li>
+      <li><span class="num">5</span><p><strong>Where I’d take it</strong> — pixel-space vs latent-space unification, and the scaling law nobody has measured.</p></li>
+    </ul>
+  </div>
+  <div class="note"><span class="time">2:30 – 3:00.</span> 30 seconds max. Signal that Act 2 is the deepest — “if you remember one section, make it the depth encoding: it’s a small masterclass in interface design.”</div>
+</section>
+
+<!-- ============ 4 · ACT I DIVIDER ============ -->
+<section class="slide divider">
+  <div class="actnum">01</div>
+  <div class="kicker blue">Act I</div>
+  <h1>The unification problem</h1>
+  <p class="sub">Language collapsed into one interface — next-token prediction. Vision never did.</p>
+  <div class="note"><span class="time">3:00.</span> Transition beat, 10 seconds.</div>
+</section>
+
+<!-- ============ 5 · SPECIALIST ZOO ============ -->
+<section class="slide dense">
+  <div class="kicker blue">Act I · The problem</div>
+  <h1>Vision in 2026 is still a specialist zoo</h1>
+  <div class="body">
+    <div class="cols c3">
+      <div class="card"><h4 style="color:var(--blue)">Segmentation</h4><p>SAM 3, Mask2Former lineage — promptable masks, but a dedicated architecture, dedicated training, mostly closed task format.</p></div>
+      <div class="card"><h4 style="color:var(--blue)">Geometry</h4><p>Depth Anything 3, MoGe-2, Lotus — per-task finetunes; metric depth usually needs camera intrinsics or test-time alignment.</p></div>
+      <div class="card"><h4 style="color:var(--blue)">Generation</h4><p>Frontier T2I/editing models — trained on web-scale pixels, but treated as a <em>separate species</em> from perception models.</p></div>
+    </div>
+    <div class="callout warn" style="margin-top:2vh">
+      <span class="label">The structural question</span>
+      LLMs unified NLP because every task is expressible in one output space: <strong>text</strong>. What is the <em>output space</em> that unifies vision — and which pretrained prior do you inherit when you pick it?
+    </div>
+    <svg class="flowsvg" viewBox="0 0 980 224" xmlns="http://www.w3.org/2000/svg" style="margin-top:1.4vh;flex:none;max-height:28vh">
+      <defs><marker id="arrz" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5d6a7c"/></marker>
+      <marker id="arrzg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f2c94c"/></marker></defs>
+      <style>.zb{fill:#141c27;stroke:#35465c;} .zt{fill:#dde5ef;font:600 12.5px -apple-system,sans-serif;} .zs{fill:#8b98a9;font:10.5px -apple-system,sans-serif;} .zc{fill:#1a2432;stroke:#2a3340;} .zl{stroke:#5d6a7c;stroke-width:1.3;marker-end:url(#arrz);fill:none;} .zg{stroke:#f2c94c;stroke-width:1.5;marker-end:url(#arrzg);fill:none;}</style>
+      <text class="zs" x="90" y="16" text-anchor="middle">2026: one model per task…</text>
+      <rect class="zb" x="15" y="24"  width="150" height="28" rx="8"/><text class="zt" x="90" y="42" text-anchor="middle">SAM 3</text>
+      <rect class="zb" x="15" y="62"  width="150" height="28" rx="8"/><text class="zt" x="90" y="80" text-anchor="middle">Depth Anything 3</text>
+      <rect class="zb" x="15" y="100" width="150" height="28" rx="8"/><text class="zt" x="90" y="118" text-anchor="middle">Lotus-2</text>
+      <rect class="zb" x="15" y="138" width="150" height="28" rx="8"/><text class="zt" x="90" y="156" text-anchor="middle">OWLv2 · DINO-X</text>
+      <rect class="zb" x="15" y="176" width="150" height="28" rx="8"/><text class="zt" x="90" y="194" text-anchor="middle">T2I / editing model</text>
+      <path class="zl" d="M165,38 L410,38"/><path class="zl" d="M165,76 L410,76"/><path class="zl" d="M165,114 L410,114"/><path class="zl" d="M165,152 L410,152"/><path class="zl" d="M165,190 L410,190"/>
+      <rect class="zc" x="412" y="24"  width="156" height="28" rx="14"/><text class="zt" x="490" y="42" text-anchor="middle" style="fill:#7aa8ff">semantic seg</text>
+      <rect class="zc" x="412" y="62"  width="156" height="28" rx="14"/><text class="zt" x="490" y="80" text-anchor="middle" style="fill:#7aa8ff">metric depth</text>
+      <rect class="zc" x="412" y="100" width="156" height="28" rx="14"/><text class="zt" x="490" y="118" text-anchor="middle" style="fill:#7aa8ff">surface normals</text>
+      <rect class="zc" x="412" y="138" width="156" height="28" rx="14"/><text class="zt" x="490" y="156" text-anchor="middle" style="fill:#7aa8ff">instance seg</text>
+      <rect class="zc" x="412" y="176" width="156" height="28" rx="14"/><text class="zt" x="490" y="194" text-anchor="middle" style="fill:#7aa8ff">generation</text>
+      <path class="zg" d="M790,96 C700,60 640,44 572,38"/>
+      <path class="zg" d="M790,105 C710,88 650,80 572,76"/>
+      <path class="zg" d="M790,112 C710,112 650,113 572,114"/>
+      <path class="zg" d="M790,120 C710,136 650,148 572,152"/>
+      <path class="zg" d="M790,128 C700,164 640,184 572,190"/>
+      <rect x="792" y="82" width="172" height="62" rx="12" fill="#1a2432" stroke="#f2c94c" stroke-width="1.5"/>
+      <text class="zt" x="878" y="107" text-anchor="middle" style="fill:#f2c94c">Vision Banana</text>
+      <text class="zs" x="878" y="127" text-anchor="middle">one checkpoint, all five</text>
+    </svg>
+    <p class="cap" style="flex:0">Every specialist re-learns the same visual world from scratch. Our claim: the rightmost box already existed — it was called an image generator.</p>
+  </div>
+  <div class="note"><span class="time">3:10 – 4:30.</span> Frame unification as an <em>interface</em> question, not an architecture question. The punchline to set up: your choice of output space determines which pretrained prior you get to reuse. Text output → inherit the LLM. RGB output → inherit the image generator. That’s the whole game.</div>
+</section>
+
+<!-- ============ 6 · DESIGN SPACE ============ -->
+<section class="slide">
+  <div class="kicker blue">Act I · Design space</div>
+  <h1>Four ways to unify — Vision Banana bets on the last</h1>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:19%">Strategy</th><th style="width:26%">Examples</th><th style="width:22%">Output space</th><th>Structural weakness</th></tr></thead>
+      <tbody>
+        <tr><td>Backbone + task heads</td><td>Mask2Former, multi-task ViTs</td><td>Per-task logits / regressions</td><td>New task = new head + retraining; closed vocabulary</td></tr>
+        <tr><td>Everything-as-tokens</td><td>Pix2Seq, Unified-IO 2, 4M</td><td>Discrete token sequences</td><td>Custom tokenizer per modality; lossy for dense outputs</td></tr>
+        <tr><td>Latent-space prediction</td><td>JEPA family — I-JEPA, V-JEPA</td><td>Frozen SSL embedding space</td><td>Needs probes/decoders to read out; not human-inspectable</td></tr>
+        <tr><td class="hl"><strong>Everything-as-RGB</strong></td><td class="hl">Painter/SegGPT, Marigold, DICEPTION, <strong>Vision Banana</strong></td><td class="hl"><strong>Pixels</strong></td><td class="hl">8-bit precision ceiling · full generation cost per prediction · decode heuristics</td></tr>
+      </tbody>
+    </table>
+    <div class="callout key" style="margin-top:1.6vh">
+      <span class="label">What’s new vs the Painter / Marigold era</span>
+      <strong>(1)</strong> frontier-scale proprietary base, not SD-2 · <strong>(2)</strong> <em>one</em> checkpoint spans 2D + 3D + generation (Marigold/Lotus are per-task) · <strong>(3)</strong> the task interface is <em>natural language</em> — open vocabulary for free · <strong>(4)</strong> depth is <em>metric</em>, no alignment at eval.
+    </div>
+  </div>
+  <div class="note"><span class="time">4:30 – 6:30.</span> Spend real time here — this table is the intellectual map of the talk. Each row is a bet about where capability comes from. Note the honest weaknesses of row 4 now (precision, cost, decoders) so later slides land as “we knew this was the trade” rather than gotchas. Flag row 3: I’ll come back to latent-space prediction at the end — it’s the opposite pole of the same design axis.</div>
+</section>
+
+<!-- ============ 7 · ACT II DIVIDER ============ -->
+<section class="slide divider">
+  <div class="actnum">02</div>
+  <div class="kicker teal">Act II</div>
+  <h1>The method: perception as image editing</h1>
+  <p class="sub">Every task output is parameterized as an RGB image — so every task becomes conditional generation, which is exactly what the base model already does.</p>
+  <div class="note"><span class="time">6:30.</span> Transition. One sentence: “The entire method is: pick pixel encodings clever enough that a generator can emit them and a deterministic script can decode them.”</div>
+</section>
+
+<!-- ============ 8 · SYSTEM ============ -->
+<section class="slide">
+  <div class="kicker teal">Act II · System</div>
+  <h1>The whole system on one slide</h1>
+  <div class="body">
+    <svg class="flowsvg" viewBox="0 0 980 230" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7aa8ff"/></marker></defs>
+      <style>.bx{fill:#141c27;stroke:#35465c;} .bxg{fill:#1a2432;stroke:#f2c94c;stroke-width:1.4;} .tt{fill:#dde5ef;font:600 15px -apple-system,sans-serif;} .ss{fill:#8b98a9;font:12px -apple-system,sans-serif;} .ln{stroke:#7aa8ff;stroke-width:1.8;marker-end:url(#arr);fill:none;}</style>
+      <rect class="bx" x="15" y="60" width="195" height="110" rx="12"/>
+      <text class="tt" x="112" y="92" text-anchor="middle">Input image</text>
+      <text class="tt" x="112" y="112" text-anchor="middle">+ instruction</text>
+      <text class="ss" x="112" y="137" text-anchor="middle">“depth as rainbow colormap”</text>
+      <text class="ss" x="112" y="153" text-anchor="middle">“cats → (255,255,0), …”</text>
+      <path class="ln" d="M210,115 L258,115"/>
+      <rect class="bxg" x="258" y="50" width="225" height="130" rx="12"/>
+      <text class="tt" x="370" y="97" text-anchor="middle">Nano Banana Pro</text>
+      <text class="tt" x="370" y="117" text-anchor="middle">(instruction-tuned)</text>
+      <text class="ss" x="370" y="145" text-anchor="middle">no heads · no aux losses</text>
+      <path class="ln" d="M483,115 L531,115"/>
+      <rect class="bx" x="531" y="60" width="180" height="110" rx="12"/>
+      <text class="tt" x="621" y="102" text-anchor="middle">Generated</text>
+      <text class="tt" x="621" y="122" text-anchor="middle">RGB “answer image”</text>
+      <path class="ln" d="M711,115 L759,115"/>
+      <rect class="bx" x="759" y="18" width="206" height="194" rx="12"/>
+      <text class="tt" x="862" y="48" text-anchor="middle">Rule-based decoder</text>
+      <text class="ss" x="862" y="78" text-anchor="middle">seg: nearest-color per pixel</text>
+      <text class="ss" x="862" y="98" text-anchor="middle">instance: floodfill + erosion</text>
+      <text class="ss" x="862" y="118" text-anchor="middle">depth: invert colormap → meters</text>
+      <text class="ss" x="862" y="138" text-anchor="middle">normals: RGB → unit vector</text>
+      <text class="ss" x="862" y="170" text-anchor="middle" style="fill:#6ee7c8">→ masks · depth · normals</text>
+    </svg>
+    <div class="cols c2" style="flex:0; margin-top:1.6vh">
+      <div class="callout key" style="margin:0"><span class="label">Weights are task-agnostic</span>All task specificity lives in the <strong>prompt</strong> (input side) and a <strong>deterministic decoder</strong> (output side). Adding a task = adding data + a prompt template — no surgery.</div>
+      <div class="callout warn" style="margin:0"><span class="label">Keep an eye on the last box</span>“No task-specific components” is true of the <em>network</em>. A nontrivial hand-tuned decoder sits outside it — I’ll show exactly where that leaks.</div>
+    </div>
+  </div>
+  <div class="note"><span class="time">6:40 – 8:00.</span> Walk left to right. Emphasize the symmetry: prompt = task encoder, decoder script = task head, and the network in the middle never changes. Plant the honesty flag on the decoder now — it pays off on the failure-modes slide and pre-empts the obvious hostile question.</div>
+</section>
+
+<!-- ============ 9 · SEMANTIC SEG ============ -->
+<section class="slide dense">
+  <div class="kicker teal">Act II · Encoding 1/4</div>
+  <h1>Semantic segmentation — colors as class logits</h1>
+  <div class="body">
+    <div class="cols c21">
+      <div>
+        <p><strong>Prompt carries the label space:</strong> <em>“Generate a semantic segmentation visualization using this color mapping: {sky: (70,130,180), road: (128,64,128), …}”</em> — as prose, JSON, hex, or RGB tuples. Because classes are <em>named per prompt</em>, the vocabulary is <strong>open</strong>: any noun phrase can be a class.</p>
+        <p><strong>Decoding</strong> is nearest-color assignment per generated pixel $\hat{p}\in[0,255]^3$:</p>
+        <div class="eq">$$ k^{*} \;=\; \arg\min_{k}\; \lVert \hat{p} - c_k \rVert_2 $$</div>
+        <p>The generator never emits exact colors (VAE compression, anti-aliasing, sampling noise) — but decoding is still <em>exact</em> as long as color error stays under half the inter-class distance.</p>
+      </div>
+      <div>
+        <div class="card tealline">
+          <h4>The quiet design rule</h4>
+          <p style="margin:.4vh 0"><strong>Choosing well-separated colors in the prompt is part of the method.</strong> The color mapping is an error-correcting code; class colors are codewords, and the margin between them is your noise budget.</p>
+        </div>
+        <div class="card" style="margin-top:1.6vh">
+          <h4 style="color:var(--blue)">What you get for free</h4>
+          <ul style="margin:0">
+            <li>Open vocabulary — no fixed class list anywhere</li>
+            <li>Sharp boundaries — the generator already knows how to draw edges</li>
+            <li>Human-inspectable outputs — failures are <em>visible</em></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div style="flex:none;margin-top:1.2vh">
+      <div class="canvasrow">
+        <div class="cpanel"><canvas id="segIn" width="330" height="180" style="max-height:19vh"></canvas><div class="plab">input image</div></div>
+        <div class="arrowsep">→</div>
+        <div class="cpanel"><canvas id="segRaw" width="330" height="180" style="max-height:19vh"></canvas><div class="plab">generated answer — colors are <em>noisy</em> (VAE drift, sampling)</div></div>
+        <div class="arrowsep">→</div>
+        <div class="cpanel"><canvas id="segDec" width="330" height="180" style="max-height:19vh"></canvas><div class="plab">after nearest-codeword decode — exact, because noise &lt; margin/2</div></div>
+      </div>
+      <div class="cap" style="text-align:center;margin-top:.6vh">Prompt: <code>segment · sky→(70,130,180) · road→(128,64,128) · car→(255,255,0) · vegetation→(0,255,0) · ground→(90,90,90)</code></div>
+    </div>
+  </div>
+  <div class="note"><span class="time">8:00 – 9:30.</span> The coding-theory framing (“colors are codewords, separation is the noise margin”) is the memorable line — use it. Mention that this reframing makes segmentation an <em>in-distribution editing task</em>: recolor regions per instruction is something a frontier editor was already trained to do.</div>
+</section>
+
+<!-- ============ 10 · INSTANCE SEG ============ -->
+<section class="slide dense">
+  <div class="kicker teal">Act II · Encoding 2/4</div>
+  <h1>Instance segmentation — the model invents the palette</h1>
+  <div class="body">
+    <div class="cols c21">
+      <div>
+        <p>Instance count is unknown a priori, so the prompt just says <em>“color each &lt;class&gt; instance differently.”</em> The model picks arbitrary distinct colors; a five-stage decoder (paper Appendix A) recovers the instances:</p>
+        <ul class="steplist">
+          <li><span class="num">1</span><p><strong>Background removal</strong> — pixels within color tolerance $\tau=14$ of the declared background color are dropped.</p></li>
+          <li><span class="num">2</span><p><strong>Seeded floodfill</strong> — 16-connectivity, color-similarity threshold $\tau^2$, grows instance components.</p></li>
+          <li><span class="num">3</span><p><strong>Noise pruning</strong> — components &lt; 0.02% of image area discarded (anti-aliasing slivers).</p></li>
+          <li><span class="num">4</span><p><strong>Boundary cleanup</strong> — $3{\times}3$ binary erosion, threshold $\theta_{\text{erosion}}=0.1$.</p></li>
+          <li><span class="num">5</span><p><strong>Fragment merging</strong> — same-color components whose bboxes (expanded $\gamma=5\times$) overlap are merged — rejoins occlusion-split instances.</p></li>
+        </ul>
+      </div>
+      <div>
+        <div class="callout warn" style="margin-top:0">
+          <span class="label">Where the elegance leaks</span>
+          The “no task-specific components” story is true of the <em>weights</em> — but five hand-tuned hyperparameters ($\tau$, area cutoff, $\theta$, $\gamma$, connectivity) now live in post-processing. Deterministic and cheap, yes. Free, no.
+        </div>
+        <div class="card redline" style="margin-top:1.6vh">
+          <h4 style="color:var(--red)">Failure modes</h4>
+          <ul style="margin:0">
+            <li>Two instances get near-identical colors → they merge (color choice is uncontrolled model behavior)</li>
+            <li>Erosion + pruning shrink masks — they come out “slightly smaller and finer” than GT (we say so in the paper)</li>
+            <li>$\gamma$-merge can fuse distinct same-colored far-apart instances</li>
+            <li>VAE color drift silently eats the $\tau$ budget</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="callout idea" style="flex:0">
+      <span class="label">Fix I’d propose</span>
+      Constrain the palette in the prompt — maximally-separated colors from a fixed list, assigned left-to-right. Turns an open color-assignment problem into a decodable code, and makes instance identity a <em>protocol</em> instead of a hope.
+    </div>
+  </div>
+  <div class="note"><span class="time">9:30 – 11:30.</span> This is the honesty slide — own the decoder before anyone asks. The pitch: the decoder is task-generic <em>in spirit</em> (color → set structure) but its five constants were tuned against these benchmarks, so some fraction of the score lives outside the network. My palette-protocol fix doubles as a “what would you do” answer.</div>
+</section>
+
+<!-- ============ 10b · DECODER VISUAL ============ -->
+<section class="slide">
+  <div class="kicker teal">Act II · Encoding 2/4 (cont.)</div>
+  <h1>The decoder, watched frame by frame <span class="dim">(schematic)</span></h1>
+  <div class="body">
+    <div class="canvasrow" style="flex:none">
+      <div class="cpanel"><canvas id="dec0" width="320" height="220"></canvas><div class="plab">① generated answer — noisy colors, soft edges, slivers, one instance split in two</div></div>
+      <div class="cpanel"><canvas id="dec1" width="320" height="220"></canvas><div class="plab">② background stripped (tolerance τ=14)</div></div>
+      <div class="cpanel"><canvas id="dec2" width="320" height="220"></canvas><div class="plab">③ floodfill → components; slivers &lt;0.02% pruned</div></div>
+      <div class="cpanel"><canvas id="dec3" width="320" height="220"></canvas><div class="plab">④ 3×3 erosion, then same-color bbox-merge (γ=5×) rejoins the split instance</div></div>
+    </div>
+    <div class="cols c2" style="flex:0;margin-top:2vh">
+      <div class="callout warn" style="margin:0">
+        <span class="label">Watch instances 1 and 2</span>
+        Their reds differ by only a little more than τ. Had the model sampled them a shade closer, floodfill would fuse them — instance identity hangs on uncontrolled color choices. That is the fragility behind failure mode (a).
+      </div>
+      <div class="callout key" style="margin:0">
+        <span class="label">Watch instance 3</span>
+        Split by occlusion into two same-colored fragments, it is reassembled only because their γ-expanded boxes overlap — set structure recovered from color + geometry, entirely outside the network.
+      </div>
+    </div>
+  </div>
+  <div class="note"><span class="time">(within 9:30 – 11:30.)</span> Walk the four panels left to right in ~45 s: emit → strip → group → clean-and-merge. The two callouts preview the failure modes without belaboring them. Say “schematic” once — this is an illustration of the pipeline’s logic, not real model output.</div>
+</section>
+
+<!-- ============ 11 · DEPTH SQUASH ============ -->
+<section class="slide">
+  <div class="kicker teal">Act II · Encoding 3/4</div>
+  <h1>Metric depth I — squashing $[0,\infty)$ into a code</h1>
+  <div class="body">
+    <div class="cols c21">
+      <div>
+        <p>Depth is unbounded; RGB is a bounded cube. <strong>Stage 1</strong> squashes depth with a power transform (Barron 2025), $\lambda=-3,\; c=10/3$:</p>
+        <div class="eq">$$ t \;=\; 1-\Big(1-\tfrac{d}{\lambda c}\Big)^{\lambda+1} \;\;\xrightarrow{\;\lambda=-3,\,c=10/3\;}\;\; t = 1-\Big(1+\tfrac{d}{10}\Big)^{-2} $$</div>
+        <div class="eq">$$ d \;=\; 10\big((1-t)^{-1/2}-1\big), \qquad \frac{dt}{dd} \;=\; 0.2\,\Big(1+\tfrac{d}{10}\Big)^{-3} $$</div>
+        <p>Strictly monotone, $t(0)=0$, $t(\infty)=1$, closed-form inverse. The derivative <em>is</em> the design decision: resolution is spent densely on near depth.</p>
+        <div class="callout key"><span class="label">Why not linear or log?</span>
+        Linear needs a hard $d_{\max}$ and wastes range on the far field; log is unbounded at both ends. The power family interpolates between them — matching how metric-depth metrics ($\delta_1$, AbsRel) price <strong>relative</strong> error, with the knee (~10 m) set as a prior on where photos live.</div>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        <div class="chartbox" style="min-height:32vh"><canvas id="squashChart"></canvas></div>
+        <div class="card" style="margin-top:1.4vh; text-align:center">
+          <div class="big-stat gold">d &lt; 4.1 m</div>
+          <div class="stat-cap">gets <strong>half</strong> of the entire code range — $10(\sqrt{2}-1)$ m. Relative precision stays roughly constant with distance.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note"><span class="time">11:30 – 13:30.</span> Slow down — this is the deepest technical content. Talking track: (1) requirements — bijective, closed-form inverse, resolution allocated where the metric prices it; (2) the derivative falls as (1+d/10)⁻³, so half the code range covers under ~4 m; (3) the constants encode a prior about photographs. If asked “why not disparity 1/(1+d)?” — workable but a fixed decay shape; the power transform is the tunable family containing it.</div>
+</section>
+
+<!-- ============ 12 · DEPTH COLORMAP ============ -->
+<section class="slide">
+  <div class="kicker teal">Act II · Encoding 3/4 (cont.)</div>
+  <h1>Metric depth II — a rainbow path is worth 2.8 extra bits</h1>
+  <div class="body">
+    <p style="margin-top:0"><strong>Stage 2:</strong> route $t$ along a piecewise-linear path through the RGB cube — black→red→yellow→green→cyan→blue→violet→white. Decoding projects each generated pixel onto the nearest path segment, reads $\hat t$ from arc length, and inverts the squash → meters.</p>
+    <canvas id="strip" width="1400" height="86" style="width:100%;height:9.5vh;border-radius:10px;border:1px solid var(--border)"></canvas>
+    <p class="cap" style="margin-top:.4vh">Strip is linear in $t$ (the code); ticks are meters (the world). 0–5 m eats half the palette; 20 m–∞ is squeezed into the right tail. The asymmetry <em>is</em> the design.</p>
+    <div class="cols c3" style="flex:0;margin-top:1.4vh">
+      <div class="card goldline"><h4 style="color:var(--gold)">Precision</h4><p style="margin:.3vh 0">Grayscale = 256 levels. A 7-edge path ≈ $7\times255\approx1785$ levels ≈ <strong>10.8 bits</strong> — 2.8 extra bits from the same pixels.</p></div>
+      <div class="card tealline"><h4>In-distribution</h4><p style="margin:.3vh 0">Web pretraining is full of false-color scientific viz — “render a rainbow depth map” is a style the generator <em>knows</em>. Smooth grayscale ramps are exactly what VAEs band.</p></div>
+      <div class="card blueline"><h4 style="color:var(--blue)">Noise robustness</h4><p style="margin:.3vh 0">Decoding projects a 3-vector onto a 1-D path — generation noise orthogonal to the path is <em>discarded</em>. Plus colormap augmentation (Plasma/Inferno/Viridis/gray) teaches the concept, not one palette.</p></div>
+    </div>
+  </div>
+  <div class="note"><span class="time">13:30 – 15:00.</span> Three independent reasons the rainbow beats grayscale — precision, distribution match, noise geometry — make sure all three land. The colormap-augmentation point is the LLM analogy: instruction diversity forces binding the <em>concept</em> “encode depth in the stated code,” same reason prompt diversity matters in instruction tuning.</div>
+</section>
+
+<!-- ============ 13 · PRECISION BUDGET ============ -->
+<section class="slide">
+  <div class="kicker teal">Act II · Sanity check</div>
+  <h1>Is 8-bit RGB the bottleneck? <span class="dim">Do the arithmetic.</span></h1>
+  <div class="body">
+    <div class="cols c21">
+      <div>
+        <p>Path resolution $\Delta t \approx 1/1785 \approx 5.6\times10^{-4}$. Propagate through the inverse:</p>
+        <div class="eq">$$ \Delta d \;=\; \frac{\Delta t}{\,dt/dd\,} \;=\; \Delta t \cdot 5\,\Big(1+\tfrac{d}{10}\Big)^{3} $$</div>
+        <table style="margin-top:1vh">
+          <thead><tr><th>Depth</th><th>Quantization $\Delta d$</th><th>Relative</th></tr></thead>
+          <tbody>
+            <tr><td>2 m</td><td>≈ 4.8 mm</td><td>0.24%</td></tr>
+            <tr><td>10 m</td><td>≈ 2.2 cm</td><td>0.22%</td></tr>
+            <tr><td>50 m</td><td>≈ 0.60 m</td><td>1.2%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1.4vh;min-height:0">
+        <div class="cols c2" style="flex:none;gap:1vw">
+          <div class="card" style="text-align:center">
+            <div class="big-stat teal" style="font-size:clamp(24px,2.6vw,38px)">~0.2%</div>
+            <div class="stat-cap">error the <strong>code</strong> can carry</div>
+          </div>
+          <div class="card" style="text-align:center">
+            <div class="big-stat red" style="font-size:clamp(24px,2.6vw,38px)">~8%</div>
+            <div class="stat-cap">AbsRel the <strong>model</strong> achieves</div>
+          </div>
+        </div>
+        <div class="chartbox" style="min-height:22vh;flex:1"><canvas id="precChart"></canvas></div>
+      </div>
+    </div>
+    <div class="callout key" style="flex:0">
+      <span class="label">Conclusion</span>
+      The encoding has <strong>~30× more precision headroom than the model uses</strong>. Quantization is not the bottleneck — generation fidelity is (VAE reconstruction, sampling noise, boundary sharpness). The obvious objection to pixel outputs dies on a napkin calculation.
+    </div>
+  </div>
+  <div class="note"><span class="time">15:00 – 16:00.</span> This is the “I actually understand the encoding” slide — a two-line derivation that kills the most common objection. Δd = Δt / (dt/dd), evaluate at three depths, compare against achieved AbsRel. Deliver the 30× line and move on.</div>
+</section>
+
+<!-- ============ 14 · NORMALS + REFERRING ============ -->
+<section class="slide">
+  <div class="kicker teal">Act II · Encoding 4/4</div>
+  <h1>Normals, and language doing the task selection</h1>
+  <div class="body">
+    <div class="cols c2">
+      <div>
+        <h4 class="teal" style="font-size:clamp(14px,1.4vw,19px);margin:0 0 .8vh">Surface normals — direct linear code</h4>
+        <p>Camera-space unit normal $\mathbf{n}=(x,y,z)\in[-1,1]^3$ maps linearly to channels:</p>
+        <div class="eq">$$ R=\tfrac{1-x}{2},\qquad G=\tfrac{1+y}{2},\qquad B=\tfrac{1+z}{2} $$</div>
+        <p>The standard normal-map convention (the $x$ sign flip is a handedness choice — all that matters is encode/decode agreement). Decoding inverts the affine map and <strong>re-normalizes to unit length</strong> — which projects out most per-channel generation noise.</p>
+        <div class="canvasrow" style="margin-top:1vh">
+          <div class="cpanel" style="flex:0 0 auto"><canvas id="nSphere" width="170" height="170"></canvas><div class="plab">the code, rendered on a sphere</div></div>
+          <div class="cpanel" style="flex:0 0 auto"><canvas id="nPlane" width="170" height="170"></canvas><div class="plab">…and on a room corner</div></div>
+        </div>
+      </div>
+      <div>
+        <h4 class="purple" style="font-size:clamp(14px,1.4vw,19px);margin:0 0 .8vh">Referring &amp; reasoning segmentation</h4>
+        <p>Free-form language picks the target: <em>“segment the cat that is stretching, in cyan”</em> · <em>“the object used as a game controller, in #10aa05.”</em></p>
+        <div class="callout idea" style="margin:.8vh 0">
+          <span class="label">Emergent composition</span>
+          These combinations were <strong>not explicitly trained</strong> — referring-style prompts transfer onto the segmentation format. Cross-task composition falls out of instruction tuning.
+        </div>
+        <p class="cap">Caveat for the results slide: on ReasonSeg, Gemini 2.5 Pro first resolves <em>what</em> to segment, then Vision Banana executes — that number is a pipeline result, not single-model.</p>
+      </div>
+    </div>
+  </div>
+  <div class="note"><span class="time">16:00 – 17:00.</span> Normals: 30 seconds — note the unit-renormalization as another case of decode-time noise projection (same geometry trick as the depth path). Referring: the emergent-composition point is important evidence for the “capability pre-exists” thesis; the ReasonSeg pipeline caveat shows epistemic care before showing numbers.</div>
+</section>
+
+<!-- ============ 15 · TRAINING RECIPE ============ -->
+<section class="slide">
+  <div class="kicker teal">Act II · Training</div>
+  <h1>The recipe — striking for what it <em>doesn’t</em> contain</h1>
+  <div class="body">
+    <table>
+      <tbody>
+        <tr><th style="width:22%">Base</th><td>Nano Banana Pro — architecture, size, and objective stay undisclosed (proprietary); publicly: “a frontier image generation/editing model.”</td></tr>
+        <tr><th>Method</th><td><strong>Instruction tuning only.</strong> No architecture change, no task heads, no auxiliary losses, no learned decoders.</td></tr>
+        <tr><th>Mixture</th><td>Vision-task data mixed into NBP’s <em>original</em> training mixture at a <strong>“very low ratio”</strong> (undisclosed). The replay of original data is what preserves generation — same recipe as LLM continued-pretraining.</td></tr>
+        <tr><th>2D labels</th><td><strong>Pseudo-labels</strong> from in-house models on web-crawled images — no human dense annotation at scale.</td></tr>
+        <tr><th>3D labels</th><td><strong>Synthetic renders only.</strong> Zero real-world depth/normal data; no camera intrinsics at train <em>or</em> test time.</td></tr>
+        <tr><th>Hygiene</th><td>No training data drawn from the evaluation benchmarks.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout key" style="flex:0;margin-top:1.6vh">
+      <span class="label">Why the low ratio works</span>
+      Format-teaching is <strong>gradient-cheap</strong>: the tasks reuse existing features, so few consistent gradients suffice. A high ratio would drag the whole model toward flat-color “visualization style” outputs. Replay keeps the gradient distribution near pretraining → catastrophic forgetting suppressed.
+    </div>
+  </div>
+  <div class="note"><span class="time">17:00 – 18:15.</span> Read the table as a list of absences: no new losses, no human labels, no real 3D data, no intrinsics. Each absence transfers credit from the tuning to the pretrained prior. The synthetic-only 3D row is the setup for the next slide — the single most striking result.</div>
+</section>
+
+<!-- ============ 16 · METRIC DEPTH MIRACLE ============ -->
+<section class="slide">
+  <div class="kicker gold" style="color:var(--gold)">Act II → III · The striking result</div>
+  <h1>Metric meters from a model that never saw real depth</h1>
+  <div class="body">
+    <div class="cols c2">
+      <div>
+        <p><strong>Formally ill-posed:</strong> scale the scene by $s$ and the focal length by $s$ — the projection is invariant. Absolute depth without intrinsics shouldn’t be possible.</p>
+        <p><strong>Unless you have priors.</strong> The model must jointly infer implicit intrinsics + scale from content: known object sizes (people, cars, doors), ground-plane and horizon geometry, perspective-gradient statistics — and the strong empirical prior that web photos come from a narrow $(\text{camera},\text{scene})$ distribution.</p>
+        <div class="eq">$$ p(d \mid \text{image}) \text{ concentrates because } p(\text{camera},\text{scene}) \text{ does} $$</div>
+        <svg class="flowsvg" viewBox="0 0 460 200" xmlns="http://www.w3.org/2000/svg" style="max-height:28vh">
+          <style>.at{fill:#8b98a9;font:10.5px -apple-system,sans-serif;} .at2{fill:#dde5ef;font:600 11px -apple-system,sans-serif;}</style>
+          <line x1="25" y1="100" x2="455" y2="5"  stroke="#35465c" stroke-width="1.2"/>
+          <line x1="25" y1="100" x2="455" y2="195" stroke="#35465c" stroke-width="1.2"/>
+          <circle cx="25" cy="100" r="4" fill="#7aa8ff"/><text class="at" x="14" y="86">camera</text>
+          <line x1="75" y1="86" x2="75" y2="114" stroke="#7aa8ff" stroke-width="2.5"/><text class="at" x="60" y="130">image</text>
+          <rect x="163" y="69" width="14" height="62" rx="7" fill="#7ee0c0"/><circle cx="170" cy="61" r="9" fill="#7ee0c0"/>
+          <text class="at2" x="170" y="150" text-anchor="middle">height h at Z</text>
+          <rect x="381" y="22" width="22" height="156" rx="11" fill="none" stroke="#f2c94c" stroke-width="2" stroke-dasharray="5 4"/><circle cx="392" cy="12" r="12" fill="none" stroke="#f2c94c" stroke-width="2" stroke-dasharray="5 4"/>
+          <text class="at2" x="372" y="192" text-anchor="end" style="fill:#f2c94c">height 2.4h at 2.4Z</text>
+          <text class="at2" x="230" y="18">both project to the same pixels →</text>
+          <text class="at" x="230" y="34">depth is unidentifiable without a prior</text>
+        </svg>
+      </div>
+      <div>
+        <div class="callout key" style="margin-top:0">
+          <span class="label">The kicker</span>
+          Depth tuning used <strong>synthetic renders only</strong>. So the real-world scale prior cannot come from the depth data — it must come from <strong>generative pretraining</strong>. This is the single strongest piece of evidence for our thesis.
+        </div>
+        <div class="card redline" style="margin-top:1.6vh">
+          <h4 style="color:var(--red)">Breaks exactly where the prior breaks</h4>
+          <ul style="margin:0">
+            <li>Telephoto compression, macro (focal length far from modal)</li>
+            <li>Scale-free content — rocks, clouds, textures</li>
+            <li>Miniatures / tilt-shift — adversarial to the prior by construction</li>
+            <li>Fisheye and unusual optics</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="note"><span class="time">18:15 – 19:45.</span> Best moment of the talk — take it slowly. Structure: impossible in principle → possible with a Bayesian prior over (camera, scene) → and the prior can only have come from generative pretraining because the tuning data was synthetic. The failure modes aren’t bugs; they’re the prior’s support boundary, which is exactly what the theory predicts.</div>
+</section>
+
+<!-- ============ 17 · RESULTS ============ -->
+<section class="slide dense">
+  <div class="kicker blue">Act III · Results</div>
+  <h1>One checkpoint vs the zoo <span class="dim">(zero-shot transfer)</span></h1>
+  <div class="body">
+    <div class="cols c21">
+      <table style="align-self:start">
+        <thead><tr><th>Task / benchmark</th><th>VB</th><th>Best specialist</th></tr></thead>
+        <tbody>
+          <tr><td>Semantic seg — Cityscapes val, mIoU</td><td class="hl"><strong>69.9</strong></td><td>SAM 3 · 65.2</td></tr>
+          <tr><td>Referring — RefCOCOg, cIoU</td><td class="hl"><strong>73.8</strong></td><td>SAM 3 Agent · 73.4</td></tr>
+          <tr><td>Reasoning — ReasonSeg, gIoU</td><td class="hl"><strong>79.3</strong></td><td>SAM3+Gemini · 77.0</td></tr>
+          <tr><td>Instance — SA-Co/Gold, cgF1</td><td>47.5–61.2</td><td>OWLv2 24.6 · DINO-X ≈55</td></tr>
+          <tr><td>Metric depth — avg δ₁ (4 sets)</td><td class="hl"><strong>0.929</strong></td><td>Depth Anything 3 · 0.918</td></tr>
+          <tr><td>Normals — mean angular err ↓</td><td class="hl"><strong>18.93°</strong></td><td>Lotus-2 · 19.64°</td></tr>
+        </tbody>
+      </table>
+      <div style="display:flex;flex-direction:column;min-height:0">
+        <div class="chartbox" style="min-height:25vh"><canvas id="benchChart"></canvas></div>
+        <p class="cap" style="margin-top:.6vh">Higher-is-better metrics vs strongest zero-shot specialist. Per-dataset depth δ₁/AbsRel: NYU .948/.081 · iBims-1 .934/.078 · ETH3D .935/.103 · DIODE-In .917/.108.</p>
+      </div>
+    </div>
+    <div class="callout warn" style="flex:0">
+      <span class="label">Read it honestly</span>
+      The story is <strong>not</strong> “crushes specialists” — it’s “one generalist checkpoint matches an entire zoo.” Supervised in-domain SOTA on Cityscapes is ≈84 mIoU, so a real zero-shot gap remains. Instance seg needs an MLLM filter for negative queries (cgF1 spans 47.5–61.2 across eval settings), and ReasonSeg is a pipeline number — say both before anyone asks.
+    </div>
+  </div>
+  <div class="note"><span class="time">19:45 – 21:15.</span> Don’t oversell — the honest read <em>is</em> the impressive read. Emphasize: every row is a task with a dedicated research community, matched by one checkpoint that was never architected for any of them. Preempt: “why is instance seg the weak row?” → negative queries, next act. Numbers are from our eval suite; per-dataset detail lives in Backup A.</div>
+</section>
+
+<!-- ============ 18 · RETENTION ============ -->
+<section class="slide">
+  <div class="kicker blue">Act III · Retention</div>
+  <h1>Perception added at ~zero generation cost</h1>
+  <div class="body">
+    <div class="cols c2" style="flex:none">
+      <div class="card" style="text-align:center">
+        <div class="big-stat teal">53.5%</div>
+        <div class="stat-cap">side-by-side <strong>win rate vs its own base</strong> on text-to-image (GenAI-Bench) — slightly <em>improved</em></div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div class="big-stat gold">47.8%</div>
+        <div class="stat-cap">win rate on image editing (ImgEdit) — a slight, measurable cost</div>
+      </div>
+    </div>
+    <svg class="flowsvg" viewBox="0 0 980 132" xmlns="http://www.w3.org/2000/svg" style="flex:none;margin-top:1.6vh">
+      <style>.wt{fill:#dde5ef;font:600 13px -apple-system,sans-serif;} .ws{fill:#8b98a9;font:11px -apple-system,sans-serif;}</style>
+      <text class="wt" x="20" y="42">T2I · GenAI-Bench</text>
+      <rect x="185" y="26" width="678" height="24" rx="6" fill="rgba(110,231,200,.75)"/>
+      <text class="wt" x="872" y="43" style="fill:#6ee7c8">53.5%</text>
+      <text class="wt" x="20" y="92">Editing · ImgEdit</text>
+      <rect x="185" y="76" width="606" height="24" rx="6" fill="rgba(242,201,76,.75)"/>
+      <text class="wt" x="800" y="93" style="fill:#f2c94c">47.8%</text>
+      <line x1="819" y1="12" x2="819" y2="112" stroke="#8b98a9" stroke-width="1.4" stroke-dasharray="5 4"/>
+      <text class="ws" x="819" y="126" text-anchor="middle">50% = parity with its own base model</text>
+    </svg>
+    <div class="cols c2" style="flex:0;margin-top:2vh">
+      <div class="callout key" style="margin:0">
+        <span class="label">The interesting hypothesis</span>
+        T2I might improve because dense spatial supervision (masks, depth) <strong>sharpens layout</strong> — a hint of perception→generation transfer inside the same weights.
+      </div>
+      <div class="callout idea" style="margin:0">
+        <span class="label">Why we measured it this way</span>
+        We measure retention by <strong>side-by-side win rate vs our own base model</strong>, not FID. Win rates detect distribution-level drift that FID smooths over — the right tool for “did finetuning change the model’s style?”
+      </div>
+    </div>
+  </div>
+  <div class="note"><span class="time">21:15 – 22:00.</span> Quick slide. The 53.5% is within-noise-of-parity — frame it as “generation is preserved, possibly nudged up.” Explain the win-rate-over-FID choice as a deliberate evaluation decision.</div>
+</section>
+
+<!-- ============ 19 · ACT IV DIVIDER ============ -->
+<section class="slide divider">
+  <div class="actnum">04</div>
+  <div class="kicker purple">Act IV</div>
+  <h1>What this proves — and what it doesn’t</h1>
+  <p class="sub">The mechanism, the evidence chain, and the honest edges of our claim.</p>
+  <div class="note"><span class="time">22:00.</span> Transition: “Results are results. The interesting question is what claim they license.”</div>
+</section>
+
+<!-- ============ 20 · MECHANISM ============ -->
+<section class="slide">
+  <div class="kicker purple">Act IV · Mechanism</div>
+  <h1>Why would generation pretraining yield perception?</h1>
+  <div class="body">
+    <div class="callout key" style="margin-top:0">
+      <span class="label">The argument</span>
+      <strong>Generation strictly requires implicit perception.</strong> To render consistent occlusion, shadows, contact points, and object scale, the model must internally compute segmentation-like grouping, depth ordering, and surface orientation. Perception tasks just <em>read out</em> what generation had to compute anyway.
+    </div>
+    <svg class="diagsvg" viewBox="0 0 980 168" xmlns="http://www.w3.org/2000/svg" style="margin-top:1.4vh">
+      <style>.tbx{fill:#141c27;stroke:#35465c;} .tbxg{fill:#1a2432;stroke:#f2c94c;stroke-width:1.4;} .tt2{fill:#dde5ef;font:600 13.5px -apple-system,sans-serif;} .ss2{fill:#8b98a9;font:11px -apple-system,sans-serif;} .yr{fill:#6ee7c8;font:700 11.5px -apple-system,sans-serif;} .tln{stroke:#5d6a7c;stroke-width:1.6;marker-end:url(#arr2);fill:none;}</style>
+      <defs><marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5d6a7c"/></marker></defs>
+      <rect class="tbx" x="12" y="38" width="196" height="92" rx="11"/>
+      <text class="yr" x="110" y="60" text-anchor="middle">2023 · DIFT</text>
+      <text class="ss2" x="110" y="82" text-anchor="middle">diffusion features give</text>
+      <text class="ss2" x="110" y="97" text-anchor="middle">correspondence for free</text>
+      <path class="tln" d="M208,84 L246,84"/>
+      <rect class="tbx" x="246" y="38" width="196" height="92" rx="11"/>
+      <text class="yr" x="344" y="60" text-anchor="middle">2024 · Marigold</text>
+      <text class="ss2" x="344" y="82" text-anchor="middle">74k synthetic pairs turn SD-2</text>
+      <text class="ss2" x="344" y="97" text-anchor="middle">into SOTA relative depth</text>
+      <path class="tln" d="M442,84 L480,84"/>
+      <rect class="tbx" x="480" y="38" width="196" height="92" rx="11"/>
+      <text class="yr" x="578" y="60" text-anchor="middle">’24–’25 · Lotus, DICEPTION</text>
+      <text class="ss2" x="578" y="82" text-anchor="middle">per-task diffusion finetunes,</text>
+      <text class="ss2" x="578" y="97" text-anchor="middle">broader task menus</text>
+      <path class="tln" d="M676,84 L714,84"/>
+      <rect class="tbxg" x="714" y="26" width="252" height="116" rx="11"/>
+      <text class="yr" x="840" y="50" text-anchor="middle" style="fill:#f2c94c">2026 · Vision Banana</text>
+      <text class="ss2" x="840" y="72" text-anchor="middle">frontier scale · metric depth</text>
+      <text class="ss2" x="840" y="87" text-anchor="middle">multi-task · one checkpoint</text>
+      <text class="ss2" x="840" y="102" text-anchor="middle">generation retained</text>
+    </svg>
+    <p style="flex:0">The evidence chain escalates the claim: from <em>“generative features help perception”</em> (DIFT) to <em>“a light finetune makes a generator a specialist”</em> (Marigold) to <strong>“the generator <em>is</em> a generalist vision model, one output-format lesson away”</strong> (Vision Banana).</p>
+  </div>
+  <div class="note"><span class="time">22:10 – 23:30.</span> Walk the timeline; each hop raises the claim’s strength. Then bridge to the LIMA framing: tiny format-teaching data + no new losses + SOTA ⇒ the capability pre-existed; tuning aligned the output format. That’s the superficial-alignment hypothesis, vision edition: pretraining is where knowledge lives, post-training is where interfaces live.</div>
+</section>
+
+<!-- ============ 21 · CONFOUNDS ============ -->
+<section class="slide">
+  <div class="kicker purple">Act IV · Epistemics</div>
+  <h1>What our results do — and don’t — establish</h1>
+  <div class="body">
+    <div class="cols c2">
+      <div class="card redline">
+        <h4 style="color:var(--red)">1 · The claim is checkpoint-level</h4>
+        <p>NBP’s pretraining mixture is proprietary and Gemini-lineage — it is not a pixels-only diet. So the claim we can defend is:</p>
+        <p style="margin-top:.8vh"><strong class="teal">“A frontier generator checkpoint contains generalist perception, extractable with light tuning.”</strong></p>
+        <p>— and <em>not</em> “pixels-only generative pretraining suffices.” Separating those two claims takes a pretraining-attribution ablation we have not run yet.</p>
+      </div>
+      <div class="card redline">
+        <h4 style="color:var(--red)">2 · No FLOP-matched baseline</h4>
+        <p>We did not compare against a specialist trained with generator-scale compute. So far the win is an <strong>intercept win</strong> (a huge pretrained prior amortized across tasks), not a proven <strong>slope win</strong> (better per marginal FLOP).</p>
+        <p style="margin-top:.8vh">“Generalist beats specialist per FLOP” remains an open, testable claim — arguably <em>the</em> missing experiment of the unification debate.</p>
+      </div>
+    </div>
+    <div class="callout warn" style="flex:0">
+      <span class="label">Why say this unprompted</span>
+      Naming the edges of our own claim before the audience does is the point of this slide — it shows the claim was engineered, not marketed, and it tees up exactly the experiments on the next slide.
+    </div>
+  </div>
+  <div class="note"><span class="time">23:30 – 25:00.</span> The research-taste centerpiece — coming from an author, raising both limits unprompted lands even stronger. Practice the intercept/slope distinction cleanly: intercept = free capability from an existing prior; slope = per-FLOP efficiency of the unified objective, which nobody has measured. Precision about what we actually showed is the note to hit.</div>
+</section>
+
+<!-- ============ 22 · ABLATIONS ============ -->
+<section class="slide dense">
+  <div class="kicker purple">Act IV · Self-review</div>
+  <h1>Ablations — what we ran, what we still owe</h1>
+  <div class="body">
+    <div class="cols c2">
+      <div class="card tealline">
+        <h4>Already ran</h4>
+        <ul class="steplist" style="margin:0">
+          <li><span class="num">1</span><p><strong>Base-model probe</strong> — tuned Vision Banana beats the <em>untuned</em> NBP by a large margin. Prompting alone cannot read the capability out: the format lesson is <em>necessary</em>, not cosmetic.</p></li>
+          <li><span class="num">3</span><p><strong>Mixture-ratio sweep</strong> — done; our ratio sits at the optimum of the perception-gain vs generation-retention trade.</p></li>
+          <li><span class="num">4</span><p><strong>Colormap ablation (partial)</strong> — the rainbow path clearly beats grayscale. The fuller matrix (fixed vs augmented palette sets, per-colormap) remains open.</p></li>
+        </ul>
+      </div>
+      <div class="card redline">
+        <h4 style="color:var(--red)">Still owed</h4>
+        <ul class="steplist" style="margin:0">
+          <li><span class="num">2</span><p><strong>Tuning-data scaling curve</strong> — performance vs vision-sample count. Format-alignment predicts early saturation (Marigold’s 74k is the precedent).</p></li>
+          <li><span class="num">5</span><p><strong>FLOP-matched specialist</strong> — same total compute into a dedicated model; settles the per-FLOP claim.</p></li>
+          <li><span class="num">6</span><p><strong>Decoder sensitivity</strong> — score as a function of $\tau$, erosion, $\gamma$: how much lives in post-processing?</p></li>
+          <li><span class="num">7</span><p><strong>Pretraining attribution</strong> — ablate false-color/chart imagery from pretraining; locates where the format prior comes from.</p></li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout idea" style="flex:none">
+      <span class="label">The decisive open experiment</span>
+      With the base-probe answered — tuning is necessary — the clean test of the superficial-alignment reading is <strong>#2</strong>: if quality saturates by ~10⁵ samples, tuning is a cheap format lesson on a pre-existing capability; if it keeps climbing, tuning is <em>building</em> capability. Act V assumes we get to run it.
+    </div>
+  </div>
+  <div class="note"><span class="time">25:00 – 26:00.</span> Lead with the wins: base-probe (large gap — prompting can’t emit calibrated dense outputs) and the mixture sweep (our ratio is at the optimum) are in hand; rainbow &gt; grayscale is shown, the fuller palette matrix isn’t. Then the honest column. If pressed — “doesn’t the big base-gap contradict ‘the capability was already there’?” — no: it shows zero-shot prompting can’t read out dense tasks; latency of the capability is about the tiny surfacing cost (low ratio, no new losses, pseudo/synthetic labels), and #2 is exactly the experiment that separates the two readings.</div>
+</section>
+
+<!-- ============ 23 · INTERFACE LIMITS ============ -->
+<section class="slide">
+  <div class="kicker purple">Act IV · Limits</div>
+  <h1>Where the RGB interface genuinely ends</h1>
+  <div class="body">
+    <div class="cols c3">
+      <div class="card redline">
+        <h4 style="color:var(--red)">No abstain</h4>
+        <p>SA-Co scores negative queries: asked for an absent class, output <em>nothing</em>. Pixel space has no null token — the model hallucinates plausible masks and needs a <strong>Gemini pre-filter</strong> (“is X present?”) to gate generation. Rejection is bolted on outside the model.</p>
+      </div>
+      <div class="card redline">
+        <h4 style="color:var(--red)">No confidence</h4>
+        <p>No logits ⇒ no native calibration. Options: sample $K$ answer-images and use agreement (principled, $K\times$ cost — self-consistency for vision); decode-distance to the nearest legal code (cheap proxy); or distill into a specialist with real logits.</p>
+      </div>
+      <div class="card redline">
+        <h4 style="color:var(--red)">Cost &amp; sparsity</h4>
+        <p>One prediction = one full frontier-model generation — orders of magnitude beyond a SAM forward pass; we have not published latency numbers. And sparse outputs (boxes, keypoints) waste the interface; video tracking needs cross-frame color persistence the generator doesn’t guarantee.</p>
+      </div>
+    </div>
+    <div class="callout key" style="flex:0">
+      <span class="label">The rule to carry away</span>
+      The interface excels exactly when the output is a <strong>dense field over pixels</strong>. The sparser and more structured the output, the more it belongs in <strong>tokens</strong>. (Flow fits — the Middlebury color wheel is already a near-invertible code. Boxes don’t.)
+    </div>
+  </div>
+  <div class="note"><span class="time">26:00 – 27:15.</span> Contrast with token-based unifiers: they can emit an “empty” token and expose logprobs — abstention and confidence are native. That’s the genuine open edge of output-space unification, not the precision ceiling everyone assumes (which slide 13 killed). Deployment reality in one line: the pattern that ships is generalist-as-teacher — mint pseudo-labels, distill small specialists; the same relationship frontier LLMs have to production classifiers.</div>
+</section>
+
+<!-- ============ 24 · ACT V DIVIDER ============ -->
+<section class="slide divider">
+  <div class="actnum">05</div>
+  <div class="kicker">Act V</div>
+  <h1>Where I’d take this</h1>
+  <p class="sub">The other pole of the design axis, and the scaling law nobody has measured.</p>
+  <div class="note"><span class="time">27:15.</span> Transition into the personal-research close.</div>
+</section>
+
+<!-- ============ 25 · MY ANGLE ============ -->
+<section class="slide dense">
+  <div class="kicker">Act V · Research program</div>
+  <h1>Pixels and latents are two poles of one axis</h1>
+  <div class="body">
+    <div class="cols c2">
+      <div class="card goldline">
+        <h4 style="color:var(--gold)">Vision Banana — unify in pixel space</h4>
+        <ul style="margin:0">
+          <li>Interpretable, human-inspectable outputs</li>
+          <li>Maximal reuse of the generative prior</li>
+          <li>Precision capped by 8-bit × VAE (fine in practice)</li>
+          <li><strong>Pays full generation cost per prediction</strong></li>
+        </ul>
+      </div>
+      <div class="card blueline">
+        <h4 style="color:var(--blue)">The latent-space pole — predict in frozen SSL latents (JEPA-style)</h4>
+        <ul style="margin:0">
+          <li>Targets live in a frozen self-supervised space (DINO / JEPA), not pixels</li>
+          <li>Cheap, information-dense targets; collapse-proof (frozen)</li>
+          <li>Trades away native synthesis; needs decoders/probes to read out</li>
+          <li><strong>Bets dense capability doesn’t require paying for pixels</strong></li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout idea" style="margin-top:1.8vh">
+      <span class="label">The experiment nobody has run</span>
+      <strong>The scaling law of emergent perception.</strong> Perception readout quality vs generator pretraining compute — and does the tuning-data requirement shrink with scale? If capability truly pre-exists, the format lesson should get cheaper as the generator grows. One curve would tell us whether generative pretraining is vision’s substrate — <em>and</em> which pole of the axis wins per FLOP. Pairs with the FLOP-matched 4-arm grid (generalist vs specialist × pixel vs latent).
+    </div>
+    <div class="chartbox" style="min-height:20vh;flex:1"><canvas id="lawChart"></canvas></div>
+    <p class="cap" style="flex:0;margin:0.4vh 0 0">Illustrative sketch only — no such measurement exists. The hypothesis: the readout curve crosses the FLOP-matched specialist line, and the crossing point is where “train a generator, then ask” becomes the dominant strategy.</p>
+  </div>
+  <div class="note"><span class="time">27:20 – 29:00.</span> Be fluent on both poles: Vision Banana maximizes prior reuse at inference cost; the latent-space pole minimizes inference cost, betting the capability can be read out in representation space. The proposed curve — perception quality vs generator compute, with tuning-data requirement as second axis — is my concrete “what next”: it upgrades our claim from an existence proof to a law, and directly arbitrates the axis.</div>
+</section>
+
+<!-- ============ 26 · TAKEAWAYS ============ -->
+<section class="slide">
+  <div class="kicker teal">Close</div>
+  <h1>Three things to remember</h1>
+  <div class="body">
+    <ul class="steplist" style="max-width:75ch">
+      <li><span class="num">1</span><p><strong>Output-space unification works at frontier scale.</strong> Re-parameterize every vision task as RGB, and one lightly-tuned generator checkpoint matches SAM 3, Depth Anything 3, and Lotus-2 — while still generating.</p></li>
+      <li><span class="num">2</span><p><strong>The capability was already there.</strong> Tiny tuning data, pseudo/synthetic labels only, emergent untrained compositions, metric scale from pretraining alone — the superficial-alignment hypothesis, now with a vision-side existence proof.</p></li>
+      <li><span class="num">3</span><p><strong>Our claim has precise edges.</strong> It’s a generator-<em>checkpoint</em> result, not a pixels-only-pretraining result; an intercept win, not a per-FLOP win; and abstention/confidence/cost remain genuinely open. The next real experiment is a scaling law, not another benchmark.</p></li>
+    </ul>
+    <div class="pillrow" style="flex:0">
+      <span class="pill">🍌 arXiv 2604.20329</span>
+      <span class="pill">encodings: §Act II</span>
+      <span class="pill">confounds: §Act IV</span>
+      <span class="pill">proposal: §Act V</span>
+    </div>
+  </div>
+  <div class="note"><span class="time">29:00 – 29:45.</span> Deliver the three takeaways verbatim and stop — resist adding a fourth. Each maps to an act: method works / thesis supported / edges precise + my next experiment.</div>
+</section>
+
+<!-- ============ 27 · THANKS ============ -->
+<section class="slide title-slide">
+  <div class="banana-mark">🍌</div>
+  <div class="kicker">Thank you</div>
+  <h1>Questions?</h1>
+  <p class="sub" style="margin-top:1.5vh">Backup slides follow: per-benchmark depth numbers · uncertainty design options · extension encodings (flow, boxes, keypoints, video).</p>
+  <div class="pillrow">
+    <span class="pill">arXiv 2604.20329 · vision-banana.github.io</span>
+    <span class="pill">Yiming Gu</span>
+  </div>
+  <div class="note"><span class="time">29:45.</span> Likely first questions: (1) “Isn’t the decoder cheating?” → slide 10 + ablation #6; (2) “How is metric depth possible?” → slide 16; (3) “Would you deploy this?” → generalist-as-teacher distillation; (4) “What would you do next?” → the scaling-law slide. Backup slides: → arrow continues past this slide.</div>
+</section>
+
+<!-- ============ 28 · BACKUP: DEPTH DETAIL ============ -->
+<section class="slide">
+  <div class="kicker red">Backup A</div>
+  <h1>Per-benchmark depth &amp; the retention numbers</h1>
+  <div class="body">
+    <div class="cols c2">
+      <table style="align-self:start">
+        <thead><tr><th>Benchmark</th><th>δ₁ ↑</th><th>AbsRel ↓</th></tr></thead>
+        <tbody>
+          <tr><td>NYUv2</td><td>0.948</td><td>0.081</td></tr>
+          <tr><td>iBims-1</td><td>0.934</td><td>0.078</td></tr>
+          <tr><td>ETH3D</td><td>0.935</td><td>0.103</td></tr>
+          <tr><td>DIODE-Indoor</td><td>0.917</td><td>0.108</td></tr>
+          <tr><td><strong>4-set average</strong></td><td class="hl"><strong>0.929</strong></td><td>—</td></tr>
+          <tr><td>Full 6-benchmark suite</td><td>0.882</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div>
+        <ul>
+          <li>Depth Anything 3 average δ₁: <strong>0.918</strong> — VB ahead with zero real depth data.</li>
+          <li>AbsRel reported ~20% lower than MoGe-2.</li>
+          <li>With intrinsics available at test time, the metric map back-projects to a 3D point cloud.</li>
+          <li>Normals: mean angular error 18.93° overall, 15.55° indoor avg (Lotus-2: 19.64° / 16.56°).</li>
+          <li>Generation: GenAI-Bench T2I win rate 53.5% vs base; ImgEdit 47.8%.</li>
+        </ul>
+        <p class="cap">Full per-benchmark tables live in the paper appendix.</p>
+      </div>
+    </div>
+  </div>
+  <div class="note">Backup — pull up if pressed for exact numbers.</div>
+</section>
+
+<!-- ============ 29 · BACKUP: EXTENSIONS ============ -->
+<section class="slide">
+  <div class="kicker red">Backup B</div>
+  <h1>Extending the interface — what fits and what doesn’t</h1>
+  <div class="body">
+    <table>
+      <thead><tr><th style="width:16%">Output</th><th style="width:42%">Encoding design</th><th>Pitfall</th></tr></thead>
+      <tbody>
+        <tr><td><strong class="teal">Optical flow ✓</strong></td><td>Middlebury color wheel — hue = direction, saturation = magnitude; make it exact by fixing normalization in the prompt or reusing the depth power-transform on $\lVert v\rVert$</td><td>None fundamental — flow is dense and image-shaped; natural fit</td></tr>
+        <tr><td><strong class="gold">Keypoints ~</strong></td><td>Per-joint color disks; decode blob centroids</td><td>Sub-pixel precision capped; occluded-joint conventions awkward</td></tr>
+        <tr><td><strong class="red">Boxes ✗</strong></td><td>Filled per-instance-color rectangles; decode extremal coords</td><td>Overlapping boxes occlude; corner-dots decode ambiguously — sparse structured output belongs in <strong>text tokens</strong></td></tr>
+        <tr><td><strong class="red">Video tracking ✗</strong></td><td>Same instance must keep the same color across frames — condition each frame on the previous answer-frame</td><td>Temporal color persistence isn’t guaranteed by the generator; drift accumulates</td></tr>
+      </tbody>
+    </table>
+    <div class="callout key" style="flex:0;margin-top:1.6vh">
+      <span class="label">Uncertainty, if asked</span>
+      (1) $K$-seed sampling ensembles — per-pixel agreement/variance = epistemic uncertainty, principled at $K\times$ cost (self-consistency for vision) · (2) decode-distance to the nearest legal code — cheap, conflates noise with uncertainty · (3) AR token logprobs if the generator is autoregressive · (4) distill into a head with real logits for deployment-grade calibration.
+    </div>
+  </div>
+  <div class="note">Backup — the design-extension question (“how would you add task X?”) gets answered from this table. Lead with the rule: dense field → pixels; sparse structure → tokens.</div>
+</section>
+
+</div><!-- /deck -->
+
+<div id="hud">
+  <div class="keys"><b>←/→</b> navigate · <b>N</b> notes · <b>O</b> overview · <b>Home/End</b></div>
+  <div id="counter">1 / 29</div>
+</div>
+<div id="bar"></div>
+<aside id="notes"><h5>Speaker notes</h5><div id="noteBody"></div></aside>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+const deck=document.getElementById('deck'), counter=document.getElementById('counter'),
+      bar=document.getElementById('bar'), notes=document.getElementById('notes'), noteBody=document.getElementById('noteBody');
+let cur=0, charts={};
+function show(i){
+  i=Math.max(0,Math.min(slides.length-1,i));
+  slides.forEach((s,j)=>{s.classList.toggle('active',j===i);s.classList.toggle('prev',j<i);});
+  cur=i;
+  counter.textContent=(i+1)+' / '+slides.length;
+  bar.style.width=((i+1)/slides.length*100)+'%';
+  const n=slides[i].querySelector('.note');
+  noteBody.innerHTML=n?n.innerHTML:'<em>No notes.</em>';
+  initCharts(i);
+  location.hash='s'+(i+1);
+}
+function next(){show(cur+1);} function prev(){show(cur-1);}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown')next();
+  else if(e.key==='ArrowLeft'||e.key==='PageUp')prev();
+  else if(e.key==='Home')show(0); else if(e.key==='End')show(slides.length-1);
+  else if(e.key==='n'||e.key==='N')notes.classList.toggle('show');
+  else if(e.key==='o'||e.key==='O'||e.key==='Escape')toggleOverview();
+});
+document.addEventListener('click',e=>{
+  if(deck.classList.contains('overview')){const s=e.target.closest('.slide');if(s){toggleOverview();show(slides.indexOf(s));}return;}
+  if(e.target.closest('#notes')||e.target.closest('a'))return;
+  if(e.clientX>window.innerWidth*0.66)next(); else if(e.clientX<window.innerWidth*0.2)prev();
+});
+function toggleOverview(){deck.classList.toggle('overview');}
+let tx=null;
+document.addEventListener('touchstart',e=>tx=e.touches[0].clientX);
+document.addEventListener('touchend',e=>{if(tx===null)return;const dx=e.changedTouches[0].clientX-tx;if(dx<-40)next();else if(dx>40)prev();tx=null;});
+
+/* ---------- charts (lazy init) ---------- */
+const chartDefaults={responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#dde5ef',font:{size:13}}}},
+  scales:{x:{ticks:{color:'#8b98a9'},grid:{color:'rgba(255,255,255,0.05)'}},
+          y:{ticks:{color:'#8b98a9'},grid:{color:'rgba(255,255,255,0.05)'}}}};
+function initCharts(i){
+  const el=slides[i];
+  // squash curve
+  if(el.querySelector('#squashChart')&&!charts.squash){
+    const ds=[],dd=[];for(let d=0;d<=60;d+=0.5){dd.push(d);ds.push(1-Math.pow(1+d/10,-2));}
+    charts.squash=new Chart(document.getElementById('squashChart'),{type:'line',
+      data:{labels:dd,datasets:[{label:'t = 1 − (1+d/10)⁻²',data:ds,borderColor:'#f2c94c',
+        backgroundColor:'rgba(242,201,76,.08)',fill:true,pointRadius:0,borderWidth:2.5,tension:.15}]},
+      options:{...chartDefaults,plugins:{...chartDefaults.plugins,tooltip:{enabled:false}},
+        scales:{x:{title:{display:true,text:'depth d (m)',color:'#8b98a9'},ticks:{color:'#8b98a9',autoSkip:false,callback:(v,idx)=>dd[idx]%10===0?dd[idx]:null},grid:{color:'rgba(255,255,255,0.05)'}},
+                y:{min:0,max:1,title:{display:true,text:'code position t',color:'#8b98a9'},ticks:{color:'#8b98a9'},grid:{color:'rgba(255,255,255,0.05)'}}}}});
+  }
+  // benchmark chart
+  if(el.querySelector('#benchChart')&&!charts.bench){
+    charts.bench=new Chart(document.getElementById('benchChart'),{type:'bar',
+      data:{labels:['Cityscapes mIoU','RefCOCOg cIoU','ReasonSeg gIoU','Depth δ₁ ×100'],
+        datasets:[{label:'Vision Banana',data:[69.9,73.8,79.3,92.9],backgroundColor:'rgba(110,231,200,0.8)',borderColor:'#6ee7c8',borderWidth:1},
+                  {label:'Best zero-shot specialist',data:[65.2,73.4,77.0,91.8],backgroundColor:'rgba(122,168,255,0.55)',borderColor:'#7aa8ff',borderWidth:1}]},
+      options:{...chartDefaults,scales:{...chartDefaults.scales,y:{min:55,max:100,ticks:{color:'#8b98a9'},grid:{color:'rgba(255,255,255,0.05)'}}}}});
+  }
+  // depth strip
+  if(el.querySelector('#strip')&&!charts.strip){
+    charts.strip=true;
+    const PATH=[[0,0,0],[255,0,0],[255,255,0],[0,255,0],[0,255,255],[0,0,255],[255,0,255],[255,255,255]],NSEG=PATH.length-1;
+    const fwd=d=>1-Math.pow(1+d/10,-2);
+    const t2rgb=t=>{t=Math.min(Math.max(t,0),1);const s=t*NSEG,i2=Math.min(Math.floor(s),NSEG-1),f=s-i2;
+      return PATH[i2].map((v,k)=>Math.round(v+f*(PATH[i2+1][k]-v)));};
+    const cv=document.getElementById('strip'),cx=cv.getContext('2d'),W=cv.width,H=cv.height;
+    for(let x=0;x<W;x++){const rgb=t2rgb(x/(W-1));cx.fillStyle='rgb('+rgb.join(',')+')';cx.fillRect(x,0,1,H-32);}
+    cx.fillStyle='#c6d0dc';cx.font='600 15px -apple-system,sans-serif';cx.textAlign='center';
+    [[1,'1 m'],[2,'2 m'],[5,'5 m'],[10,'10 m'],[20,'20 m'],[40,'40 m']].forEach(([d,lab])=>{
+      const x=fwd(d)*(W-1);cx.fillStyle='rgba(11,15,21,.85)';cx.fillRect(x-1,0,2.5,H-32);
+      cx.fillStyle='#c6d0dc';cx.fillText(lab,x,H-8);});
+    cx.textAlign='right';cx.fillText('→ ∞',W-4,H-8);
+  }
+  extraViz(el);
+}
+
+/* ---------- worked-example renderings ---------- */
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function jitter(cv,sigma){const c=cv.getContext('2d'),im=c.getImageData(0,0,cv.width,cv.height),d=im.data;
+  for(let i=0;i<d.length;i+=4){d[i]+=sigma*gauss();d[i+1]+=sigma*gauss();d[i+2]+=sigma*gauss();}
+  c.putImageData(im,0,0);}
+function scene(cv,P){const c=cv.getContext('2d'),W=cv.width,H=cv.height;
+  c.fillStyle=P.sky;c.fillRect(0,0,W,H*0.52);
+  c.fillStyle=P.ground;c.fillRect(0,H*0.52,W,H*0.48);
+  c.fillStyle=P.road;c.fillRect(0,H*0.62,W,H*0.26);
+  c.fillStyle=P.trunk;c.fillRect(W*0.13,H*0.34,W*0.035,H*0.28);
+  c.fillStyle=P.veg;c.beginPath();c.arc(W*0.15,H*0.27,H*0.17,0,7);c.fill();
+  c.fillStyle=P.car;c.fillRect(W*0.52,H*0.60,W*0.30,H*0.15);c.fillRect(W*0.585,H*0.49,W*0.165,H*0.13);
+  c.fillStyle=P.wheel;c.beginPath();c.arc(W*0.585,H*0.77,H*0.06,0,7);c.fill();
+  c.beginPath();c.arc(W*0.765,H*0.77,H*0.06,0,7);c.fill();}
+const P_IN={sky:'#8fc3e8',ground:'#3f7a3a',road:'#63636b',veg:'#2e7d32',trunk:'#6d4c2f',car:'#c23b2e',wheel:'#1b1b1e'};
+const P_CODE={sky:'rgb(70,130,180)',ground:'rgb(90,90,90)',road:'rgb(128,64,128)',veg:'rgb(0,255,0)',trunk:'rgb(0,255,0)',car:'rgb(255,255,0)',wheel:'rgb(255,255,0)'};
+function drawSegExample(){
+  scene(document.getElementById('segIn'),P_IN);
+  const raw=document.getElementById('segRaw');scene(raw,P_CODE);jitter(raw,14);
+  scene(document.getElementById('segDec'),P_CODE);}
+
+const DSHAPES=[
+  {x:85,y:75,rx:46,ry:34,c:'rgb(228,64,52)',id:'1',ring:'#ffb454'},
+  {x:225,y:70,rx:40,ry:30,c:'rgb(206,84,72)',id:'2',ring:'#ff8a80'},
+  {x:85,y:168,rx:30,ry:30,c:'rgb(66,118,235)',id:'3',ring:'#6ee7c8'},
+  {x:162,y:172,rx:17,ry:17,c:'rgb(66,118,235)',id:'4',ring:'#6ee7c8'}];
+const SLIVERS=[[150,118],[262,118],[38,40]];
+function dShape(c,s,k){c.beginPath();c.ellipse(s.x,s.y,s.rx*k,s.ry*k,0,0,7);c.fillStyle=s.c;c.fill();}
+function dLabel(c,x,y,t,col){c.font='700 15px -apple-system,sans-serif';c.textAlign='center';
+  c.lineWidth=3;c.strokeStyle='rgba(0,0,0,.8)';c.strokeText(t,x,y);c.fillStyle=col||'#fff';c.fillText(t,x,y);}
+function drawDecoderPanels(){
+  const cv0=document.getElementById('dec0'),c0=cv0.getContext('2d');
+  c0.fillStyle='rgb(24,29,38)';c0.fillRect(0,0,320,220);
+  DSHAPES.forEach(s=>dShape(c0,s,1));
+  c0.fillStyle='rgb(220,80,66)';SLIVERS.forEach(([x,y])=>c0.fillRect(x,y,3,3));
+  jitter(cv0,9);
+  const c1=document.getElementById('dec1').getContext('2d');
+  c1.fillStyle='#05070a';c1.fillRect(0,0,320,220);
+  DSHAPES.forEach(s=>dShape(c1,s,1));
+  c1.fillStyle='rgb(220,80,66)';SLIVERS.forEach(([x,y])=>c1.fillRect(x,y,3,3));
+  const c2=document.getElementById('dec2').getContext('2d');
+  c2.fillStyle='#05070a';c2.fillRect(0,0,320,220);
+  DSHAPES.forEach(s=>{dShape(c2,s,1);c2.lineWidth=2.5;c2.strokeStyle=s.ring;
+    c2.beginPath();c2.ellipse(s.x,s.y,s.rx+5,s.ry+5,0,0,7);c2.stroke();dLabel(c2,s.x,s.y+5,s.id);});
+  SLIVERS.forEach(([x,y])=>{c2.fillStyle='rgb(220,80,66)';c2.fillRect(x,y,3,3);
+    c2.strokeStyle='#ff8a80';c2.lineWidth=1.6;
+    c2.beginPath();c2.moveTo(x-6,y-6);c2.lineTo(x+9,y+9);c2.moveTo(x+9,y-6);c2.lineTo(x-6,y+9);c2.stroke();});
+  const c3=document.getElementById('dec3').getContext('2d');
+  c3.fillStyle='#05070a';c3.fillRect(0,0,320,220);
+  DSHAPES.forEach(s=>dShape(c3,s,0.88));
+  dLabel(c3,DSHAPES[0].x,DSHAPES[0].y+5,'1');dLabel(c3,DSHAPES[1].x,DSHAPES[1].y+5,'2');
+  c3.setLineDash([6,4]);c3.strokeStyle='#8b98a9';c3.lineWidth=1.4;
+  c3.beginPath();c3.moveTo(128,73);c3.lineTo(183,71);c3.stroke();
+  dLabel(c3,156,58,'Δcolor > τ ✓','#8b98a9');
+  c3.strokeStyle='#6ee7c8';c3.strokeRect(45,128,148,66);c3.setLineDash([]);
+  dLabel(c3,119,110,'3 — fragments merged (γ-boxes overlap)','#6ee7c8');}
+
+function drawNormals(){
+  const cv=document.getElementById('nSphere'),c=cv.getContext('2d');
+  const im=c.createImageData(170,170),D=im.data,R=75,cx0=85,cy0=85;
+  for(let py=0;py<170;py++)for(let px=0;px<170;px++){const i=(py*170+px)*4;
+    const nx=(px-cx0)/R,ny=(cy0-py)/R,d2=nx*nx+ny*ny;
+    if(d2<=1){const nz=Math.sqrt(1-d2);
+      D[i]=255*(1-nx)/2;D[i+1]=255*(1+ny)/2;D[i+2]=255*(1+nz)/2;D[i+3]=255;}
+    else{D[i]=13;D[i+1]=19;D[i+2]=27;D[i+3]=255;}}
+  c.putImageData(im,0,0);
+  const c2=document.getElementById('nPlane').getContext('2d');
+  const col=n=>{const L=n.map(v=>v/Math.hypot(...n));
+    return `rgb(${255*(1-L[0])/2|0},${255*(1+L[1])/2|0},${255*(1+L[2])/2|0})`;};
+  c2.fillStyle=col([0.7,0,0.7]);c2.fillRect(0,0,85,125);
+  c2.fillStyle=col([-0.7,0,0.7]);c2.fillRect(85,0,85,125);
+  c2.fillStyle=col([0,0.95,0.31]);c2.fillRect(0,125,170,45);}
+
+function extraViz(el){
+  if(el.querySelector('#segIn')&&!charts.seg){charts.seg=true;drawSegExample();}
+  if(el.querySelector('#dec0')&&!charts.dec){charts.dec=true;drawDecoderPanels();}
+  if(el.querySelector('#nSphere')&&!charts.nrm){charts.nrm=true;drawNormals();}
+  if(el.querySelector('#precChart')&&!charts.prec){
+    charts.prec=new Chart(document.getElementById('precChart'),{type:'bar',
+      data:{labels:['d = 2 m','d = 10 m','d = 50 m'],
+        datasets:[{label:'code quantization error (%)',data:[0.24,0.22,1.2],backgroundColor:'rgba(110,231,200,.8)',borderColor:'#6ee7c8',borderWidth:1},
+                  {label:'model AbsRel (~8%)',data:[8,8,8],backgroundColor:'rgba(255,138,128,.55)',borderColor:'#ff8a80',borderWidth:1}]},
+      options:{...chartDefaults,scales:{x:{ticks:{color:'#8b98a9'},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{type:'logarithmic',min:0.1,max:20,title:{display:true,text:'% relative error (log)',color:'#8b98a9'},
+           ticks:{color:'#8b98a9',callback:v=>[0.1,1,10].includes(v)?v:null},grid:{color:'rgba(255,255,255,0.05)'}}}}});}
+  if(el.querySelector('#lawChart')&&!charts.law){
+    charts.law=new Chart(document.getElementById('lawChart'),{type:'line',
+      data:{labels:['1×','2×','4×','8×','16×','32×','64×'],
+        datasets:[{label:'perception readout after fixed small format-tuning (hypothesis)',data:[30,42,55,66,75,82,87],
+                   borderColor:'#6ee7c8',backgroundColor:'rgba(110,231,200,.08)',fill:true,pointRadius:3,borderWidth:2.5,tension:.3},
+                  {label:'specialist at fixed matched compute',data:[72,72,72,72,72,72,72],
+                   borderColor:'#ff8a80',borderDash:[7,5],pointRadius:0,borderWidth:2,fill:false}]},
+      options:{...chartDefaults,scales:{x:{title:{display:true,text:'generator pretraining compute (relative, log)',color:'#8b98a9'},ticks:{color:'#8b98a9'},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{min:20,max:100,title:{display:true,text:'benchmark score (illustrative)',color:'#8b98a9'},ticks:{color:'#8b98a9'},grid:{color:'rgba(255,255,255,0.05)'}}}}});}
+}
+const m=location.hash.match(/^#s(\d+)$/); show(m?parseInt(m[1],10)-1:0);
+</script>
+</body></html>

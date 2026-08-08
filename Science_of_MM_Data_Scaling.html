@@ -178,6 +178,126 @@ Compute-optimal: allocate marginal FLOP where ∂L/∂(FLOP) is steepest.</code>
 </figure>
 <div class="callout watch"><strong>The central risk of the whole enterprise:</strong> <em>rank inversion across scale</em> — a mixture that wins at the 1B proxy loses at 100B. Proxy design (making small runs predictive of large ones) is the hardest, most valuable skill.</div>
 
+<h3>5.4 Scaling laws for image <em>generation</em> (yes, they exist — three strands)</h3>
+<p><strong>Strand 1 — the form is old and universal.</strong> Henighan et al. 2020 (&quot;Scaling Laws for Autoregressive Generative Modeling&quot;) showed AR transformers on images, video, and multimodal data follow the same power law as text:</p>
+<pre><code>L(C) = E + (C0 / C)^αc          # same functional form as text
+# E   = irreducible loss (entropy floor) — HUGE for images:
+#       most image bits are unpredictable texture/noise
+# L−E = "reducible loss" — this is what falls as a clean power law
+# modality changes the constants (E, C0, αc), never the form</code></pre>
+<p><strong>Strand 2 — diffusion obeys Chinchilla.</strong> DiT showed FID falls smoothly with training GFLOPs (why the backbone became a transformer). Liang et al. 2024 (&quot;Scaling Laws For Diffusion Transformers&quot;) fit full compute-optimal allocations on diffusion pretraining loss — N* and D* both ∝ C^~0.5, Chinchilla-style. The <em>legitimizing</em> result is <strong>SD3</strong> (rectified flow): validation loss scales smoothly with size <em>and correlates strongly with human preference and GenEval</em> — which is what licenses using loss as the scaling target for generation at all.</p>
+<p><strong>Strand 3 — AR text-to-image.</strong> Parti scaled 350M→20B with steady quality gains. <strong>Fluid</strong> (continuous-token AR) fit validation-loss power laws in N and showed the loss↔GenEval mapping holds <em>within a model family</em>. <strong>Transfusion</strong> is scaling-law methodology used as <em>architecture selection</em>: matched-FLOP scaling curves showed in-model diffusion beats discrete-token AR at every scale (~3× compute saving) — you pick the objective by comparing scaling curves, not point runs.</p>
+<pre><code># the joint MM-generation law (F1-style form):
+L(N, D, r) = E_tok + A/N^α + Σ_m  B_m / (r_m · D)^β_m
+# image-gen tokens enter as a modality term m with their own B, β
+# E_tok: the floor is set by the TOKENIZER, not the data (see trap 1)
+# fit on fixed-schedule validation loss; then calibrate loss → metric</code></pre>
+<p><strong>The two image-specific traps</strong> (what makes this messier than the LLM law):</p>
+<ul>
+<li><strong>The tokenizer ceiling.</strong> Latent-space models inherit an irreducible term from the VAE/tokenizer&#x27;s reconstruction error. Scaling the generator saturates at the tokenizer&#x27;s floor — so the fitted E is an <em>artifact of the autoencoder</em>, not a property of the data. Scale (or re-train) the tokenizer alongside the generator, or the law&#x27;s asymptote lies to you.</li>
+<li><strong>Loss ≠ perception.</strong> NLL/ELBO counts every bit, and most image bits are perceptually irrelevant high-frequency detail. Diffusion loss is a <em>weighted</em> ELBO — comparable only at fixed noise schedule, timestep weighting, and resolution. And the loss→quality mapping (human pref, GenEval, FID) must be calibrated <em>per model family</em>; cross-architecture loss comparison is invalid.</li>
+</ul>
+<p><strong>Data-side laws carry over:</strong> recaptioning (DALL-E 3) shifts the image data term (denser synthetic captions = more usable conditioning bits per image → better B_img, β_img); dedup/repetition laws apply to images exactly as to text.</p>
+<figure>
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Image-generation scaling: entropy floor and loss-to-quality calibration">
+<style>.t2{fill:#d7dee8;font:12px -apple-system,sans-serif}.m2{fill:#8b97a7;font:11px -apple-system,sans-serif}.ax{stroke:#2a3340;stroke-width:1.5}</style>
+<!-- Panel A: loss vs compute with floors -->
+<text class="t2" x="30" y="22">A · Loss vs compute (log–log)</text>
+<line class="ax" x1="50" y1="40" x2="50" y2="250"/><line class="ax" x1="50" y1="250" x2="330" y2="250"/>
+<text class="m2" x="150" y="268">log C (training FLOPs)</text>
+<text class="m2" x="18" y="145" transform="rotate(-90 18 145)">loss</text>
+<!-- total loss: bends toward floor -->
+<path d="M60 60 C 140 105, 220 138, 320 152" fill="none" stroke="#6ea8fe" stroke-width="2.2"/>
+<text class="m2" x="188" y="105" fill="#6ea8fe">total loss L(C)</text>
+<!-- tokenizer floor (higher, amber) -->
+<line x1="50" y1="148" x2="330" y2="148" stroke="#e5c07b" stroke-width="1.6" stroke-dasharray="6 4"/>
+<text class="m2" x="58" y="142" fill="#e5c07b">E_tok — tokenizer reconstruction ceiling</text>
+<!-- data entropy floor (lower, gray) -->
+<line x1="50" y1="196" x2="330" y2="196" stroke="#8b97a7" stroke-width="1.4" stroke-dasharray="3 4"/>
+<text class="m2" x="58" y="212">E_data — true entropy floor (unreachable in latent space)</text>
+<!-- reducible loss: straight line -->
+<line x1="60" y1="55" x2="320" y2="228" stroke="#98c379" stroke-width="1.8" stroke-dasharray="1 0"/>
+<text class="m2" x="200" y="215" fill="#98c379">L − E: straight line = the law</text>
+<!-- Panel B: loss->quality calibration -->
+<text class="t2" x="400" y="22">B · Calibrate loss → quality, per family</text>
+<line class="ax" x1="420" y1="40" x2="420" y2="250"/><line class="ax" x1="420" y1="250" x2="700" y2="250"/>
+<text class="m2" x="500" y="268">validation loss →</text>
+<text class="m2" x="390" y="160" transform="rotate(-90 390 160)">GenEval / human pref</text>
+<!-- family 1: monotone points -->
+<circle cx="460" cy="70" r="4" fill="#6ea8fe"/><circle cx="510" cy="95" r="4" fill="#6ea8fe"/><circle cx="560" cy="128" r="4" fill="#6ea8fe"/><circle cx="610" cy="168" r="4" fill="#6ea8fe"/><circle cx="655" cy="205" r="4" fill="#6ea8fe"/>
+<path d="M455 65 C 540 105, 610 170, 662 210" fill="none" stroke="#6ea8fe" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text class="m2" x="440" y="52" fill="#6ea8fe">family A (e.g. rectified-flow DiT)</text>
+<!-- family 2: offset curve -->
+<circle cx="480" cy="130" r="4" fill="#e5c07b"/><circle cx="530" cy="155" r="4" fill="#e5c07b"/><circle cx="580" cy="185" r="4" fill="#e5c07b"/><circle cx="630" cy="218" r="4" fill="#e5c07b"/>
+<path d="M475 125 C 555 165, 610 195, 636 222" fill="none" stroke="#e5c07b" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text class="m2" x="475" y="115" fill="#e5c07b">family B — offset curve:</text>
+<text class="m2" x="475" y="129" fill="#e5c07b">same loss ≠ same quality</text>
+<text class="m2" x="430" y="242">monotone within a family → loss is a legal scaling target (SD3, Fluid)</text>
+</svg>
+<figcaption>Left: the fitted floor in latent space is the tokenizer&#x27;s, not the data&#x27;s — scale the tokenizer or the asymptote lies. Right: loss→quality must be calibrated per family; cross-family loss comparison is invalid.</figcaption>
+</figure>
+<div class="callout watch"><strong>Speakable one-liner:</strong> &quot;The form is Henighan&#x27;s — a power law on reducible loss above a big entropy floor; diffusion transformers obey Chinchilla-style compute-optimal fits (Liang 2024); and SD3/Fluid showed validation loss tracks human preference, which is what makes loss a legal scaling target. The two image-specific traps are the tokenizer-set floor and the loss→perception calibration.&quot;</div>
+
+<h3>5.5 How image generation is evaluated (the metric stack §5.4 presupposes)</h3>
+<p>Four layers, ordered by what each can <em>see</em>. No single metric works; a frontier eval stack uses all four.</p>
+<p><strong>Layer 1 — distribution-level (no prompts):</strong> &quot;does the sample <em>set</em> look like real images?&quot;</p>
+<pre><code>FID = ||μ_r − μ_g||² + Tr( Σ_r + Σ_g − 2·(Σ_r·Σ_g)^½ )
+# Gaussian fit to Inception-V3 features of real vs generated sets
+# ImageNet protocol: 50k samples; lower = closer distributions
+KID  = unbiased MMD variant (usable at small sample counts)
+precision / recall = split FID into fidelity vs coverage:
+#   precision ↓ = unrealistic samples;  recall ↓ = mode collapse
+#   (the pair exposes diversity loss that FID averages away)</code></pre>
+<ul>
+<li><strong>Pitfalls:</strong> Inception features are ImageNet-biased → prefer <strong>CLIP-FID / DINOv2-FID</strong>; needs 10–50k samples; sensitive to resize/JPEG pipeline; <strong>blind to prompt alignment</strong> — a model ignoring every prompt can have great FID.</li>
+</ul>
+<p><strong>Layer 2 — prompt fidelity / compositionality:</strong> &quot;did it draw what I asked?&quot;</p>
+<ul>
+<li><strong>CLIPScore</strong> — cosine(CLIP image emb, CLIP text emb). Cheap, but bag-of-words: misses attribute binding (&quot;red cube on blue sphere&quot;), counting, spatial relations.</li>
+<li><strong>GenEval</strong> — templated prompts + an object <em>detector</em> programmatically verifies object presence, count, color, position. Objective, but templated → gameable/trainable-on.</li>
+<li><strong>T2I-CompBench</strong> (binding, spatial), <strong>DPG-Bench</strong> (dense long prompts).</li>
+<li><strong>VQA / VLM-as-judge (DSG-style)</strong> — decompose the prompt into atomic questions (&quot;is there a dog?&quot; &quot;is it wearing a hat?&quot;), a VLM answers each. The current direction: scales to arbitrary prompts, inherits the judge&#x27;s biases.</li>
+</ul>
+<p><strong>Layer 3 — human preference &amp; learned proxies:</strong> the ship-decision layer.</p>
+<ul>
+<li>Side-by-side human eval → <strong>ELO</strong> (arena-style; PartiPrompts category breakdowns). Gold standard, expensive, protocol-sensitive (prompt distribution + rater instructions <em>are</em> the metric).</li>
+<li>Learned reward models distilling human pref: <strong>ImageReward, PickScore, HPSv2</strong>. Cheap proxies — but they double as RLHF/DPO rewards, so <strong>Goodhart</strong>: optimizing them produces oversaturated glossy sameness. Never eval with the RM you trained against.</li>
+</ul>
+<p><strong>Layer 4 — aspect probes:</strong> OCR accuracy for in-image text rendering; hands/faces checks; aesthetic predictors; <strong>memorization sweeps</strong> — nearest-neighbor retrieval of generations against training data (safety + copyright).</p>
+<figure>
+<svg viewBox="0 0 720 310" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Image generation eval stack and the CFG tradeoff">
+<style>.b3{fill:#1c2530;stroke:#2a3340;stroke-width:1} .t3{fill:#d7dee8;font:12px -apple-system,sans-serif} .m3{fill:#8b97a7;font:10.5px -apple-system,sans-serif} .ax3{stroke:#2a3340;stroke-width:1.5}</style>
+<!-- Panel A: the eval stack -->
+<text class="t3" x="20" y="22">A · The eval stack (cost ↑, sees more ↑)</text>
+<rect class="b3" x="20" y="230" width="330" height="48" rx="8"/>
+<text class="t3" x="34" y="250">1 · Distributional — FID / KID / prec-recall</text><text class="m3" x="34" y="266">sees realism+diversity of the set · blind to prompts · cheapest</text>
+<rect class="b3" x="20" y="172" width="330" height="48" rx="8"/>
+<text class="t3" x="34" y="192">2 · Alignment — CLIPScore / GenEval / VLM-judge</text><text class="m3" x="34" y="208">sees prompt faithfulness, binding, counting · blind to beauty</text>
+<rect class="b3" x="20" y="114" width="330" height="48" rx="8"/>
+<text class="t3" x="34" y="134">3 · Preference — human ELO / ImageReward / HPSv2</text><text class="m3" x="34" y="150">sees what users want · Goodhart risk if RM is also the reward</text>
+<rect class="b3" x="20" y="56" width="330" height="48" rx="8"/>
+<text class="t3" x="34" y="76">4 · Probes — OCR, hands, aesthetics, memorization</text><text class="m3" x="34" y="92">targeted failure modes + safety sweeps · ship gates</text>
+<text class="m3" x="20" y="298">training curves live at layer 1–2 · ship decisions at layer 3–4</text>
+<!-- Panel B: CFG tradeoff -->
+<text class="t3" x="400" y="22">B · The CFG trap: one knob moves every metric</text>
+<line class="ax3" x1="420" y1="40" x2="420" y2="260"/><line class="ax3" x1="420" y1="260" x2="700" y2="260"/>
+<text class="m3" x="500" y="278">guidance scale (CFG) →</text>
+<text class="m3" x="392" y="160" transform="rotate(-90 392 160)">metric value</text>
+<!-- FID: U-shaped (lower better, plotted as quality so inverted-U) -->
+<path d="M430 200 C 480 90, 560 90, 690 190" fill="none" stroke="#6ea8fe" stroke-width="2"/>
+<text class="m3" x="430" y="105" fill="#6ea8fe">FID (inverted): best at moderate CFG, degrades after</text>
+<!-- human pref: keeps rising then plateaus -->
+<path d="M430 230 C 520 160, 600 108, 690 96" fill="none" stroke="#98c379" stroke-width="2"/>
+<text class="m3" x="530" y="132" fill="#98c379">human preference: keeps rising</text>
+<!-- diversity: falls -->
+<path d="M430 90 C 520 140, 600 200, 690 228" fill="none" stroke="#e5c07b" stroke-width="2" stroke-dasharray="5 3"/>
+<text class="m3" x="430" y="80" fill="#e5c07b">diversity (recall): falls monotonically</text>
+<text class="m3" x="430" y="298">⇒ report sweeps over CFG, never single-point comparisons</text>
+</svg>
+<figcaption>Left: the four-layer eval stack — each layer sees what the one below cannot. Right: classifier-free guidance moves FID, preference, and diversity in different directions, so single-operating-point comparisons are meaningless.</figcaption>
+</figure>
+<div class="callout watch"><strong>Two traps to name in the room:</strong> (1) <strong>CFG couples everything</strong> — guidance trades diversity for fidelity; FID vs CFG is U-shaped while human preference keeps rising, so compare metric <em>sweeps</em>, not points. (2) <strong>FID ↮ preference at the frontier</strong> — SDXL-class models can have <em>worse</em> FID than predecessors yet win preference decisively; distributional and preference metrics diverge once base quality is high. <strong>Practical stack:</strong> val loss + CLIP-FID on training curves (cheap, in-family monotone per SD3/Fluid) → GenEval/DPG as compositional regression gates → human ELO to ship.</div>
+
 <h2 class="section" id="s6">§6 · Post-training-data science</h2>
 <span class="pill r">Post</span>
 <h3>6.1 SFT: diversity &gt; quantity, and the skill-coverage matrix</h3>
@@ -353,4 +473,51 @@ addEventListener('scroll',()=>{const h=document.documentElement,st=h.scrollTop,s
 let cur='';for(const s of secs){if(s.getBoundingClientRect().top<160)cur=s.id;}links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+cur));});
 bt.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
 </script>
+<!-- MUSE-MSL-NEWS-2026-07 -->
+<section id="muse-msl-2026" style="max-width:880px;margin:48px auto 24px;padding:24px 26px;background:#161b22;border:1px solid #2a3340;border-left:4px solid #7ee0c0;border-radius:12px;color:#d7dee8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;font-size:15px;">
+  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+    <span style="background:#7ee0c0;color:#0f1419;font-size:11px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:999px;">NEW &middot; JUL 7 2026</span>
+    <h2 style="margin:0;font-size:19px;color:#d7dee8;">Meta MSL: Muse Image &amp; Muse Video</h2>
+  </div>
+  <p style="margin:12px 0 6px;color:#8b97a7;">Meta Superintelligence Labs (MSL) shipped its first media-generation models — directly relevant to the vision-team interview.
+    <a href="https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/" style="color:#6ea8fe;">Official announcement &rarr;</a> &middot; <a href="Meta_Muse_MSL_Deep_Dive.html" style="color:#6ea8fe;">Full deep dive &rarr;</a></p>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">What was announced</h3>
+  <ul style="margin:0 0 4px;padding-left:20px;">
+    <li><b>Muse Image</b> (live) — an <i>agentic</i> image model, not a direct prompt&rarr;image mapper. It reasons before generating and extends the <b>Muse Spark</b> architecture (MSL's proprietary reasoning model, Meta's first post-Llama foundation model).</li>
+    <li><b>Tool use inside the generative loop</b>: executes <b>code</b> (accurate plots, QR codes, conditioning on rendered figures) and calls <b>web search</b> to ground outputs in real-time facts and visual references; can hand off to Muse Spark for heavier reasoning.</li>
+    <li><b>Emergent self-refinement</b>: during RL post-training the model learned — without being explicitly designed to — to critique its own output inside the reasoning chain, then locally edit, fully regenerate, or apply a tool.</li>
+    <li><b>Test-time compute scaling</b>: quality improves <b>&asymp; log-linearly</b> with inference compute; deliberate sequential reasoning beats best-of-N sampling at matched compute.</li>
+    <li><b>Editing &amp; composition</b>: precision single/multi-image editing, multi-reference composition with interleaved text+images.</li>
+    <li><b>Muse Video</b> (preview) — same pretraining base, native audio; open problems Meta names: audio-video sync and physically accurate fast motion.</li>
+    <li><b>Benchmarks</b> (Arena Elo, Jul 5 2026): #2 text-to-image, #2 single-image editing, #2 multi-image editing; Muse Video #3 text-to-video.</li>
+    <li><b>Content Seal</b>: invisible provenance watermark robust to crop / compression / resize / screenshots, with a public detector.</li>
+    <li><b>Distribution</b>: Meta AI app, meta.ai, Instagram Stories (US), WhatsApp; Instagram integration (reimagine photos, create with friends, personalized presets).</li>
+  </ul>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Test-time compute: deliberate reasoning vs best-of-N</h3>
+  <p style="margin:0 0 8px;color:#8b97a7;">Sequential self-refinement compounds — each step conditions on the previous attempt — so quality grows roughly <span style="font-family:ui-monospace,Menlo,monospace;color:#d7dee8;">Q(C) &asymp; a + b&middot;log C</span>. Best-of-N only takes the max of independent draws, so its gains flatten (extreme-value scaling &asymp; a + b&middot;log log N).</p>
+  <svg viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:560px;display:block;background:#11161d;border:1px solid #2a3340;border-radius:8px;">
+    <line x1="50" y1="180" x2="530" y2="180" stroke="#2a3340" stroke-width="1.5"/>
+    <line x1="50" y1="180" x2="50" y2="20" stroke="#2a3340" stroke-width="1.5"/>
+    <text x="290" y="205" fill="#8b97a7" font-size="12" text-anchor="middle">inference compute (log scale)</text>
+    <text x="20" y="100" fill="#8b97a7" font-size="12" text-anchor="middle" transform="rotate(-90 20 100)">quality (Elo)</text>
+    <path d="M 60 165 C 180 120, 340 75, 520 35" fill="none" stroke="#7ee0c0" stroke-width="2.5"/>
+    <path d="M 60 168 C 180 140, 340 122, 520 112" fill="none" stroke="#ffb454" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <text x="368" y="52" fill="#7ee0c0" font-size="12">deliberate reasoning (&asymp; log-linear)</text>
+    <text x="380" y="138" fill="#ffb454" font-size="12">best-of-N (flattens)</text>
+  </svg>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Interview angles (vision team)</h3>
+  <ul style="margin:0;padding-left:20px;">
+    <li><b>RL on generation</b>: self-refinement emerged from RL, not supervision — connect to your REINFORCE/GRPO prep; discuss reward design for non-verifiable objectives (human-preference Elo, aesthetics vs instruction faithfulness) and reward hacking risk.</li>
+    <li><b>Test-time scaling for images</b>: mirrors LLM reasoning scaling; be ready to argue <i>why</i> sequential refinement beats best-of-N (conditioning on failure modes vs i.i.d. resampling) and the prod latency/compute trade-off at Instagram scale.</li>
+    <li><b>Agentic generation</b>: search-grounded and code-conditioned generation = tool use inside the sampler; ties to your agents material (Day 4) and unified any-to-any model notes.</li>
+    <li><b>Unified stack &amp; data</b>: Muse Spark &rarr; Muse Image &rarr; Muse Video share pretraining; strong hook for multimodal scaling-law discussion (your Science-of-MM-Data material) — image and video from one base, what does the data mixture look like?</li>
+    <li><b>Video open problems</b>: AV sync + fast-motion physics — natural bridge to your video-JEPA / LatentFusion proposal (physical plausibility in latent space).</li>
+    <li><b>Provenance</b>: watermark robustness under crop/compress/screenshot — good safety/eval talking point.</li>
+  </ul>
+</section>
+<!-- /MUSE-MSL-NEWS-2026-07 -->
+
 </body></html>

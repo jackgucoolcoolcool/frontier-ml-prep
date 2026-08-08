@@ -49,12 +49,14 @@
 <div class="layout">
 <nav class="toc"><h2>Contents</h2><a href="#top">Overview</a>
 <a href="#s1">1. Stable softmax + cross-entropy</a>
+<a href="#s1b">1b. Drill: softmax-CE fwd+bwd from blank</a>
 <a href="#s2">2. Scaled dot-product attention (the #1 ask)</a>
 <a href="#s3">3. Causal mask</a>
 <a href="#s4">4. Multi-head attention (write this fluently)</a>
 <a href="#s5">5. Cross-attention (likely for the interviewer</a>
 <a href="#s6">6. LayerNorm &amp; RMSNorm</a>
 <a href="#s7">7. Transformer block (pre-norm, decoder-style)</a>
+<a href="#s7b">7b. Sequence → training loop</a>
 <a href="#s8">8. KV-cache generation loop</a>
 <a href="#s9">9. Top-k / top-p (nucleus) sampling</a>
 <a href="#s10">10. DPO loss (high-probability post-training a</a>
@@ -91,6 +93,54 @@ def cross_entropy(logits, targets):
 <li><strong><code>p − onehot</code> is indexed</strong> <code>dlogits[arange(B), y] -= 1</code>, not a scalar <code>dlogits -= 1</code> across the whole tensor.</li>
 </ul>
 </div>
+<hr>
+<h2 class="section" id="s1b">1b. Final-prep drill — softmax-CE forward + backward, one step, from blank</h2>
+<p><strong>The drill (timed, ~7 min, NumPy only, no peeking):</strong> implement one function returning the mean loss <em>and</em> its gradient — the canonical "now derive dL/dlogits" follow-up folded into the ask.</p>
+<pre><code>def softmax_xent(logits, y):
+    """
+    logits: (B, C) float — raw scores;  y: (B,) int — class labels
+    returns: loss (scalar, MEAN over batch), dlogits (B, C)
+    Requirements:
+      1. finite at logits = ±1e4 (stability by construction, not clamps)
+      2. never log() a computed probability          (Q75 / #7 family)
+      3. dlogits passes centered finite-diff, fp64   (v2 #4 recipe)
+      4. no loops over B or C
+    """</code></pre>
+<p><strong>Self-grade (all five, before revealing):</strong> (1) <code>randn(4,10)</code> → loss within ~1 of ln 10 = 2.30 (std-1 logits swing it — a tighter check needs logits×0.01); (2) <code>full((2,5), ±1e4)</code> → finite loss and grads; (3) each <code>dlogits</code> row sums to ~0 — and say <em>why</em> (softmax rows sum to 1, onehot rows sum to 1, gradient rows = (p−y)/B → sum 0); (4) centered finite-diff fp64 rel-err &lt; 1e-6; (5) +50 on the true class → loss ≈ 0, grad ≈ 0.</p>
+<details><summary style="cursor:pointer;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;display:inline-block">Reveal — solution + grader</summary>
+<pre><code>def softmax_xent(logits, y):
+    z = logits - logits.max(axis=1, keepdims=True)          # shift: exp arg ≤ 0
+    logp = z - np.log(np.exp(z).sum(axis=1, keepdims=True)) # log-softmax, full (B, C)
+    B = len(y)
+    loss = -logp[np.arange(B), y].mean()                    # gather only for the loss
+    p = np.exp(logp)                                        # softmax, recovered stably
+    dlogits = p.copy()
+    dlogits[np.arange(B), y] -= 1.0                         # p − onehot, indexed not scalar
+    dlogits /= B                                            # mean loss ⇒ /B in the grad
+    return loss, dlogits
+
+# ---- grader ----
+np.random.seed(0)
+logits = np.random.randn(4, 10); y = np.array([1, 0, 3, 9])
+loss, g = softmax_xent(logits, y)
+assert abs(loss - np.log(10)) &lt; 1.5                         # ≈ ln C ± O(1) at random init
+assert np.allclose(g.sum(1), 0, atol=1e-12)                 # rows of (p−y)/B sum to 0
+for ex in (1e4, -1e4):                                      # extremes: finite, no warnings
+    l2, g2 = softmax_xent(np.full((2, 5), ex), np.array([0, 1]))
+    assert np.isfinite(l2) and np.isfinite(g2).all()
+w = logits.astype(np.float64); eps = 1e-6                   # centered finite-diff (v2 #4)
+num = np.zeros_like(w)
+for i in range(w.size):
+    wp, wm = w.copy(), w.copy(); wp.flat[i] += eps; wm.flat[i] -= eps
+    num.flat[i] = (softmax_xent(wp, y)[0] - softmax_xent(wm, y)[0]) / (2 * eps)
+rel = abs(num - g) / (abs(num) + abs(g) + 1e-12)
+assert rel.max() &lt; 1e-6, rel.max()
+hot = np.zeros((2, 5)); hot[[0, 1], [2, 3]] = 50.0           # perfect prediction
+l3, g3 = softmax_xent(hot, np.array([2, 3]))
+assert l3 &lt; 1e-8 and abs(g3).max() &lt; 1e-8
+print('all five checks passed')</code></pre>
+</details>
+<p><strong>Say-out-loud probes an interviewer will fire:</strong> why is the gradient exactly <code>p − y</code> (the logsumexp term differentiates back into softmax — Q52); why rows sum to zero (shifting all logits equally never changes the loss — softmax is shift-invariant, so the gradient has no component along <code>1</code>); why <code>/B</code> (mean loss); and the binary twin <code>σ(z) − y</code> (Q68) plus Bradley–Terry as logistic xent on a margin — one derivation covers CE, BCE, and the reward model.</p>
 <hr>
 <h2 class="section" id="s2">2. Scaled dot-product attention (the #1 ask)</h2>
 <pre><code>def attention(Q, K, V, mask=None):
@@ -236,6 +286,81 @@ class RMSNorm(nn.Module):                                  # no mean-centering; 
   <text x="16" y="268" fill="var(--muted)" font-size="12.5">Sharing one LN = tying &#947;, &#946; across two different distributions and two different consumers — a constraint, not a dedup.</text>
 </svg>
 <hr>
+<h2 class="section" id="s7b">7b. From sequence to training loop (the end-to-end glue)</h2>
+<p>Sections 1–7 build the pieces; this is how a raw token sequence becomes gradient steps. Three stages: <strong>tie the block into an LM</strong>, <strong>turn the corpus into (x, y) batches</strong> (the shift from Q80/#33), <strong>loop</strong>.</p>
+<svg viewBox="0 0 680 132" width="100%" style="max-width:680px;display:block;margin:12px 0;" role="img" aria-label="Pipeline: corpus to token ids to get_batch producing shifted x and y, into GPT forward giving logits, into cross entropy loss, into backward clip step.">
+  <defs><marker id="s7barr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="var(--muted)" stroke-width="1.5"/></marker></defs>
+  <text x="16" y="20" fill="var(--text)" font-size="13.5" font-weight="600">One long id stream → random fixed-length blocks → shift → forward → loss → step</text>
+  <g font-size="12" text-anchor="middle">
+    <rect x="16" y="40" width="92" height="44" rx="6" fill="none" stroke="var(--border)"/><text x="62" y="60" fill="var(--text)">corpus</text><text x="62" y="76" fill="var(--muted)" font-size="10.5">text</text>
+    <rect x="128" y="40" width="92" height="44" rx="6" fill="none" stroke="var(--border)"/><text x="174" y="60" fill="var(--text)">tokenize</text><text x="174" y="76" fill="var(--muted)" font-size="10.5">→ ids (1-D)</text>
+    <rect x="240" y="40" width="92" height="44" rx="6" fill="none" stroke="var(--accent)"/><text x="286" y="60" fill="var(--accent)">get_batch</text><text x="286" y="76" fill="var(--muted)" font-size="10.5">x, y shift +1</text>
+    <rect x="352" y="40" width="92" height="44" rx="6" fill="none" stroke="var(--border)"/><text x="398" y="60" fill="var(--text)">GPT(x)</text><text x="398" y="76" fill="var(--muted)" font-size="10.5">→ logits</text>
+    <rect x="464" y="40" width="92" height="44" rx="6" fill="none" stroke="var(--accent-2)"/><text x="510" y="60" fill="var(--accent-2)">cross_ent</text><text x="510" y="76" fill="var(--muted)" font-size="10.5">flatten B·T</text>
+    <rect x="576" y="40" width="88" height="44" rx="6" fill="none" stroke="var(--border)"/><text x="620" y="60" fill="var(--text)">backward</text><text x="620" y="76" fill="var(--muted)" font-size="10.5">clip · step</text>
+  </g>
+  <g stroke="var(--muted)" stroke-width="1.5">
+    <line x1="108" y1="62" x2="126" y2="62" marker-end="url(#s7barr)"/><line x1="220" y1="62" x2="238" y2="62" marker-end="url(#s7barr)"/>
+    <line x1="332" y1="62" x2="350" y2="62" marker-end="url(#s7barr)"/><line x1="444" y1="62" x2="462" y2="62" marker-end="url(#s7barr)"/>
+    <line x1="556" y1="62" x2="574" y2="62" marker-end="url(#s7barr)"/>
+  </g>
+  <path d="M620,84 L620,112 L286,112 L286,86" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#s7barr)"/>
+  <text x="360" y="126" fill="var(--muted)" font-size="11">next step: new random batch</text>
+</svg>
+<pre><code># ---- 1. tie the Block (§7) into a language model ----
+class GPT(nn.Module):
+    def __init__(self, vocab, d_model, n_heads, n_layers, block_size):
+        super().__init__()
+        self.tok_emb = nn.Embedding(vocab, d_model)
+        self.pos_emb = nn.Embedding(block_size, d_model)
+        self.blocks  = nn.ModuleList([Block(d_model, n_heads) for _ in range(n_layers)])  # registered (#40)
+        self.ln_f    = LayerNorm(d_model)
+        self.head    = nn.Linear(d_model, vocab, bias=False)
+        self.head.weight = self.tok_emb.weight                 # weight tying (input/output embeddings)
+        self.block_size = block_size
+    def forward(self, idx):                                    # idx: (B, T) token ids
+        B, T = idx.shape
+        pos  = torch.arange(T, device=idx.device)
+        x    = self.tok_emb(idx) + self.pos_emb(pos)           # (B, T, D)
+        mask = torch.tril(torch.ones(T, T, device=idx.device)).bool()   # causal: block the future (#20)
+        for blk in self.blocks:
+            x = blk(x, mask)
+        return self.head(self.ln_f(x))                         # (B, T, vocab) — LOGITS, never softmax (#31)
+
+# ---- 2. corpus -> one long id stream -> shifted (x, y) batches ----
+ids = torch.tensor(tokenizer.encode(text), dtype=torch.long)   # the whole corpus, flattened
+n   = int(0.9 * len(ids)); train_ids, val_ids = ids[:n], ids[n:]
+
+def get_batch(data, B, T):
+    i = torch.randint(len(data) - T - 1, (B,))                 # B random start offsets
+    x = torch.stack([data[j   : j+T  ] for j in i])            # (B, T)
+    y = torch.stack([data[j+1 : j+T+1] for j in i])            # (B, T) — SHIFTED by one (Q80 / #33)
+    return x.to(device), y.to(device)
+
+# ---- 3. the loop ----
+model = GPT(vocab, d_model=384, n_heads=6, n_layers=6, block_size=256).to(device)
+opt   = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.1)      # ALL params (#40)
+sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=3e-4, total_steps=STEPS)
+
+for step in range(STEPS):
+    x, y   = get_batch(train_ids, B=64, T=256)
+    logits = model(x)                                          # (B, T, vocab)
+    loss   = F.cross_entropy(logits.view(-1, vocab), y.view(-1))   # flatten to (B·T, vocab) & (B·T,)
+    opt.zero_grad(set_to_none=True)
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)   # stabilize the update (#16)
+    opt.step(); sched.step()
+
+@torch.no_grad()                                              # no graph in eval (#15)
+def evaluate(data, iters=50):
+    model.eval()
+    tot = sum(F.cross_entropy(model(x).view(-1, vocab), y.view(-1)).item()
+              for x, y in (get_batch(data, 64, 256) for _ in range(iters)))
+    model.train(); return tot / iters</code></pre>
+<p><strong>The load-bearing lines:</strong> the <code>y = data[j+1 : j+T+1]</code> shift <em>is</em> the task (drop it → copy → loss 0.02, capability 0, #33); <code>cross_entropy</code> takes <strong>logits</strong> and applies <code>log_softmax</code> itself, so a <code>softmax</code> in the head double-counts (#31); the flatten <code>(B,T,V)→(B·T,V)</code> makes CE average over every position; and the optimizer only sees modules that are <em>registered</em> — a plain Python list of blocks is invisible to <code>.parameters()</code> (#40).</p>
+<p><strong>Two data regimes — say which you're in:</strong> this <code>get_batch</code> is the <em>pretraining / fixed-block</em> layout — one contiguous id stream chopped into equal <code>T</code> windows, no padding, every position supervised. The <em>SFT / variable-length</em> layout instead pads each example to <code>max_len</code> and must keep pad tokens out of the loss with <code>F.cross_entropy(logits, y, ignore_index=pad_id)</code> — forget that and ~90% PAD targets teach the model to emit EOS immediately (#34). Same model, same shift; the difference is padding + the loss mask.</p>
+<p><strong>Probes:</strong> why one forward pass trains all <code>T</code> positions at once (teacher forcing + causal mask), why <code>block_size</code> caps context (learned <code>pos_emb</code> rows), weight tying (fewer params, embeddings live in one space), and gradient accumulation as the trick to fake a bigger batch when memory-bound.</p>
+<hr>
 <h2 class="section" id="s8">8. KV-cache generation loop</h2>
 <pre><code>@torch.no_grad()
 def generate(model, idx, max_new, kv_cache=None):
@@ -360,6 +485,7 @@ def linreg_gd(X, y, lr=0.1, n_iters=1000):             # the "now scale it" foll
         w -= lr * 2 / len(y) * Xb.T @ (Xb @ w - y)
     return w</code></pre>
 <p><strong>Say:</strong> derive the normal equation (∇||Xw−y||² = 2Xᵀ(Xw−y) = 0); <code>solve</code>/<code>lstsq</code> for stability + singular XᵀX (collinearity = the planted failure); GD when D large (XᵀX solve is O(D³)) or streaming; ridge = Gaussian prior.</p>
+<p><strong>Deriving the GD update line <code>g = (2/len(y)) * Xᵀ(Xw − y)</code>:</strong> with residual $r = Xw - y$ (shape $(n,)$), the mean-squared-error loss is $L(w)=\frac1n\lVert Xw-y\rVert^2=\frac1n\sum_i(x_i\!\cdot\! w-y_i)^2$. Chain rule on the square, with $\partial r/\partial w = X$: $\nabla_w L = \frac1n\cdot 2\,X^\top(Xw-y)=\frac{2}{n}X^\top(Xw-y)$. Term by term: <code>X @ w - y</code> is the residual $r$ $(n,)$ — prediction minus target per example; <code>X.T @ r</code> is $X^\top r$ $(d,)$ — per feature $j$, $\sum_i x_{ij}r_i$, i.e. <em>how strongly feature $j$ co-varies with the current errors</em> (the descent direction); <code>2/len(y)</code> = the power-rule $2$ times $\frac1n$ for the <em>mean</em> (scale-independent of batch size; both often folded into the LR, which is why the $\frac{1}{2n}$ loss convention exists). Shapes: $(n,d)^\top @ (n,) \to (d,)$, matching $w$. Set $g=0$ and you recover the normal equations $X^\top X\,w = X^\top y$ — GD walks the same bowl the closed form solves in one shot. (Same $p-y$-style structure as logistic/softmax CE: gradient = features times residual; only the residual's nonlinearity changes.)</p>
 <h3>kNN</h3>
 <pre><code>def knn_predict(X_train, y_train, X_test, k=5):
     d2 = ((X_test[:, None, :] - X_train[None, :, :]) ** 2).sum(-1)   # (M, N)

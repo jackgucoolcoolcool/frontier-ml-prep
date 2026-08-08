@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meta MSL — Muse Image & Muse Video Deep Dive</title>
+<script>
+  MathJax = { tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] }, svg: { fontCache: 'global' } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%;}</style>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #1c2530; --text: #d7dee8; --muted: #8b97a7;
+    --accent: #6ea8fe; --accent-2: #7ee0c0; --warn: #ffb454; --border: #2a3340;
+    --code-bg: #11161d; --table-head: #1f2937; --reveal-bg: #16241f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.65; font-size: 16.5px; }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); z-index: 100; transition: width 0.1s ease-out; }
+  .layout { display: flex; max-width: 1240px; margin: 0 auto; }
+  nav.toc { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+    width: 270px; min-width: 270px; padding: 24px 16px 60px 20px; border-right: 1px solid var(--border); font-size: 14px; }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 6px; margin: 1px 0; border-left: 2px solid transparent; }
+  nav.toc a:hover { color: var(--text); background: var(--panel); }
+  nav.toc a.active { color: var(--accent); border-left-color: var(--accent); background: var(--panel); }
+  main { flex: 1; min-width: 0; padding: 40px 48px 120px; }
+  header.hero { border: 1px solid var(--border); background: linear-gradient(160deg, var(--panel-2), var(--panel));
+    border-radius: 14px; padding: 28px 30px; margin-bottom: 36px; }
+  header.hero h1 { margin: 0 0 6px; font-size: 30px; }
+  header.hero .sub { color: var(--muted); margin: 4px 0; font-size: 15px; }
+  .bar-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .pill { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent-2); padding: 4px 11px; border-radius: 20px; font-size: 13px; }
+  h2.section { font-size: 24px; margin: 52px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+  h3 { font-size: 19px; margin: 30px 0 10px; color: #eaf0f7; }
+  h4 { font-size: 16px; margin: 20px 0 8px; color: var(--accent-2); }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code-bg); padding: 1.5px 6px; border-radius: 5px; font-size: 14px; font-family: "SF Mono", Menlo, Consolas, monospace; color: #e8c98a; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; overflow-x: auto; }
+  pre code { background: none; padding: 0; color: #c7d3e0; font-size: 13.5px; line-height: 1.55; }
+  ul, ol { padding-left: 24px; } li { margin: 6px 0; }
+  strong { color: #f0f4f9; }
+  table { border-collapse: collapse; width: 100%; margin: 18px 0; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--table-head); color: #eaf0f7; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 18px 0; border: 1px solid var(--border); }
+  .callout .label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 6px; }
+  .practice { background: rgba(255,180,84,0.07); border-color: rgba(255,180,84,0.35); } .practice .label { color: var(--warn); }
+  .keyidea { background: rgba(126,224,192,0.07); border-color: rgba(126,224,192,0.3); } .keyidea .label { color: var(--accent-2); }
+  .frontier { background: rgba(180,130,255,0.08); border-color: rgba(180,130,255,0.4); } .frontier .label { color: #c7a4ff; }
+  .caution { background: rgba(229,115,115,0.07); border-color: rgba(229,115,115,0.35); } .caution .label { color: #e57373; }
+  .qa { border: 1px solid var(--border); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+  .qa .q { padding: 12px 16px; cursor: pointer; background: var(--panel); font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .qa .q:hover { background: var(--panel-2); }
+  .qa .q .chev { color: var(--muted); transition: transform .2s; font-size: 13px; }
+  .qa.open .q .chev { transform: rotate(90deg); }
+  .qa .a { display: none; padding: 14px 16px; background: var(--reveal-bg); border-top: 1px solid var(--border); }
+  .qa.open .a { display: block; }
+  .qa .a code { background: #0d1612; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0 18px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .back-top { position: fixed; bottom: 24px; right: 24px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; display: none; z-index: 50; }
+  .back-top:hover { border-color: var(--accent); color: var(--accent); }
+  .chartbox { position: relative; width: 100%; height: 280px; margin: 8px 0; }
+  .cap { font-size: 12px; color: var(--muted); margin: 4px 0 14px; }
+  .flowsvg { width: 100%; background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; margin: 10px 0; }
+  @media (max-width: 880px) { nav.toc { display: none; } main { padding: 24px 18px 100px; } }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<div class="layout">
+  <nav class="toc" id="toc">
+    <h2>Contents</h2>
+    <a href="#top">Overview</a>
+    <a href="#s1">§1 · What Meta announced</a>
+    <a href="#s2">§2 · Agentic generation loop</a>
+    <a href="#s3">§3 · RL &amp; emergent self-refinement</a>
+    <a href="#s4">§4 · Test-time compute scaling</a>
+    <a href="#s5">§5 · Muse Video &amp; open problems</a>
+    <a href="#s6">§6 · Content Seal / provenance</a>
+    <a href="#s7">§7 · Interview angles</a>
+    <a href="#s8">§8 · Self-test</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="top">
+      <h1>Meta MSL — Muse Image &amp; Muse Video</h1>
+      <div class="sub"><strong>What:</strong> Meta Superintelligence Labs' first media-generation models, announced Jul 7, 2026. Agentic image generation with tool use, RL-emergent self-refinement, and log-linear test-time compute scaling.</div>
+      <div class="sub"><strong>Why this page:</strong> you are interviewing with the vision team. This is the freshest public signal of what they ship, how they think, and what they consider unsolved.</div>
+      <div class="sub"><strong>Source:</strong> <a href="https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/">official announcement</a> &middot; coverage: <a href="https://siliconangle.com/2026/07/07/meta-launches-image-generation-model-coding-search-capabilities/">SiliconANGLE</a>, <a href="https://www.cnbc.com/2026/07/07/meta-ai-muse-image.html">CNBC</a>, <a href="https://venturebeat.com/technology/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since">VentureBeat (Muse Spark)</a></div>
+      <div class="bar-meta">
+        <span class="pill">Announced Jul 7 2026</span>
+        <span class="pill">Vision-team relevant</span>
+        <span class="pill">Facts vs inference labeled</span>
+      </div>
+    </header>
+
+    <div class="callout caution">
+      <span class="label">⚠ Epistemics</span>
+      Meta's blog post is a product announcement, not a tech report. Everything in §1 is <strong>stated fact</strong>; parts of §2–§4 marked <em>(inference)</em> are reading between the lines using standard frontier practice. In the interview, keep that distinction explicit — it signals research taste.
+    </div>
+
+    <h2 class="section" id="s1">§1 · What Meta announced</h2>
+
+    <h3>The Muse family</h3>
+    <table>
+      <thead><tr><th>Model</th><th>Status</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Muse Spark</strong></td><td>Shipped earlier</td><td>MSL's proprietary reasoning/foundation model — Meta's first frontier model since MSL's formation, moving past the Llama line. Muse Image extends its architecture.</td></tr>
+        <tr><td><strong>Muse Image</strong></td><td><strong>Live</strong> (Meta AI app, meta.ai, Instagram Stories US, WhatsApp limited)</td><td>Agentic image generation + editing: reasons before generating, uses tools (code, search), self-refines, composes from multiple references.</td></tr>
+        <tr><td><strong>Muse Video</strong></td><td>Preview</td><td>Video generation on the <em>same pretraining base</em> as Muse Image, with native audio support.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Headline capabilities (Muse Image)</h3>
+    <ul>
+      <li><strong>Agentic, not prompt→image:</strong> the model runs a reasoning chain before and during generation instead of directly mapping the prompt to pixels.</li>
+      <li><strong>Tool use in the loop:</strong> writes and executes <strong>code</strong> (accurate plots, QR codes, conditioning on rendered figures) and calls <strong>web search</strong> to ground outputs in real-time facts and visual references. Can hand off to Muse Spark when its own reasoning is insufficient.</li>
+      <li><strong>Self-refinement (emergent):</strong> within a reasoning chain it critiques its own output and chooses to locally edit, fully regenerate, or invoke a tool. Meta states this <em>arose during RL</em> rather than being explicitly designed.</li>
+      <li><strong>Test-time compute scaling:</strong> quality improves ≈ log-linearly with inference compute; deliberate reasoning beats best-of-N at matched compute.</li>
+      <li><strong>Editing &amp; composition:</strong> precision single-/multi-image editing; multi-reference composition with interleaved text + images.</li>
+      <li><strong>Content Seal:</strong> invisible provenance watermark that survives cropping, compression, resizing, and screenshots; public detection tool.</li>
+    </ul>
+
+    <h3>Benchmarks (Arena, human-preference Elo, Jul 5 2026)</h3>
+    <table>
+      <thead><tr><th>Task</th><th>Rank</th></tr></thead>
+      <tbody>
+        <tr><td>Text-to-image</td><td>#2</td></tr>
+        <tr><td>Single-image editing</td><td>#2</td></tr>
+        <tr><td>Multi-image editing</td><td>#2</td></tr>
+        <tr><td>Text-to-video (Muse Video)</td><td>#3</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout keyidea">
+      <span class="label">Key idea — what Arena Elo actually is</span>
+      Pairwise human preferences fit with a Bradley–Terry model. The probability model $i$ beats model $j$:
+      $$P(i \succ j) = \frac{1}{1 + 10^{(R_j - R_i)/400}}$$
+      Know its failure modes: preference ≠ faithfulness (voters reward aesthetics), prompt-distribution bias, and it's a <em>relative</em> ranking — an Elo gap says nothing about absolute capability. Perfect eval-design talking point (Day 3 material).
+    </div>
+
+    <h2 class="section" id="s2">§2 · The agentic generation loop</h2>
+
+    <p>The core conceptual shift: generation is no longer a single forward pass $p_\theta(\text{image}\mid\text{prompt})$ but a <strong>policy rollout</strong> in which image generation, code execution, search, and self-critique are all actions:</p>
+
+    <svg class="flowsvg" viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#6ea8fe"/>
+        </marker>
+      </defs>
+      <rect x="20" y="120" width="120" height="56" rx="10" fill="#1c2530" stroke="#2a3340"/>
+      <text x="80" y="153" fill="#d7dee8" font-size="14" text-anchor="middle">prompt</text>
+
+      <rect x="200" y="110" width="150" height="76" rx="10" fill="#1c2530" stroke="#7ee0c0"/>
+      <text x="275" y="142" fill="#7ee0c0" font-size="14" text-anchor="middle" font-weight="700">reason</text>
+      <text x="275" y="162" fill="#8b97a7" font-size="12" text-anchor="middle">(plan the image)</text>
+
+      <rect x="420" y="20" width="150" height="52" rx="10" fill="#1c2530" stroke="#ffb454"/>
+      <text x="495" y="43" fill="#ffb454" font-size="13" text-anchor="middle">search tool</text>
+      <text x="495" y="60" fill="#8b97a7" font-size="11" text-anchor="middle">facts + visual refs</text>
+
+      <rect x="420" y="92" width="150" height="52" rx="10" fill="#1c2530" stroke="#ffb454"/>
+      <text x="495" y="115" fill="#ffb454" font-size="13" text-anchor="middle">code tool</text>
+      <text x="495" y="132" fill="#8b97a7" font-size="11" text-anchor="middle">plots, QR, rendered figs</text>
+
+      <rect x="420" y="164" width="150" height="52" rx="10" fill="#1c2530" stroke="#6ea8fe"/>
+      <text x="495" y="187" fill="#6ea8fe" font-size="13" text-anchor="middle">generate image</text>
+      <text x="495" y="204" fill="#8b97a7" font-size="11" text-anchor="middle">(condition on tool output)</text>
+
+      <rect x="420" y="236" width="150" height="52" rx="10" fill="#1c2530" stroke="#c7a4ff"/>
+      <text x="495" y="259" fill="#c7a4ff" font-size="13" text-anchor="middle">Muse Spark handoff</text>
+      <text x="495" y="276" fill="#8b97a7" font-size="11" text-anchor="middle">heavier reasoning</text>
+
+      <rect x="650" y="110" width="150" height="76" rx="10" fill="#16241f" stroke="#7ee0c0"/>
+      <text x="725" y="142" fill="#7ee0c0" font-size="14" text-anchor="middle" font-weight="700">self-critique</text>
+      <text x="725" y="162" fill="#8b97a7" font-size="12" text-anchor="middle">edit / regen / tool?</text>
+
+      <rect x="650" y="20" width="150" height="52" rx="10" fill="#1c2530" stroke="#2a3340"/>
+      <text x="725" y="50" fill="#d7dee8" font-size="14" text-anchor="middle">final image</text>
+
+      <line x1="140" y1="148" x2="196" y2="148" stroke="#6ea8fe" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="350" y1="128" x2="416" y2="52" stroke="#6ea8fe" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="350" y1="140" x2="416" y2="118" stroke="#6ea8fe" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="350" y1="158" x2="416" y2="186" stroke="#6ea8fe" stroke-width="2" marker-end="url(#arr)"/>
+      <line x1="350" y1="172" x2="416" y2="258" stroke="#6ea8fe" stroke-width="1.5" marker-end="url(#arr)"/>
+      <line x1="570" y1="190" x2="646" y2="155" stroke="#6ea8fe" stroke-width="2" marker-end="url(#arr)"/>
+      <path d="M 650 130 C 600 105, 420 80, 355 132" fill="none" stroke="#c7a4ff" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arr)"/>
+      <text x="500" y="86" fill="#c7a4ff" font-size="11.5" transform="rotate(-3 500 86)">refine loop (local edit / regenerate / new tool call)</text>
+      <line x1="725" y1="110" x2="725" y2="76" stroke="#7ee0c0" stroke-width="2" marker-end="url(#arr)"/>
+      <text x="738" y="97" fill="#8b97a7" font-size="11.5">accept</text>
+    </svg>
+    <div class="cap">The Muse Image rollout: reasoning selects among tools, generation, and self-critique; the loop repeats until the model accepts its own output. Every arrow is a policy decision that RL can shape.</div>
+
+    <h3>Why tools inside the sampler matter</h3>
+    <ul>
+      <li><strong>Code as a renderer:</strong> text-in-image, charts, and QR codes are notoriously hard for pure diffusion/AR decoders because they require <em>exact</em> symbolic structure. Rendering them with code and conditioning the generator on the rendered figure sidesteps the hardest failure mode instead of scaling past it.</li>
+      <li><strong>Search as grounding:</strong> real-time facts and reference images make the model robust to knowledge cutoff — the same retrieval-vs-parametric-knowledge trade-off as RAG (Day 4 §4), applied to pixels.</li>
+      <li><strong>Model handoff:</strong> calling Muse Spark for hard reasoning is a compound-AI-system design: specialize components, route by difficulty <em>(inference: likely a learned or heuristic router — good question to ask them)</em>.</li>
+    </ul>
+
+    <div class="callout frontier">
+      <span class="label">◆ Frontier trick</span>
+      "Conditioning on rendered figures" means the tool output re-enters the context as an <em>image</em>. That requires an any-to-any backbone that treats interleaved text/image tokens uniformly — consistent with Muse Image "extending the Muse Spark architecture" <em>(inference: a unified multimodal transformer with a visual tokenizer, not a bolted-on diffusion head; connects to your VLM_VLA_Unified_Omni notes)</em>.
+    </div>
+
+    <h2 class="section" id="s3">§3 · RL &amp; emergent self-refinement</h2>
+
+    <p>Meta's most interesting claim: self-refinement <strong>was not designed — it emerged during RL</strong>. This is the image-generation analogue of "wait, let me reconsider" behaviors emerging in reasoning-model RL.</p>
+
+    <h3>The objective (inference: standard frontier recipe)</h3>
+    <p>Treat the whole rollout $\tau$ (reasoning + tool calls + generations + critiques) as one trajectory and optimize a KL-regularized objective:</p>
+    $$\max_\theta \; \mathbb{E}_{\tau \sim \pi_\theta}\!\left[ r(\tau) \right] \;-\; \beta\, \mathrm{KL}\!\left(\pi_\theta \,\|\, \pi_{\mathrm{ref}}\right)$$
+    <p>With a group-relative estimator (your GRPO prep transfers directly): sample $G$ rollouts per prompt, and use</p>
+    $$A_i = \frac{r_i - \mathrm{mean}(r_{1..G})}{\mathrm{std}(r_{1..G})}$$
+    <p>Why refinement <em>emerges</em>: if a trajectory that inserts a critique-then-edit step earns higher reward than one that stops early, the advantage signal reinforces the whole habit — no explicit "self-correct" supervision needed. The credit-assignment question (which step in a long rollout earned the reward?) is exactly your GAE/advantage material.</p>
+
+    <h3>The hard part: the reward is not verifiable</h3>
+    <ul>
+      <li>Image quality has no unit test. The reward is <em>(inference)</em> a blend of learned preference/aesthetic reward models, instruction-faithfulness scorers (e.g., VLM-judges checking object counts, spatial relations, text rendering), and verifiable sub-rewards where possible (does the QR code scan? does the plot match the data?).</li>
+      <li><strong>Reward hacking risk:</strong> a preference RM rewards glossy, high-contrast images → the policy drifts toward "AI look" regardless of the instruction. Mitigations: RM ensembles, fresh human data, KL anchor, adversarial probing of the RM.</li>
+      <li>Notice the elegant loophole: <em>tool-based sub-rewards are verifiable</em>. Code output either matches or it doesn't. Pushing generation through tools converts an unverifiable-reward problem into a partially verifiable one <em>(inference — but a strong hypothesis to offer in the interview)</em>.</li>
+    </ul>
+
+    <div class="callout practice">
+      <span class="label">⚙ In practice</span>
+      If asked "how would you RL-train an image model?", structure the answer: (1) define the action space (tokens? tool calls? full rollout?), (2) define reward (preference RM + faithfulness judges + verifiable tool checks), (3) pick the estimator (GRPO/RLOO for group baselines — cite your RL pack), (4) name the failure modes (reward hacking, mode collapse onto safe styles, critique loops that never terminate) and the guards (KL, max-turn budget, RM refresh).
+    </div>
+
+    <h2 class="section" id="s4">§4 · Test-time compute scaling</h2>
+
+    <p>Meta reports an <strong>≈ log-linear</strong> relationship between inference compute and quality, and that deliberate (sequential) reasoning beats best-of-N. The intuition, made quantitative:</p>
+
+    <h3>Best-of-N flattens</h3>
+    <p>Model per-sample quality as i.i.d. $q_i \sim \mathcal{N}(\mu, \sigma^2)$ and pick the best of $N$. Extreme-value theory gives</p>
+    $$\mathbb{E}\!\left[\max_{i \le N} q_i\right] \;\approx\; \mu + \sigma\sqrt{2 \ln N}$$
+    <p>so doubling compute buys ever-shrinking gains ($\sqrt{\ln N}$), and — crucially — BoN can never exceed the ceiling of the base distribution's support. It only <em>selects</em>; it doesn't <em>improve</em>.</p>
+
+    <h3>Sequential refinement compounds</h3>
+    <p>Each refinement step conditions on the previous attempt and its critique, shifting the sampling distribution itself: $\mu_{t+1} > \mu_t$. If each round fixes a constant fraction of remaining defects, quality follows $Q(C) \approx a + b \ln C$ — genuinely log-linear, and unbounded by the base distribution.</p>
+
+    <div class="chartbox"><canvas id="ttcChart"></canvas></div>
+    <div class="cap">Illustrative curves (not Meta's data): sequential refinement $a + b\ln C$ vs best-of-N $\mu + \sigma\sqrt{2\ln N}$, matched at $C{=}1$. The gap widens with compute — this is Meta's "deliberate reasoning outperforms best-of-N" claim.</div>
+
+    <div class="callout keyidea">
+      <span class="label">Key idea — the production trade-off</span>
+      Instagram-scale serving means test-time compute is a <em>product dial</em>, not free lunch: latency budget per generation, compute cost per user, and quality all trade off. Expect questions like "how much test-time compute would you spend, and how do you decide per-request?" — answer with adaptive allocation: spend more when the critique model flags defects, less when the first sample passes.
+    </div>
+
+    <h2 class="section" id="s5">§5 · Muse Video &amp; the open problems Meta named</h2>
+
+    <ul>
+      <li><strong>Same pretraining base as Muse Image</strong> — one multimodal foundation, two heads of capability. This is the strongest public hint about MSL's unified-stack strategy and a natural bridge to multimodal scaling-law discussion: how do you set the image/video/text data mixture when one base must serve all three?</li>
+      <li><strong>Native audio</strong> — generated jointly, not dubbed on. Open problem #1: <strong>audio–video synchronization</strong> (lip-sync, contact sounds landing on the frame where contact happens).</li>
+      <li>Open problem #2: <strong>physically accurate fast motion</strong> — fast dynamics are exactly where frame-level pixel prediction is weakest, because appearance changes fast while the underlying dynamics stay low-dimensional.</li>
+    </ul>
+
+    <div class="callout frontier">
+      <span class="label">◆ Frontier trick — your LatentFusion hook</span>
+      "Physically accurate fast motion" is a latent-dynamics argument: predicting in a representation space (video-JEPA style) rather than pixel space regularizes toward plausible dynamics instead of photometric detail. That is precisely your LatentFusion proposal — an LLM predicting in frozen video-JEPA latent space. When Muse Video's weaknesses come up, this is your opening to pitch it.
+    </div>
+
+    <h2 class="section" id="s6">§6 · Content Seal — provenance watermarking</h2>
+    <ul>
+      <li>Invisible signal embedded in every generation; Meta claims robustness to <strong>cropping, compression, resizing, and screenshots</strong>, with a public detection tool.</li>
+      <li>Technical framing <em>(inference)</em>: a watermark is a code embedded in perceptually-null directions; robustness = surviving the distortion channel (crop/resize/JPEG). The screenshot claim is the strong one — it implies robustness to display re-render + recapture, so the signal must live in low-frequency, geometry-tolerant features rather than pixel-exact patterns.</li>
+      <li>Eval question worth raising: robustness under <em>adversarial</em> removal (regeneration attacks — running the image through another model) vs benign transforms. Benign robustness is largely solved; adversarial is not.</li>
+    </ul>
+
+    <h2 class="section" id="s7">§7 · Interview angles &amp; questions to ask them</h2>
+
+    <h3>Where this connects to your prep</h3>
+    <table>
+      <thead><tr><th>Muse fact</th><th>Your material</th><th>The bridge</th></tr></thead>
+      <tbody>
+        <tr><td>Self-refinement emerged from RL</td><td>RL pack (REINFORCE, GRPO, RLOO, GAE)</td><td>Emergence = advantage signal reinforcing critique steps; credit assignment over long rollouts.</td></tr>
+        <tr><td>Log-linear test-time scaling; beats BoN</td><td>Sampling &amp; BoN drills (Day 6 / Fundamentals)</td><td>BoN selects ($\sqrt{\ln N}$, bounded); refinement shifts the distribution ($\ln C$, unbounded).</td></tr>
+        <tr><td>Tools in the generative loop</td><td>Day 4 agents &amp; tool use</td><td>Generation as policy rollout; verifiable sub-rewards via tools.</td></tr>
+        <tr><td>One pretraining base → image + video</td><td>Science of MM Data / scaling laws</td><td>Data mixture allocation across modalities under one compute budget; transfer between image and video.</td></tr>
+        <tr><td>AV sync + fast-motion physics unsolved</td><td>LatentFusion / video-JEPA proposal</td><td>Latent-space prediction regularizes dynamics; pitch it here.</td></tr>
+        <tr><td>Arena Elo #2/#2/#2</td><td>Day 3 eval design</td><td>Bradley–Terry mechanics, preference-eval failure modes, aesthetics vs faithfulness.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Questions that make you look like a colleague</h3>
+    <ol>
+      <li>How is the reward decomposed between preference RMs and verifiable tool-based checks — and did verifiable sub-rewards accelerate the emergence of self-refinement?</li>
+      <li>How do you decide per-request test-time compute at Instagram scale — fixed budget, or adaptive based on critique confidence?</li>
+      <li>For multi-image editing, how do you measure <em>edit locality</em> (that the model changed only what was asked)?</li>
+      <li>Does image↔video transfer show up in the scaling laws for the shared base — is video data improving image quality per FLOP?</li>
+      <li>Is fast-motion physical accuracy a data problem, an architecture problem, or an objective problem in your view?</li>
+    </ol>
+
+    <h2 class="section" id="s8">§8 · Self-test</h2>
+    <p class="hint">Answer out loud before revealing. These are phrased the way an interviewer would ask them.</p>
+
+    <div class="qa"><div class="q">Why does best-of-N sampling flatten while sequential refinement keeps scaling?<span class="chev">▶</span></div>
+      <div class="a">BoN draws i.i.d. samples and selects: $\mathbb{E}[\max] \approx \mu + \sigma\sqrt{2\ln N}$, so gains shrink like $\sqrt{\ln N}$ and are bounded by the base distribution's support — the model never gets better, you just search it. Sequential refinement conditions each attempt on the last attempt plus a critique, shifting the sampling distribution itself ($\mu_{t+1} > \mu_t$), giving $\approx a + b\ln C$ growth that isn't bounded by the base distribution. That's why Meta's "deliberate reasoning" beats BoN at matched compute.</div>
+    </div>
+
+    <div class="qa"><div class="q">Meta says self-refinement "emerged" from RL. Mechanistically, how does a behavior emerge without explicit supervision?<span class="chev">▶</span></div>
+      <div class="a">The rollout includes optional critique/edit actions in the action space. Occasionally the policy samples them; when a critique-then-edit trajectory scores higher reward than stopping early, its (group-relative) advantage is positive and every action in it — including the critique — gets upweighted. Repeated over training, the habit consolidates. Requirements: the action space must permit the behavior, exploration must occasionally hit it, and the reward must actually prefer refined outputs. Same mechanism as "wait, let me reconsider" emerging in reasoning-model RL.</div>
+    </div>
+
+    <div class="qa"><div class="q">How would you build a reward signal for image generation, where there's no ground truth?<span class="chev">▶</span></div>
+      <div class="a">Layer it: (1) learned preference/aesthetic RM from human pairwise data (Bradley–Terry fit); (2) instruction-faithfulness judges — a VLM checking countable claims (object counts, spatial relations, rendered text); (3) verifiable sub-rewards where tools apply (QR scans, plot matches data); (4) KL anchor to a reference policy to bound reward hacking. Then name the failure mode unprompted: preference RMs reward glossiness → style collapse; mitigate with RM ensembles, data refresh, and adversarial RM probing.</div>
+    </div>
+
+    <div class="qa"><div class="q">Why route text/charts/QR codes through a code tool instead of scaling the generator until it renders text correctly?<span class="chev">▶</span></div>
+      <div class="a">Exact symbolic structure (glyphs, axes, QR error-correction patterns) is a worst case for likelihood-trained decoders: errors are perceptually catastrophic but occupy tiny probability mass, so scaling attacks it inefficiently. A renderer is <em>exactly correct by construction</em> and its output re-enters the context as conditioning. Bonus: tool outputs are verifiable, giving clean reward signal in RL — you convert an unverifiable-reward problem into a partially verifiable one.</div>
+    </div>
+
+    <div class="qa"><div class="q">Muse Video's stated weaknesses are AV sync and fast motion. Why is fast motion specifically hard, and what's one research direction?<span class="chev">▶</span></div>
+      <div class="a">Fast motion maximizes pixel-space change per frame while the underlying state change stays low-dimensional — pixel-prediction objectives spend capacity on photometric detail rather than dynamics, and motion blur/large displacements break local correlations that convolutional/patch priors rely on. Direction: predict in a learned latent space (video-JEPA style) where dynamics are smooth and physics-relevant factors dominate, then decode — regularizing toward plausible dynamics instead of per-pixel fidelity. (Then pitch LatentFusion.)</div>
+    </div>
+
+    <div class="qa"><div class="q">Arena Elo ranks Muse Image #2. What are three reasons to distrust that number, and what would you add?<span class="chev">▶</span></div>
+      <div class="a">(1) Preference ≠ faithfulness: voters reward aesthetics; a model can rank high while following instructions worse. (2) Prompt-distribution bias: arena prompts are short/casual; production and professional use differ. (3) Elo is relative and non-stationary — it drifts as the model pool and voter pool change, and pairwise sampling isn't uniform. Add: instruction-faithfulness benchmarks with programmatic checks (counts, relations, text rendering), edit-locality metrics for editing, and stratified human evals by prompt category.</div>
+    </div>
+
+    <hr>
+    <p><a href="home.html">← Back to the hub</a> &middot; Also logged in <a href="Interview_QA_Log.html">Interview Q&amp;A Log</a></p>
+
+  </main>
+</div>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+  document.querySelectorAll('.qa').forEach(qa => {
+    qa.querySelector('.q').addEventListener('click', () => qa.classList.toggle('open'));
+  });
+
+  const progress = document.getElementById('progress');
+  const backTop = document.getElementById('backTop');
+  const tocLinks = document.querySelectorAll('nav.toc a');
+  const sections = [...document.querySelectorAll('[id]')].filter(el => [...tocLinks].some(a => a.getAttribute('href') === '#' + el.id));
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    progress.style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight) * 100) + '%';
+    backTop.style.display = h.scrollTop > 600 ? 'block' : 'none';
+    let current = null;
+    for (const s of sections) if (s.getBoundingClientRect().top < 120) current = s;
+    if (current) tocLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current.id));
+  });
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const N = 40;
+    const compute = Array.from({length: N}, (_, i) => Math.pow(2, i * 10 / (N - 1)));  // 1 .. 1024
+    const seq = compute.map(c => 1200 + 55 * Math.log(c));
+    const bon = compute.map(c => 1200 + 38 * Math.sqrt(2 * Math.log(Math.max(c, 1.0001))));
+    new Chart(document.getElementById('ttcChart'), {
+      type: 'line',
+      data: {
+        labels: compute.map(c => c.toFixed(0) + '×'),
+        datasets: [
+          { label: 'deliberate reasoning ≈ a + b·ln C', data: seq, borderColor: '#7ee0c0', pointRadius: 0, borderWidth: 2.5, tension: 0.3 },
+          { label: 'best-of-N ≈ μ + σ·√(2 ln N)', data: bon, borderColor: '#ffb454', borderDash: [7, 5], pointRadius: 0, borderWidth: 2.5, tension: 0.3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { labels: { color: '#d7dee8' } } },
+        scales: {
+          x: { title: { display: true, text: 'inference compute (× base, log-spaced)', color: '#8b97a7' }, ticks: { color: '#8b97a7', maxTicksLimit: 8 }, grid: { color: '#1c2530' } },
+          y: { title: { display: true, text: 'quality (illustrative Elo)', color: '#8b97a7' }, ticks: { color: '#8b97a7' }, grid: { color: '#1c2530' } }
+        }
+      }
+    });
+  });
+</script>
+</body>
+</html>

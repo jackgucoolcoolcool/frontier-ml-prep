@@ -144,6 +144,43 @@
 </table>
 <div class="callout watch"><strong>Why the taxonomy matters:</strong> each family has a different scaling exponent and saturation point. Averaging them ("we have 10B pairs") destroys the signal. The unit of study is the <em>family × quality-tier</em> cell, not the corpus.</div>
 
+<h3 id="i2b">I.2b · The interleaved pipeline — from raw crawl to training sequence</h3>
+<p>The "interleaved docs" row above is manufactured by a specific pipeline (MMC4 / OBELICS / OmniCorpus lineage). The whole game is <strong>preserving where each image sits in the document flow</strong> — that positional structure is the thing alt-text pairs don't have, and it's what teaches in-context multimodal ability (Flamingo's M3W was the proof).</p>
+<ol>
+<li><strong>Acquire — WARC, never WET.</strong> Common Crawl ships two formats: WET (pre-extracted text — images already gone, useless here) and WARC (raw HTTP responses with full HTML). Start from WARC, or run your own crawler (URL frontier, robots.txt, per-domain politeness). URL-level triage first, it's nearly free: domain blocklists (adult/spam/SEO farms), URL dedup across snapshots, fastText language ID.</li>
+<li><strong>Parse — the interleaving is born here.</strong> HTML → DOM tree; main-content detection strips nav/ads/comments/footers <em>while preserving node order</em>; a reading-order DOM walk emits the skeleton <code>[text, text, IMG, text, IMG, …]</code>. Contrast: MMC4 had to <em>reconstruct</em> interleaving post-hoc by CLIP-matching images to C4 sentences (positions were already lost); OBELICS/OmniCorpus keep DOM order natively — strictly better provenance.</li>
+<li><strong>Image path.</strong> Resolve real image URLs (srcset variants, lazy-load attributes — naive <code>src</code> misses a large fraction); fleet-scale fetch with politeness and retries (expect ~30–40% dead links); decode-validate; content-hash everything. Then image filters: min-size/aspect-ratio (kills icons and banner ads), NSFW + CSAM hash matching (non-negotiable), ad/logo heuristics, EXIF stripping.</li>
+<li><strong>Document path.</strong> Text-quality rules (Gopher-style stats, perplexity filters), bounds on images-per-doc and image:text ratio (a page with 40 images and 50 words is a gallery or a shop, not a document), spam/SEO scoring.</li>
+<li><strong>Dedup + decontamination.</strong> Text: MinHash-LSH near-dup at doc level. Images: pHash + embedding-NN — and eval decontamination <em>in image space</em> (Project A's P3: the same benchmark figure arrives as screenshot, crop, PDF render, re-encode; text dedup is blind to all of them).</li>
+<li><strong>Assembly + alignment scoring.</strong> Re-attach surviving images at their DOM positions; score CLIP(image, surrounding text) to drop off-topic stragglers (ads that survived heuristics); doc-level coherence gate. Dropping an image ≠ dropping the doc — the text keeps its slot order.</li>
+<li><strong>Serialize.</strong> Tokenize with <code>&lt;image&gt;</code> placeholders pointing at image tensors; pack docs into sequences under a per-sequence image budget; shard (WebDataset/ArrayRecord); the family enters the mixture <em>with its own weight and its own release gates</em> (stats dashboards: images/doc, tokens/doc, dedup rates; then a proxy-run decision check).</li>
+</ol>
+<pre><code># Attrition is the defining statistic — the funnel is brutal:
+#   OBELICS: ~25 CC snapshots → 141M docs · 353M images · 115B tokens  (≈1% of candidate pages survive)
+#   OmniCorpus: same recipe industrialized → 2.2B docs · 8.6B images (multilingual, multi-source)
+# Every stage's reject rate is a *tunable quality knob* — and per I.2's taxonomy row,
+# the payoff is capacity-gated: near-zero at 300M, strongly positive at ≥3B.</code></pre>
+<figure>
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Interleaved data pipeline: WARC to packed training sequences">
+<defs><marker id="arW" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7ee0c0"/></marker></defs>
+<style>.bW{fill:#1c2530;stroke:#2a3340}.gW{fill:#16241f;stroke:#7ee0c0;stroke-opacity:.5}.pW{fill:#241a20;stroke:#f78fb3;stroke-opacity:.5}.tW{fill:#d7dee8;font:12.5px -apple-system,sans-serif}.mW{fill:#8b97a7;font:10.5px -apple-system,sans-serif}.lW{stroke:#7ee0c0;stroke-width:1.5;fill:none;marker-end:url(#arW)}</style>
+<rect class="bW" x="10" y="20" width="150" height="52" rx="9"/><text class="tW" x="24" y="42">WARC snapshots</text><text class="mW" x="24" y="60">not WET — keep the HTML</text>
+<rect class="bW" x="10" y="110" width="150" height="52" rx="9"/><text class="tW" x="24" y="132">URL triage</text><text class="mW" x="24" y="150">blocklists · lang ID · dedup</text>
+<rect class="gW" x="205" y="65" width="165" height="52" rx="9"/><text class="tW" x="219" y="87">DOM walk, order kept</text><text class="mW" x="219" y="105">[text, IMG, text, …] skeleton</text>
+<rect class="pW" x="415" y="20" width="150" height="52" rx="9"/><text class="tW" x="429" y="42">Image path</text><text class="mW" x="429" y="60">fetch · size/NSFW · pHash</text>
+<rect class="gW" x="415" y="110" width="150" height="52" rx="9"/><text class="tW" x="429" y="132">Doc path</text><text class="mW" x="429" y="150">quality · ratio · MinHash</text>
+<rect class="gW" x="415" y="210" width="150" height="60" rx="9"/><text class="tW" x="429" y="232">Assemble + align</text><text class="mW" x="429" y="250">CLIP img↔context; images</text><text class="mW" x="429" y="264">drop, slots keep order</text>
+<rect class="bW" x="205" y="210" width="160" height="60" rx="9"/><text class="tW" x="219" y="232">Pack &amp; shard</text><text class="mW" x="219" y="250">&lt;image&gt; placeholders,</text><text class="mW" x="219" y="264">img budget/seq · gates</text>
+<rect class="pW" x="610" y="110" width="100" height="52" rx="9"/><text class="tW" x="624" y="132">Decontam</text><text class="mW" x="624" y="150">image space</text>
+<line class="lW" x1="85" y1="72" x2="85" y2="106"/><line class="lW" x1="160" y1="136" x2="230" y2="112"/>
+<line class="lW" x1="370" y1="78" x2="411" y2="52"/><line class="lW" x1="370" y1="104" x2="411" y2="130"/>
+<line class="lW" x1="490" y1="72" x2="490" y2="106"/><line class="lW" x1="565" y1="136" x2="606" y2="136"/>
+<line class="lW" x1="660" y1="162" x2="590" y2="206"/><line class="lW" x1="415" y1="240" x2="369" y2="240"/>
+</svg>
+<figcaption>WARC → order-preserving DOM walk → parallel image/doc filtering → image-space decontamination → assembly (CLIP alignment; a dropped image never reorders the text) → packing under a per-sequence image budget. ~99% of candidate pages die in the funnel — each stage's reject rate is a quality knob with its own dose–response.</figcaption>
+</figure>
+<p><strong>The speakable summary:</strong> "Start from WARC because WET already threw the images away; extract with the DOM walk so interleaving is inherited, not reconstructed; run images and text down parallel filter paths; dedup and decontaminate in image space; re-attach and CLIP-gate images at their original slots; pack with placeholders under an image budget. The funnel keeps ~1% — and every reject threshold is a mixture-quality knob you can put a scaling law on."</p>
+
 <h2 class="section" id="i3">I.3 · Vision-encoder data science</h2>
 <p>The encoder sets the <em>ceiling</em> of perception; no post-training recovers detail the encoder discarded. It's the highest-leverage, least-reversible data decision.</p>
 <ul>
@@ -332,6 +369,65 @@ w* = argmax_w Σ_e λ_e Ŝ_e(w)  s.t. Σw=1, w_i≤cap_i, Ŝ_text(w)≥floor</co
 <div class="qa"><div class="q">P2 · House-style diversity collapse <span class="chev">▶</span></div><div class="a"><p>By round 3, captions converged on a template ("The image shows… In the foreground…"); corpus n-gram entropy fell every round; downstream models described everything in one register. Fixes: retrain the captioner to emit k registers per image (terse inventory / dense spatial / OCR-focused / narrative), sample register at training time; keep alt-text sampling as a diversity reservoir; make n-gram entropy and embedding dispersion release-gating metrics for every data drop.</p></div></div>
 <div class="qa"><div class="q">P3 · Anneal gains that didn't survive post-training <span class="chev">▶</span></div><div class="a"><p>Clean base-model gains; half the delta vanished after SFT+RL on chat evals. Diagnosis first: probe evals splitting <em>perception</em> (likelihood/forced-choice — format-free) from <em>expression</em> (chat format). Perception survived fully; expression was overwritten by SFT data <em>less dense than our anneal data</em>. Fix was downstream: regenerate a slice of SFT responses to inherit CapForge density. Rule shipped org-wide: <strong>an anneal gain isn't real until it survives your own post-training pipeline.</strong></p></div></div>
 <div class="qa"><div class="q">P4 · Fleet economics: is the 8× cheaper captioner 8× worse? <span class="chev">▶</span></div><div class="a"><p>Ran it as science: dose–response of downstream eval vs captioner tier at fixed tokens. Clean knee — the distilled captioner kept ~90% of value at ~15% of cost <em>except</em> on OCR-dense/fine-grained images. Shipped a router: cheap by default, big model for a trivially-detectable hard slice. <strong>~70% cost cut at ~97% of value.</strong> Also: fleet cost lived in the tail (mega-resolution images, 100-object scenes) — a caption-length cap and a downscale pass for the top-1% resolution tail cut another 25%.</p></div></div>
+
+<h3 id="pb4">B4 · The autorater recipe — how the caption judge is actually built</h3>
+<p>B1–B3 use the judge everywhere (tiering, planted-error gates, P1's self-preference fix) but the recipe deserves its own answer, because "how do I create an autorater for caption quality?" is a question I should be able to whiteboard end-to-end.</p>
+<div class="callout keyidea"><strong>Step 0 — the contract before any model:</strong> an autorater is defined by the <em>decision</em> it drives, not the score it emits. Filter/tier a billion captions → needs throughput + a threshold that's stable across styles. Rank captioners or pick best-of-k → needs pairwise reliability. Reward for RL/DPO → needs robustness to being optimized against (the hardest contract). Regression-gate a new captioner release → needs sensitivity to small deltas. Pick the contract first; it sets the architecture, the calibration bar, and the cost budget.</div>
+<h4>Step 1 · Decompose "quality" — never ask for a 1–10</h4>
+<p>A single scalar is noisy, miscalibrated, and hides the one tradeoff that matters: <strong>longer captions gain coverage and lose faithfulness</strong>. Score axes separately: <strong>precision</strong> (every claim true of the image — hallucination is 1−P), <strong>recall</strong> (salient content mentioned: objects, attributes, relations, counts, text-in-image), <strong>density</strong> (information per token), <strong>fluency/register compliance</strong>. VLM judges are much more reliable on binary atomic checks than on holistic Likert ratings — so make everything a binary check and aggregate.</p>
+<h4>Step 2 · The core mechanism: claim decomposition + VQA verification</h4>
+<pre><code># Precision side (hallucination):
+#   LLM decomposes caption → atomic claims  {"a red car", "car left of tree", "sign reads 'OPEN'", "3 people"}
+#   strong VLM verifies each claim against the image as binary VQA
+#   P = #verified / #claims                       (per-type: object | attribute | relation | count | OCR)
+# Recall side (coverage):
+#   build an image inventory INDEPENDENT of the candidate: detector + OCR outputs,
+#   or claims from human/reference captions, or the union of k diverse model captions
+#   R = #inventory items covered by caption / #inventory
+# Combine per the contract:  F_β = (1+β²)PR/(β²P+R)   — β&gt;1 for dense-caption training data,
+# but REPORT P and R separately; the scalar is for thresholding only.</code></pre>
+<p>This is the FaithScore / Davidsonian-scene-graph pattern. The independence of the recall inventory is the load-bearing detail — if the inventory comes from the same model family as the captions, coverage grades its own homework. Note CLIPScore's role: a <em>gate</em>, not a grade — it's bag-of-words-ish, saturates on dense captions, and is blind to compositional and counting errors.</p>
+<h4>Step 3 · Tier the compute; Step 4 · pairwise mode for ranking</h4>
+<p><strong>Throughput:</strong> frontier judge on everything is unaffordable at 10⁸–10⁹ scale. Distill: label 1–5M captions with the full claim-level pipeline, train a small scorer (regression head, or per-axis heads) on those labels, keep the frontier pipeline for audits, disagreement escalation, and re-labeling each generation — insight 7.7 applies: <em>the corpus becomes a distillation of this judge</em>, so the judge's blind spots become the data's blind spots. <strong>Ranking contract:</strong> use pairwise A/B judgments (swap order and average — position bias is real), aggregate with Bradley–Terry: p(A≻B)=σ(r_A−r_B); pairwise is markedly more human-consistent than absolute scores for close calls.</p>
+<h4>Step 5 · Validation — the judge is a model and gets a model's eval</h4>
+<ul>
+<li><strong>Gold set:</strong> 500–1k images with expert error annotations (or human edit-distance labels, as in v1). Metric: agreement with human majority vs the <em>human–human agreement ceiling</em> — a judge at 92% of a 95% ceiling is done; chasing 99% is fitting annotator noise.</li>
+<li><strong>Planted-error suite (the CapForge P1 gate):</strong> mutate known-good captions — swap a color, count ±1, invent an object, flip a spatial relation, corrupt the OCR string — judge must catch ≥ threshold per error type. Every judge release re-runs this; it's the judge's unit test.</li>
+<li><strong>Calibration audits:</strong> score-vs-length curve must be flat for equal-quality captions (length bias), per-register score distributions compared (style bias), and sibling-model outputs spot-audited by humans (self-preference — P1's failure was exactly this).</li>
+<li><strong>Decision-level validation, the only one that counts:</strong> train on rater-selected vs random-selected data at proxy scale — does the rater's selection beat random at equal tokens? A judge that correlates with humans but doesn't move downstream evals is measuring something real and irrelevant.</li>
+</ul>
+<h4>Step 6 · Failure modes to name unprompted</h4>
+<table>
+<tr><th>Bias</th><th>Symptom</th><th>Mitigation</th></tr>
+<tr><td>Length/verbosity</td><td>longer ⇒ higher score regardless of quality</td><td>claims-based P (per-claim, not per-caption); length-controlled comparisons</td></tr>
+<tr><td>Self-preference</td><td>judge prefers its own family's style (P1)</td><td>judge from a different lineage; re-anchor on human edits each round; triangulate judge ∧ OCR-check ∧ alignment</td></tr>
+<tr><td>Position (pairwise)</td><td>first/last answer favored</td><td>swap and average; discard inconsistent pairs</td></tr>
+<tr><td>Style-over-substance</td><td>fluent-but-wrong beats awkward-but-right</td><td>atomic-claim verification is the structural fix</td></tr>
+<tr><td>Reward hacking (RL contract)</td><td>policy finds judge's blind spots; scores ↑, humans say flat</td><td>frozen human-labeled holdout monitored for drift; judge ensembles; refresh judge on the policy's newest outputs</td></tr>
+</table>
+<figure>
+<svg viewBox="0 0 740 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Caption autorater pipeline: claims to precision, inventory to recall, validation loop">
+<defs><marker id="arJ" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7ee0c0"/></marker></defs>
+<style>.bJ{fill:#1c2530;stroke:#2a3340}.gJ{fill:#16241f;stroke:#7ee0c0;stroke-opacity:.5}.pJ{fill:#241a20;stroke:#f78fb3;stroke-opacity:.5}.tJ{fill:#d7dee8;font:12.5px -apple-system,sans-serif}.mJ{fill:#8b97a7;font:10.5px -apple-system,sans-serif}.lJ{stroke:#7ee0c0;stroke-width:1.5;fill:none;marker-end:url(#arJ)}</style>
+<rect class="bJ" x="10" y="20" width="140" height="52" rx="9"/><text class="tJ" x="24" y="42">Candidate caption</text><text class="mJ" x="24" y="60">from captioner vₖ</text>
+<rect class="bJ" x="10" y="110" width="140" height="52" rx="9"/><text class="tJ" x="24" y="132">Image</text><text class="mJ" x="24" y="150">+ detector, OCR outputs</text>
+<rect class="gJ" x="205" y="20" width="160" height="52" rx="9"/><text class="tJ" x="219" y="42">LLM → atomic claims</text><text class="mJ" x="219" y="60">object · attr · relation · count · OCR</text>
+<rect class="gJ" x="205" y="110" width="160" height="52" rx="9"/><text class="tJ" x="219" y="132">Independent inventory</text><text class="mJ" x="219" y="150">refs / detector / union of k models</text>
+<rect class="gJ" x="420" y="20" width="150" height="52" rx="9"/><text class="tJ" x="434" y="42">VLM binary VQA</text><text class="mJ" x="434" y="60">verify claim ⇒ P (faithfulness)</text>
+<rect class="gJ" x="420" y="110" width="150" height="52" rx="9"/><text class="tJ" x="434" y="132">Coverage check</text><text class="mJ" x="434" y="150">inventory hit-rate ⇒ R</text>
+<rect class="bJ" x="615" y="62" width="115" height="66" rx="9"/><text class="tJ" x="629" y="86">P, R, F_β</text><text class="mJ" x="629" y="104">→ tiers T0–T3 /</text><text class="mJ" x="629" y="118">rank / reward</text>
+<rect class="pJ" x="205" y="215" width="365" height="62" rx="9"/><text class="tJ" x="219" y="238">Validation loop — every judge release</text><text class="mJ" x="219" y="256">human gold set (vs annotator ceiling) · planted-error recall gate</text><text class="mJ" x="219" y="270">length/style/self-preference calibration · selected-vs-random proxy run</text>
+<line class="lJ" x1="150" y1="46" x2="201" y2="46"/><line class="lJ" x1="365" y1="46" x2="416" y2="46"/>
+<line class="lJ" x1="150" y1="136" x2="201" y2="136"/><line class="lJ" x1="365" y1="136" x2="416" y2="136"/>
+<line class="lJ" x1="570" y1="46" x2="611" y2="80"/><line class="lJ" x1="570" y1="136" x2="611" y2="112"/>
+<line class="lJ" x1="150" y1="126" x2="201" y2="56"/>
+<path class="lJ" d="M615 128 C 590 180, 580 200, 572 212"/>
+<path class="lJ" d="M205 246 C 100 246, 80 200, 80 166"/>
+<text class="mJ" x="90" y="238">audit failures → re-anchor judge</text>
+</svg>
+<figcaption>The autorater as a system: precision from claim-level VQA, recall from an inventory the candidate didn't write, a distilled scorer for fleet throughput (not shown), and a validation loop — gold set, planted errors, calibration audits, decision-level proxy runs — that gates every judge release. The judge is a model; it gets a model's eval.</figcaption>
+</figure>
+<p><strong>The speakable summary:</strong> "Decompose quality into binary claim checks — precision from VQA verification, recall against an independent inventory — distill a cheap scorer from the expensive pipeline for fleet scale, and treat the judge itself as a model under eval: human-agreement vs the annotator ceiling, a planted-error unit-test suite on every release, calibration audits for length/style/self-preference, and the only validation that finally counts — data it selects must beat random selection in a proxy training run. And remember 7.7: whatever this judge can't see, your corpus will silently optimize for."</p>
 
 <!-- ==================== PART III ==================== -->
 <div class="partband gr" id="part3"><h2>PART III · Scaling-Law Mechanics — how the laws were actually developed</h2><p>Data, model size, and learning rate. The layer for "okay, but how exactly did you fit it?"</p></div>
@@ -688,4 +784,51 @@ addEventListener('scroll',()=>{const h=document.documentElement,st=h.scrollTop,s
 let cur='';for(const s of secs){if(s.getBoundingClientRect().top<160)cur=s.id;}links.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+cur));});
 bt.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
 </script>
+<!-- MUSE-MSL-NEWS-2026-07 -->
+<section id="muse-msl-2026" style="max-width:880px;margin:48px auto 24px;padding:24px 26px;background:#161b22;border:1px solid #2a3340;border-left:4px solid #7ee0c0;border-radius:12px;color:#d7dee8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;font-size:15px;">
+  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+    <span style="background:#7ee0c0;color:#0f1419;font-size:11px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:999px;">NEW &middot; JUL 7 2026</span>
+    <h2 style="margin:0;font-size:19px;color:#d7dee8;">Meta MSL: Muse Image &amp; Muse Video</h2>
+  </div>
+  <p style="margin:12px 0 6px;color:#8b97a7;">Meta Superintelligence Labs (MSL) shipped its first media-generation models — directly relevant to the vision-team interview.
+    <a href="https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/" style="color:#6ea8fe;">Official announcement &rarr;</a> &middot; <a href="Meta_Muse_MSL_Deep_Dive.html" style="color:#6ea8fe;">Full deep dive &rarr;</a></p>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">What was announced</h3>
+  <ul style="margin:0 0 4px;padding-left:20px;">
+    <li><b>Muse Image</b> (live) — an <i>agentic</i> image model, not a direct prompt&rarr;image mapper. It reasons before generating and extends the <b>Muse Spark</b> architecture (MSL's proprietary reasoning model, Meta's first post-Llama foundation model).</li>
+    <li><b>Tool use inside the generative loop</b>: executes <b>code</b> (accurate plots, QR codes, conditioning on rendered figures) and calls <b>web search</b> to ground outputs in real-time facts and visual references; can hand off to Muse Spark for heavier reasoning.</li>
+    <li><b>Emergent self-refinement</b>: during RL post-training the model learned — without being explicitly designed to — to critique its own output inside the reasoning chain, then locally edit, fully regenerate, or apply a tool.</li>
+    <li><b>Test-time compute scaling</b>: quality improves <b>&asymp; log-linearly</b> with inference compute; deliberate sequential reasoning beats best-of-N sampling at matched compute.</li>
+    <li><b>Editing &amp; composition</b>: precision single/multi-image editing, multi-reference composition with interleaved text+images.</li>
+    <li><b>Muse Video</b> (preview) — same pretraining base, native audio; open problems Meta names: audio-video sync and physically accurate fast motion.</li>
+    <li><b>Benchmarks</b> (Arena Elo, Jul 5 2026): #2 text-to-image, #2 single-image editing, #2 multi-image editing; Muse Video #3 text-to-video.</li>
+    <li><b>Content Seal</b>: invisible provenance watermark robust to crop / compression / resize / screenshots, with a public detector.</li>
+    <li><b>Distribution</b>: Meta AI app, meta.ai, Instagram Stories (US), WhatsApp; Instagram integration (reimagine photos, create with friends, personalized presets).</li>
+  </ul>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Test-time compute: deliberate reasoning vs best-of-N</h3>
+  <p style="margin:0 0 8px;color:#8b97a7;">Sequential self-refinement compounds — each step conditions on the previous attempt — so quality grows roughly <span style="font-family:ui-monospace,Menlo,monospace;color:#d7dee8;">Q(C) &asymp; a + b&middot;log C</span>. Best-of-N only takes the max of independent draws, so its gains flatten (extreme-value scaling &asymp; a + b&middot;log log N).</p>
+  <svg viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:560px;display:block;background:#11161d;border:1px solid #2a3340;border-radius:8px;">
+    <line x1="50" y1="180" x2="530" y2="180" stroke="#2a3340" stroke-width="1.5"/>
+    <line x1="50" y1="180" x2="50" y2="20" stroke="#2a3340" stroke-width="1.5"/>
+    <text x="290" y="205" fill="#8b97a7" font-size="12" text-anchor="middle">inference compute (log scale)</text>
+    <text x="20" y="100" fill="#8b97a7" font-size="12" text-anchor="middle" transform="rotate(-90 20 100)">quality (Elo)</text>
+    <path d="M 60 165 C 180 120, 340 75, 520 35" fill="none" stroke="#7ee0c0" stroke-width="2.5"/>
+    <path d="M 60 168 C 180 140, 340 122, 520 112" fill="none" stroke="#ffb454" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <text x="368" y="52" fill="#7ee0c0" font-size="12">deliberate reasoning (&asymp; log-linear)</text>
+    <text x="380" y="138" fill="#ffb454" font-size="12">best-of-N (flattens)</text>
+  </svg>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Interview angles (vision team)</h3>
+  <ul style="margin:0;padding-left:20px;">
+    <li><b>RL on generation</b>: self-refinement emerged from RL, not supervision — connect to your REINFORCE/GRPO prep; discuss reward design for non-verifiable objectives (human-preference Elo, aesthetics vs instruction faithfulness) and reward hacking risk.</li>
+    <li><b>Test-time scaling for images</b>: mirrors LLM reasoning scaling; be ready to argue <i>why</i> sequential refinement beats best-of-N (conditioning on failure modes vs i.i.d. resampling) and the prod latency/compute trade-off at Instagram scale.</li>
+    <li><b>Agentic generation</b>: search-grounded and code-conditioned generation = tool use inside the sampler; ties to your agents material (Day 4) and unified any-to-any model notes.</li>
+    <li><b>Unified stack &amp; data</b>: Muse Spark &rarr; Muse Image &rarr; Muse Video share pretraining; strong hook for multimodal scaling-law discussion (your Science-of-MM-Data material) — image and video from one base, what does the data mixture look like?</li>
+    <li><b>Video open problems</b>: AV sync + fast-motion physics — natural bridge to your video-JEPA / LatentFusion proposal (physical plausibility in latent space).</li>
+    <li><b>Provenance</b>: watermark robustness under crop/compress/screenshot — good safety/eval talking point.</li>
+  </ul>
+</section>
+<!-- /MUSE-MSL-NEWS-2026-07 -->
+
 </body></html>

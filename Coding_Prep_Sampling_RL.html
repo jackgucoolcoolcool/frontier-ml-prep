@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>the interviewer Coding Round — Sampling &amp; RL Cheat Sheet (NumPy)</title><style>
+:root{--bg:#0f1419;--panel:#161b22;--text:#d7dee8;--muted:#8b97a7;--accent:#6ea8fe;--accent-2:#7ee0c0;--warn:#ffb454;--pink:#f78fb3;--border:#2a3340;--code:#11161d;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.55;font-size:15.5px}
+main{max-width:900px;margin:0 auto;padding:28px 28px 90px}
+h1{font-size:24px;margin:0 0 6px}h2{font-size:19px;color:var(--accent-2);border-bottom:1px solid var(--border);padding-bottom:6px;margin:30px 0 10px}
+h3{font-size:15.5px;color:var(--accent);margin:18px 0 6px}
+pre{background:var(--code);border:1px solid var(--border);border-radius:10px;padding:13px 15px;overflow-x:auto;font-size:12.8px;line-height:1.5}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;color:#e8c98a;background:var(--code);padding:1px 5px;border-radius:4px;font-size:12.8px}
+pre code{padding:0;color:#c7d3e0}
+.trap{color:var(--pink);font-weight:600}.say{border-left:3px solid var(--accent-2);background:rgba(126,224,192,.06);padding:8px 12px;margin:8px 0;border-radius:0 8px 8px 0;font-size:14px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0}th,td{border:1px solid var(--border);padding:6px 10px;text-align:left}th{background:#1f2937}
+.pill{display:inline-block;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-size:12px;color:var(--muted);margin-right:6px}
+strong{color:#f0f4f9}
+</style></head><body><main>
+<h1>the interviewer coding round — Sampling &amp; RL <span style="color:var(--accent-2);font-size:16px">(pure NumPy)</span></h1>
+<p style="color:var(--muted);margin:4px 0 14px"><span class="pill">write-from-blank skeletons</span><span class="pill">trap lines marked</span><span class="pill">say-aloud per block</span></p>
+
+<h2>0 · The two helpers everything reuses</h2>
+<pre><code>import numpy as np
+rng = np.random.default_rng(0)                 # ONE generator, module scope — never inside a fn (#46)
+
+def softmax(z, axis=-1):
+    z = z - z.max(axis=axis, keepdims=True)    # stability: exp arg ≤ 0
+    e = np.exp(z)
+    return e / e.sum(axis=axis, keepdims=True)
+
+def log_softmax(z, axis=-1):
+    z = z - z.max(axis=axis, keepdims=True)
+    return z - np.log(np.exp(z).sum(axis=axis, keepdims=True))   # never np.log(softmax(z)) (#7)</code></pre>
+
+<h2>1 · The sampler (single most likely ask)</h2>
+<pre><code>def sample(logits, temperature=1.0, top_k=None, top_p=None):
+    # logits: (V,) raw scores at the last position
+    logits = logits.astype(float).copy()           # we mutate; don't alias caller's array (#29)
+    if temperature == 0:
+        return int(logits.argmax())                # greedy shortcut, no div-by-0
+    logits = logits / temperature                  # TRAP: on LOGITS, pre-softmax (#23)
+    if top_k is not None:
+        kth = np.sort(logits)[-top_k]              # np.sort is ASCENDING: [-k] = k-th largest (#27!)
+        logits[logits &lt; kth] = -np.inf             # TRAP: -inf, never 0 (#45)
+    if top_p is not None:
+        order = np.argsort(logits)[::-1]           # descending by prob
+        p = softmax(logits[order])
+        cum = np.cumsum(p)
+        drop = cum - p &gt; top_p                     # TRAP: keep the token that CROSSES p
+        logits[order[drop]] = -np.inf              # (cum − p = mass strictly BEFORE each token)
+    return int(rng.choice(len(logits), p=softmax(logits)))   # softmax renormalizes survivors</code></pre>
+<div class="say"><b>Say:</b> temperature exponentiates (p<sup>1/τ</sup> renormalized) — dividing <i>probs</i> by τ is a no-op after renorm. Top-k masks with −inf because 0 is a <i>mid-sized logit</i> (e<sup>0</sup>=1 → rank-31k tokens leak). <code>np.sort</code> is ascending — <code>[-k]</code> not <code>[k]</code> (the kNN #27 trap). Top-p beats fixed k because the kept set adapts: peaked → few tokens, flat → many. RNG at module scope: a fresh <code>default_rng(42)</code> per call = identical completions (#46).</div>
+
+<h3>KV-cache generation loop (if extended)</h3>
+<pre><code>def generate(model, ids, max_new, cache):
+    for _ in range(max_new):
+        logits = model(ids[-1:], cache)            # only the LAST token; cache holds the rest
+        ids = np.append(ids, sample(logits[-1], temperature=0.8, top_p=0.95))
+    return ids
+# equivalence test: cached greedy decode == full-context forward, token-for-token
+# RoPE trap: pos = len(cache.K) read ONCE, same pos for q and k; append AFTER attending
+# sliding window: K[-w:] keeps recent; K[:-w] keeps ANCIENT (the #66 inversion)</code></pre>
+<div class="say"><b>Beam search bullets</b> (if asked): sum of log-probs, length-normalize by |y|<sup>α</sup> (else short bias), retire beams at EOS into a done-list, wrong tool for open-ended generation.</div>
+
+<h2>2 · Sequence log-prob (the glue every RL loss needs)</h2>
+<pre><code>def sequence_logp(logits, ids, prompt_len):
+    # logits: (T, V) for one sequence; ids: (T,) token ids
+    logp = log_softmax(logits[:-1])                # position t predicts token t+1 (#33 shift)
+    tok = logp[np.arange(len(ids) - 1), ids[1:]]   # (T-1,) fancy-index gather (Q91)
+    mask = np.arange(len(tok)) &gt;= prompt_len - 1   # response tokens only; prompt+pads out (#34)
+    return (tok * mask).sum()                      # SUM — no length normalization
+# batched: logp[np.arange(B)[:,None], np.arange(T-1)[None,:], ids[:,1:]] → (B, T-1)</code></pre>
+
+<h2>3 · RLOO (your headline algorithm — pack 6.5)</h2>
+<pre><code>def rloo_advantages(R):                            # R: (G,) terminal rewards of a group
+    G = len(R)
+    baseline = (R.sum() - R) / (G - 1)             # leave-one-out mean: excludes own reward
+    return R - baseline
+
+# training step (conceptual — the autograd part is one line in any framework):
+#   adv = rloo_advantages(R)                       # constants w.r.t. θ (detached)
+#   loss = -(adv * seq_logp).mean()                # seq_logp = Σ response-token logps per episode</code></pre>
+<div class="say"><b>Say:</b> baseline is action-independent (built from the OTHER G−1 rollouts) → unbiased; variance drops without a critic. <b>Sum, not mean, over tokens</b> — length-normalizing re-weights episodes by 1/|τ|. Multi-turn: same loss, seq_logp = Σ over all turns' policy tokens, each scored against the context it saw, tool tokens masked (Q88) — RLOO has no per-turn credit to lose, so multi-turn IS single-turn. On-policy: the group must be sampled fresh from the current π, at the SAME temperature you score with.</div>
+
+<h3>GRPO advantage (contrast, 2 lines)</h3>
+<pre><code>adv = (R - R.mean(-1, keepdims=True)) / (R.std(-1, keepdims=True) + 1e-8)   # per-PROMPT group
+# caveats to volunteer: σ-division distorts (easy/hard prompts re-weighted — pack 7.7);
+# normalize per prompt, NEVER across the whole batch (v1 #48: easy prompts hijack);
+# all-same-reward group → adv ≈ 0/ε — degenerate group, skip it</code></pre>
+
+<h2>4 · PPO clip · DPO · GAE (the follow-up trio)</h2>
+<pre><code>def ppo_loss(logp, old_logp, adv, eps=0.2):
+    ratio = np.exp(logp - old_logp)                # old_logp SAVED at rollout time — constant (#25)
+    return -np.minimum(ratio * adv, np.clip(ratio, 1 - eps, 1 + eps) * adv).mean()
+    # ratio = the off-policy correction for minibatch reuse; clip = trust region
+
+def dpo_loss(pi_w, pi_l, ref_w, ref_l, beta=0.1):  # all: (B,) summed response logps
+    margin = beta * ((pi_w - ref_w) - (pi_l - ref_l))
+    return np.logaddexp(0, -margin).mean()         # -logsigmoid(m) = softplus(-m), stable (Q68)
+    # 0.693 = ln2 = -log σ(0) → ref is aliased/re-synced to policy (#49, v2-23)
+    # log BOTH pi_w and pi_l: margin can rise while both sink (v2-24)
+
+def gae(r, V, dones, gamma=0.99, lam=0.95):        # V: (T+1,) includes bootstrap value
+    adv, last = np.zeros(len(r)), 0.0
+    for t in reversed(range(len(r))):              # 1. REVERSED — credit flows backwards
+        nonterm = 1.0 - dones[t]                   # 2. dones gate BOTH terms (#47)
+        delta = r[t] + gamma * V[t + 1] * nonterm - V[t]     # 3. V[t+1], not V[t] (v2-45)
+        last = delta + gamma * lam * nonterm * last
+        adv[t] = last
+    return adv                                     # say: "reversed, dones gate both, V[t+1]"</code></pre>
+
+<h2>4b · KL divergence — full-vocab exact + the three sampled estimators</h2>
+<pre><code>def kl_divergence(p_logits, q_logits, axis=-1):
+    # exact KL(p || q) per position — stay in LOG space end-to-end
+    p_logp = log_softmax(p_logits, axis)
+    q_logp = log_softmax(q_logits, axis)
+    p = np.exp(p_logp)
+    return np.where(p &gt; 0, p * (p_logp - q_logp), 0.0).sum(axis)   # 0·(−∞) guard (v2-1)
+    # (np.where still EVALUATES both branches → benign RuntimeWarning; the VALUE is right)
+
+def kl_estimators(logp_pi, logp_ref):
+    # per-token single-sample estimates of KL(π‖ref), tokens sampled from π
+    logr = logp_ref - logp_pi              # log ratio, r = ref/π
+    k1 = -logr                             # unbiased; individual samples CAN be negative — healthy!
+    k2 = 0.5 * logr**2                     # low variance, biased
+    k3 = np.exp(logr) - 1 - logr           # ≥ 0 pointwise AND low-bias — the RLHF standard
+    return k1, k2, k3</code></pre>
+<div class="say"><b>Say:</b> $\;$KL(p‖q) = Σ p·(log p − log q) ≥ 0, and it's <b>asymmetric</b> — in RLHF we penalize KL(π‖ref): expectation under <i>π</i>, so it punishes π putting mass where ref doesn't. Use the <b>exact</b> form when you have full logits (one row per position — cheap); use <b>sampled estimators</b> when you only have chosen-token logps. Never clamp k1 at 0 — nonnegativity is a property of the <i>expectation</i>, not of samples; clamping biases the meter while the policy drifts (v2-50). k3 is nonnegative <i>by construction</i>, so nobody is tempted to clamp — that's why stacks use it. Torch trap: <code>F.kl_div(input, target)</code> wants input = <b>log</b>-probs and <code>reduction='batchmean'</code> (v2-3) — probs in, garbage out, possibly negative. Free assert: KL(p‖p) must be exactly 0.</div>
+
+<h2>5 · On/off-policy — the 30-second frame if he goes conceptual</h2>
+<div class="say">"On-policy-ness is about <b>whose distribution the expectation is under</b>. REINFORCE/RLOO/GRPO: expectation under current π → fresh samples, discard after one step. PPO: deliberately slightly off — the ratio IS the importance correction for reusing one batch over epochs, clip bounds the stretch. DQN/SAC: truly off — a bootstrapped critic can evaluate anyone's transitions; impractical at token level. DPO: fully offline — the KL-constrained objective solved in closed form. And the quiet trap: <b>rollout temperature ≠ 1 makes 'on-policy' silently off-policy</b> — the behavior policy is the tempered one; sample training data at τ=1 or importance-correct."</div>
+
+<h2>6 · Bug traps he can plant (30-second scan)</h2>
+<table>
+<tr><th>Plant</th><th>Symptom</th><th>The line</th></tr>
+<tr><td>temperature on probs</td><td>knob does nothing</td><td>divide <b>logits</b>, pre-softmax (#23)</td></tr>
+<tr><td>top-k zeroing</td><td>rank-31k tokens appear</td><td>mask = −inf, not 0 (#45)</td></tr>
+<tr><td><code>np.sort(...)[k]</code> for top-k</td><td>keeps the k+1 SMALLEST</td><td>ascending sort: <code>[-k]</code> (#27)</td></tr>
+<tr><td>re-seeded RNG per call</td><td>identical completions at τ=1</td><td>one generator, module scope (#46)</td></tr>
+<tr><td>old_logp recomputed</td><td>ratio ≡ 1, clip fraction 0.000</td><td>freeze at rollout time (#25)</td></tr>
+<tr><td>batch-wide GRPO norm</td><td>easy prompts hijack gradient</td><td>normalize per prompt group (#48)</td></tr>
+<tr><td>DPO stuck at 0.693</td><td>margin ≡ 0</td><td>ref aliased / re-synced (#49, v2-23)</td></tr>
+<tr><td>+β·KL in reward</td><td>reward↑ KL↑ humans↓</td><td>divergence must COST: −β·kl (#50)</td></tr>
+<tr><td>GAE forward loop / V[t]</td><td>ghost credit / critic decorative</td><td>reversed; V[t+1]; dones both (#47, v2-45)</td></tr>
+<tr><td>length-normalized RLOO</td><td>long episodes down-weighted</td><td>sum logps, no /|τ| (Q88)</td></tr>
+<tr><td>logp of padded/tool tokens</td><td>loss counts non-actions</td><td>mask: response tokens only (#34)</td></tr>
+<tr><td><code>np.exp</code>/<code>np.log</code> bare</td><td>NaN when model gets good</td><td>max-subtract / logaddexp (#7, v2-26)</td></tr>
+</table>
+
+<h2>7 · Protocol reminders (your own rules)</h2>
+<p>Annotate every tensor line with its shape as you type. Smoke test at the bottom of the buffer, run before submit (your Q64–68 pattern: math right, undefined names + skipped scale factors kill you — <code>np.sqrt</code> not bare <code>sqrt</code>). If given buggy code: restate symptom → data → shapes/axes → numerics → state-over-time → say the fix's expected effect <i>before</i> running.</p>
+</main></body></html>

@@ -26,6 +26,9 @@ STAGE_TAGS = {
     "f2s4": "rl-objectives",
     "a1s1": "algorithms",
     "a1s2": "algorithms",
+    "m1s1": "classic-ml",
+    "m1s2": "classic-ml",
+    "m1s3": "classic-ml",
 }
 
 
@@ -384,6 +387,43 @@ REMEDIATION = {
          "After [1,10], seeing [2,3] overwrites end to 3 → [1,3], then [5,6] wrongly separates. max(10,3) keeps [1,10]. Nested intervals are the test case that catches it."],
     ],
     "docs": [],
+},
+
+"classic-ml": {
+    "title": "Classic ML from scratch (distances, k-means, kNN)",
+    "symptom": "Pairwise-distance loops instead of one matmul, k-means that NaNs on an empty cluster, mean() without axis, non-deterministic tie-breaking.",
+    "explain": (
+        "The classic-ML screen is won on four reflexes. (1) All pairwise distances as ONE "
+        "expression: ||a-b||² = ||a||² - 2a·b + ||b||² — the cross term is a single matmul; "
+        "clip tiny negatives (np.maximum(D, 0)) because the expansion cancels catastrophically "
+        "on near-duplicate points and a downstream sqrt would NaN. (2) Every reduction carries "
+        "an explicit axis: X[mask].mean() with no axis collapses to a SCALAR that silently "
+        "broadcasts into the centroid row. (3) Name the degenerate case before the interviewer "
+        "does: empty cluster (keep the old centroid — mean of an empty slice is NaN), tied vote "
+        "(state a deterministic rule; bincount+argmax gives smallest-label-wins for free), zero "
+        "vector (eps on the denominator). (4) Know WHY k-means terminates: both steps "
+        "monotonically decrease within-cluster SSE and there are finitely many partitions — a "
+        "local optimum only, so init (k-means++, restarts) decides quality."
+    ),
+    "pattern": (
+        "# all pairwise squared distances, no loops:\n"
+        "D = (A*A).sum(1, keepdims=True) - 2*A@B.T + (B*B).sum(1)[None, :]\n"
+        "D = np.maximum(D, 0)                    # cancellation guard\n\n"
+        "# k-means update, both traps handled:\n"
+        "mask = labels == j\n"
+        "if mask.any(): C[j] = X[mask].mean(axis=0)   # axis=0! empty keeps old\n\n"
+        "# kNN vote, deterministic tie-break:\n"
+        "idx = np.argpartition(row, k-1)[:k]     # O(n), not argsort's O(n log n)\n"
+        "pred = np.bincount(y[idx]).argmax()     # first max = smallest tied label"
+    ),
+    "drills": [
+        ["Your k-means run returns a centroid row of all NaN. What happened, and what are the standard fixes?",
+         "A cluster went empty; np.mean of an empty slice is NaN and it never recovers. Fix: keep the previous centroid (or re-seed at the farthest point). Prevent: k-means++ init spreads centroids so emptying is rare."],
+        ["Why can the vectorized ||a||² - 2a·b + ||b||² give a negative squared distance, when the direct (a-b)² sum can't?",
+         "For near-identical points far from the origin the three terms are huge and nearly cancel; float rounding of each term leaves a tiny negative residue. The direct form subtracts FIRST (small numbers, no cancellation) but needs O(nmd) memory when broadcast. Clip with np.maximum(D, 0)."],
+    ],
+    "docs": [["RL Coding Pack — §15 classic ML warm-ups", PAGES + "RL_Coding_Interview_Pack.html"],
+             ["Day 7 — 100 drills", PAGES + "Day7_100_Drills.html"]],
 },
 
 "crash-discipline": {

@@ -33,7 +33,69 @@
       <strong style="color:var(--accent-2);">🌐 Public:</strong> everything linked on this page is public and shareable.
       &nbsp;<strong style="color:var(--muted);">🔒 Private:</strong> detailed interviewer-specific strategy is kept offline and is <em>not</em> published here.
     </div>
+    <a href="Meta_Muse_MSL_Deep_Dive.html" style="display:block;margin-top:12px;border:1px solid var(--accent-2);border-radius:10px;padding:12px 16px;background:rgba(126,224,192,.1);font-size:14px;color:var(--text);text-decoration:none;">
+      <strong style="color:var(--accent-2);">🆕 Jul 7, 2026 — Meta MSL ships Muse Image &amp; Muse Video.</strong>
+      Agentic image gen with RL-emergent self-refinement and log-linear test-time scaling. Full deep dive with equations, visualizations &amp; self-test &rarr;
+    </a>
   </header>
+
+  <h2>🎯 Up Next — Research Deep-Dive Round (final round)</h2>
+  <div style="border:1px solid var(--accent);border-radius:12px;padding:16px 20px;background:rgba(110,168,254,.06);margin-bottom:14px;font-size:14.5px;">
+    <strong style="color:var(--accent);">Coding rounds done ✅ — one research/technical-depth round remains.</strong>
+    <span style="color:var(--muted);"> Focus areas: LLM architecture (MoE, long-context &amp; memory, test-time compute, model merging, unified multimodal), pretraining &amp; scaling science, and presenting your own research under press questions. Suggested order below. (Interviewer-specific strategy stays in the private local page.)</span>
+  </div>
+  <div class="grid">
+    <a class="card" href="LLM_Architecture_Frontier.html">
+      <div class="day">READ 1st &middot; CORE</div>
+      <div class="title">LLM Architecture Frontier</div>
+      <div class="desc">The round's backbone: MoE (routing, load balancing, collapse), long-context &amp; memory layers, test-time compute &amp; looped transformers, model merging, unified multimodal, scaling &amp; width — with cheat sheet and self-test.</div>
+    </a>
+    <a class="card" href="Science_of_MM_Data_Master.html">
+      <div class="day">READ 2nd &middot; YOUR STORY</div>
+      <div class="title">Science of (MM) Data — Master Doc</div>
+      <div class="desc">Your research deep-dive narrative lives here: scaling-law mechanics, mixture science, speakable numbers, trench details, and tellable stories.</div>
+    </a>
+    <a class="card" href="Day5_Research_Taste_and_Papers.html">
+      <div class="day">READ 3rd &middot; TASTE</div>
+      <div class="title">Day 5 — Research Taste + Paper Deep-Dives</div>
+      <div class="desc">The weak→strong answer ladder, 5-point paper frame, believe-it checklist — the grading rubric of a research round, in drill form.</div>
+    </a>
+    <a class="card" href="VLM_VLA_Unified_Omni.html">
+      <div class="day">READ 4th &middot; UNIFIED MM</div>
+      <div class="title">VLM / VLA → Unified Omni Models</div>
+      <div class="desc">Continuous vs discrete visual tokens, Janus/Transfusion/BAGEL, and the convergence map — the likeliest deep-discussion topic.</div>
+    </a>
+    <a class="card" href="MMU_MMGen_Transfer_Deep_Dive.html">
+      <div class="day">READ 4th-b &middot; 🆕 TRANSFER</div>
+      <div class="title">MMU ⇄ MMGen — Does Unifying Actually Transfer?</div>
+      <div class="desc">The follow-up question to the unified-model card: 8 transfer mechanisms graded by evidence — critique loops, recaptioning, code-sketching, REPA (MMU→Gen); Transfusion/Janus representations, dense output, thinking with images, world models (Gen→MMU) — plus the missing FLOP-matched experiment.</div>
+    </a>
+    <a class="card" href="Proposal_JEPA_Latent_VLM.html">
+      <div class="day">READ 5th &middot; "WHAT NEXT"</div>
+      <div class="title">LatentFusion — Research Proposal</div>
+      <div class="desc">Your answer to "what would you do next": predicting in frozen SSL latent spaces, with the D0–D6 de-risking ladder.</div>
+    </a>
+    <a class="card" href="Meta_Muse_MSL_Deep_Dive.html">
+      <div class="day">READ 6th &middot; FRESH CONTEXT</div>
+      <div class="title">Meta MSL — Muse Image &amp; Muse Video</div>
+      <div class="desc">Jul 7 news: RL-emergent self-refinement, log-linear test-time scaling vs best-of-N — current-events credibility for the round.</div>
+    </a>
+    <a class="card" href="Vision_Banana_Deep_Dive.html">
+      <div class="day">READ 7th &middot; 🆕 GEN⇒PERCEPTION</div>
+      <div class="title">Vision Banana — Generators are Generalist Vision Learners</div>
+      <div class="desc">DeepMind's instruction-tuned Nano Banana Pro: perception re-parameterized as RGB generation — invertible depth colormap math, instance-color decoding, beats SAM 3 / DA3 zero-shot, plus 15 deep Q&amp;As and an interactive colormap demo.</div>
+    </a>
+    <a class="card" href="Vision_Banana_Coverage_and_Primer.html">
+      <div class="day">🍌 COVERAGE MAP</div>
+      <div class="title">Vision Banana — Talk Coverage Map &amp; Background Primer</div>
+      <div class="desc">Companion to the deep dive: what the talk covers vs. what it assumes, plus the background primer to close the gaps before presenting.</div>
+    </a>
+    <a class="card" href="Vision_Banana_Job_Talk.html">
+      <div class="day">🍌 JOB TALK</div>
+      <div class="title">Vision Banana — Job Talk Slides</div>
+      <div class="desc">The presentable talk itself: "Image Generators are Generalist Vision Learners" — slide-style walkthrough built from the deep dive.</div>
+    </a>
+  </div>
 
   <h2>The 7-Day Plan</h2>
   <div class="grid">
@@ -86,34 +148,19 @@
       <div class="title">Frontier-Lab Loop — Round Strategy</div>
       <div class="desc">A 4-day plan + per-round tactics for a 3-round RS loop (two coding rounds, one research round).</div>
     </a>
-    <a class="card" href="mock_interview/index.html">
-      <div class="day">SIMULATOR</div>
-      <div class="title">Mock Interview Simulator</div>
-      <div class="desc">Interactive practice app: timed problems with variants, session history, gap report, and targeted remediation — run locally via <code style="color:var(--accent-2);background:none;">python app.py</code>.</div>
-    </a>
-    <a class="card" href="Coding_Implementations_From_Scratch.html">
-      <div class="day">CODE REFERENCE</div>
-      <div class="title">ML Coding From Scratch</div>
-      <div class="desc">Clean PyTorch for attention, cross-attention, transformer block, DPO/reward/PPO losses, sampling.</div>
-    </a>
   </div>
 
   <h2>Deep Dives · RL &amp; Post-Training</h2>
   <div class="grid">
-    <a class="card" href="RL_Coding_Interview_Pack.html">
-      <div class="day">CODING PACK</div>
-      <div class="title">RL Coding Interview Pack</div>
-      <div class="desc">Whiteboard math (PG in four lines, baseline proof, GAE, PPO clip, GRPO advantage) + <strong>three complete training loops</strong>: REINFORCE on CartPole, full PPO (GAE/clip/value/entropy), and GRPO for LLMs (group sampling, token masking, KL-to-ref) — plus snippet drills (DPO/RM/GAE/whitening), a planted-bugs debug table, and the narration that scores points.</div>
-    </a>
-    <a class="card" href="Fundamentals_Sampling_and_RL.html">
-      <div class="day">FUNDAMENTALS</div>
-      <div class="title">Sampling &amp; RL — Fundamentals (with code)</div>
-      <div class="desc">Decoding from scratch (greedy/temperature/top-k/top-p/min-p/beam) and classical RL (MDP, on- vs off-policy, value/policy iteration, MC/TD, SARSA vs Q-learning) — real Python + visualizations + code-debug drills.</div>
-    </a>
     <a class="card" href="Post_Training_and_RL_Deep_Dive.html">
       <div class="day">DEEP DIVE</div>
       <div class="title">Post-Training &amp; RL Mechanics</div>
       <div class="desc">Policy gradient → PPO → DPO derivations, reward modeling, GRPO, verifiable rewards, agents+RL.</div>
+    </a>
+    <a class="card" href="Scaled_RL_Data_Brainstorm.html">
+      <div class="day">BRAINSTORM</div>
+      <div class="title">Scaled RL Data — Current Practice → Self-Improving</div>
+      <div class="desc">RL as a compute-to-data converter (task supply × reward fidelity × rollout throughput). Current practice for code / knowledge work / long-context, the failure catalogue (hacking, verifier saturation, drift), manufactured-verifiability asymmetries, and future designs: three-player self-play, injector/fixer repos, co-evolving rubrics, compaction-aware RL, amplify→distill outer loop.</div>
     </a>
     <a class="card" href="Agentic_RL_Compaction_and_Staleness.html">
       <div class="day">DEEP DIVE</div>
@@ -138,6 +185,11 @@
       <div class="day">DEEP DIVE</div>
       <div class="title">VLM / VLA &rarr; Unified Omni Models</div>
       <div class="desc">CLIP/SigLIP, DINOv1&ndash;v3, I-JEPA/V-JEPA 2, diffusion &amp; flow matching, REPA/RAE, unified MMU+MMGen (Janus, Transfusion, BAGEL), omni models, and VLA (&pi;0, GR00T) &mdash; the full convergence map.</div>
+    </a>
+    <a class="card" href="MMU_MMGen_Transfer_Deep_Dive.html">
+      <div class="day">🆕 DEEP DIVE</div>
+      <div class="title">MMU ⇄ MMGen — The Transfer Question</div>
+      <div class="desc">Where understanding↔generation transfer is real, absent, or negative — critique &amp; self-correction, recaptioning (DALL·E 3 / SD3), code-sketching &amp; layout planning, REPA/VA-VAE/RAE; Transfusion vs Janus vs MetaMorph, Marigold &amp; dense output, MVoT thinking-with-images, world models — with an evidence-graded scoreboard, 7 figures, 12 self-test drills.</div>
     </a>
     <a class="card" href="Self_Improving_VLMs.html">
       <div class="day">DEEP DIVE</div>
@@ -179,8 +231,53 @@
     </a>
   </div>
 
+  <h2>✅ Coding Rounds — Completed (archive)</h2>
+  <p class="sub" style="margin:-4px 0 12px;">Both coding rounds are done. Kept for reference and future loops.</p>
+  <div class="grid">
+    <a class="card" href="mock_interview/index.html">
+      <div class="day">SIMULATOR</div>
+      <div class="title">Mock Interview Simulator</div>
+      <div class="desc">Interactive practice app: timed problems with variants, session history, gap report, and targeted remediation — run locally via <code style="color:var(--accent-2);background:none;">python app.py</code>.</div>
+    </a>
+    <a class="card" href="ML_Debugging_50_Sessions.html">
+      <div class="day">DEBUGGING</div>
+      <div class="title">ML Debugging — 50 Interview Sessions</div>
+      <div class="desc">Broken code + sick training curves, frontier-lab style: a symptom→suspect map, then 50 sessions (25 guided, 25 practice) across classic ML, losses/gradients, normalization, training loops, attention, ViT, sampling &amp; RL — buggy + fixed code, what to look for, and the theory behind each bug.</div>
+    </a>
+    <a class="card" href="ML_Debugging_50_Sessions_v2.html">
+      <div class="day">DEBUGGING V2</div>
+      <div class="title">ML Debugging v2 — 50 Fresh Interview Sessions</div>
+      <div class="desc">A second, fully fresh set of 50 debugging sessions — new bug families (checkpoint/resume, weight tying, scheduler units, AMP) in the same guided + practice format.</div>
+    </a>
+    <a class="card" href="Coding_Prep_Sampling_RL.html">
+      <div class="day">CHEAT SHEET</div>
+      <div class="title">Coding Round — Sampling &amp; RL Cheat Sheet (NumPy)</div>
+      <div class="desc">Pure-NumPy quick reference for the coding round: sampling and RL loops distilled to the exact pieces to write on a whiteboard, with askable follow-up questions.</div>
+    </a>
+    <a class="card" href="Coding_Implementations_From_Scratch.html">
+      <div class="day">CODE REFERENCE</div>
+      <div class="title">ML Coding From Scratch</div>
+      <div class="desc">Clean PyTorch for attention, cross-attention, transformer block, DPO/reward/PPO losses, sampling.</div>
+    </a>
+    <a class="card" href="RL_Coding_Interview_Pack.html">
+      <div class="day">CODING PACK</div>
+      <div class="title">RL Coding Interview Pack</div>
+      <div class="desc">Whiteboard math (PG in four lines, baseline proof, GAE, PPO clip, GRPO advantage) + <strong>three complete training loops</strong>: REINFORCE on CartPole, full PPO (GAE/clip/value/entropy), and GRPO for LLMs (group sampling, token masking, KL-to-ref) — plus snippet drills (DPO/RM/GAE/whitening), a planted-bugs debug table, and the narration that scores points.</div>
+    </a>
+    <a class="card" href="Fundamentals_Sampling_and_RL.html">
+      <div class="day">FUNDAMENTALS</div>
+      <div class="title">Sampling &amp; RL — Fundamentals (with code)</div>
+      <div class="desc">Decoding from scratch (greedy/temperature/top-k/top-p/min-p/beam) and classical RL (MDP, on- vs off-policy, value/policy iteration, MC/TD, SARSA vs Q-learning) — real Python + visualizations + code-debug drills.</div>
+    </a>
+  </div>
+
   <h2>Topic Notes &amp; Q&amp;A</h2>
   <div class="grid">
+    <a class="card" href="Meta_Muse_MSL_Deep_Dive.html">
+      <div class="day">🆕 NEWS DEEP DIVE</div>
+      <div class="title">Meta MSL — Muse Image &amp; Muse Video</div>
+      <div class="desc">Agentic image gen, RL-emergent self-refinement, test-time compute scaling (BoN vs refinement math), Muse Video open problems, interview angles + self-test.</div>
+    </a>
     <a class="card" href="Notes_Activation_Functions.html">
       <div class="day">NOTES</div>
       <div class="title">Activation Functions — Deep Dive</div>
@@ -198,5 +295,52 @@
     <a class="inline" href="https://github.com/jackgucoolcoolcool/frontier-ml-prep">GitHub</a>.
   </footer>
 </div>
+<!-- MUSE-MSL-NEWS-2026-07 -->
+<section id="muse-msl-2026" style="max-width:880px;margin:48px auto 24px;padding:24px 26px;background:#161b22;border:1px solid #2a3340;border-left:4px solid #7ee0c0;border-radius:12px;color:#d7dee8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;font-size:15px;">
+  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+    <span style="background:#7ee0c0;color:#0f1419;font-size:11px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:999px;">NEW &middot; JUL 7 2026</span>
+    <h2 style="margin:0;font-size:19px;color:#d7dee8;">Meta MSL: Muse Image &amp; Muse Video</h2>
+  </div>
+  <p style="margin:12px 0 6px;color:#8b97a7;">Meta Superintelligence Labs (MSL) shipped its first media-generation models — directly relevant to the vision-team interview.
+    <a href="https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/" style="color:#6ea8fe;">Official announcement &rarr;</a> &middot; <a href="Meta_Muse_MSL_Deep_Dive.html" style="color:#6ea8fe;">Full deep dive &rarr;</a></p>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">What was announced</h3>
+  <ul style="margin:0 0 4px;padding-left:20px;">
+    <li><b>Muse Image</b> (live) — an <i>agentic</i> image model, not a direct prompt&rarr;image mapper. It reasons before generating and extends the <b>Muse Spark</b> architecture (MSL's proprietary reasoning model, Meta's first post-Llama foundation model).</li>
+    <li><b>Tool use inside the generative loop</b>: executes <b>code</b> (accurate plots, QR codes, conditioning on rendered figures) and calls <b>web search</b> to ground outputs in real-time facts and visual references; can hand off to Muse Spark for heavier reasoning.</li>
+    <li><b>Emergent self-refinement</b>: during RL post-training the model learned — without being explicitly designed to — to critique its own output inside the reasoning chain, then locally edit, fully regenerate, or apply a tool.</li>
+    <li><b>Test-time compute scaling</b>: quality improves <b>&asymp; log-linearly</b> with inference compute; deliberate sequential reasoning beats best-of-N sampling at matched compute.</li>
+    <li><b>Editing &amp; composition</b>: precision single/multi-image editing, multi-reference composition with interleaved text+images.</li>
+    <li><b>Muse Video</b> (preview) — same pretraining base, native audio; open problems Meta names: audio-video sync and physically accurate fast motion.</li>
+    <li><b>Benchmarks</b> (Arena Elo, Jul 5 2026): #2 text-to-image, #2 single-image editing, #2 multi-image editing; Muse Video #3 text-to-video.</li>
+    <li><b>Content Seal</b>: invisible provenance watermark robust to crop / compression / resize / screenshots, with a public detector.</li>
+    <li><b>Distribution</b>: Meta AI app, meta.ai, Instagram Stories (US), WhatsApp; Instagram integration (reimagine photos, create with friends, personalized presets).</li>
+  </ul>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Test-time compute: deliberate reasoning vs best-of-N</h3>
+  <p style="margin:0 0 8px;color:#8b97a7;">Sequential self-refinement compounds — each step conditions on the previous attempt — so quality grows roughly <span style="font-family:ui-monospace,Menlo,monospace;color:#d7dee8;">Q(C) &asymp; a + b&middot;log C</span>. Best-of-N only takes the max of independent draws, so its gains flatten (extreme-value scaling &asymp; a + b&middot;log log N).</p>
+  <svg viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:560px;display:block;background:#11161d;border:1px solid #2a3340;border-radius:8px;">
+    <line x1="50" y1="180" x2="530" y2="180" stroke="#2a3340" stroke-width="1.5"/>
+    <line x1="50" y1="180" x2="50" y2="20" stroke="#2a3340" stroke-width="1.5"/>
+    <text x="290" y="205" fill="#8b97a7" font-size="12" text-anchor="middle">inference compute (log scale)</text>
+    <text x="20" y="100" fill="#8b97a7" font-size="12" text-anchor="middle" transform="rotate(-90 20 100)">quality (Elo)</text>
+    <path d="M 60 165 C 180 120, 340 75, 520 35" fill="none" stroke="#7ee0c0" stroke-width="2.5"/>
+    <path d="M 60 168 C 180 140, 340 122, 520 112" fill="none" stroke="#ffb454" stroke-width="2.5" stroke-dasharray="7 5"/>
+    <text x="368" y="52" fill="#7ee0c0" font-size="12">deliberate reasoning (&asymp; log-linear)</text>
+    <text x="380" y="138" fill="#ffb454" font-size="12">best-of-N (flattens)</text>
+  </svg>
+
+  <h3 style="font-size:15px;color:#7ee0c0;margin:16px 0 6px;">Interview angles (vision team)</h3>
+  <ul style="margin:0;padding-left:20px;">
+    <li><b>RL on generation</b>: self-refinement emerged from RL, not supervision — connect to your REINFORCE/GRPO prep; discuss reward design for non-verifiable objectives (human-preference Elo, aesthetics vs instruction faithfulness) and reward hacking risk.</li>
+    <li><b>Test-time scaling for images</b>: mirrors LLM reasoning scaling; be ready to argue <i>why</i> sequential refinement beats best-of-N (conditioning on failure modes vs i.i.d. resampling) and the prod latency/compute trade-off at Instagram scale.</li>
+    <li><b>Agentic generation</b>: search-grounded and code-conditioned generation = tool use inside the sampler; ties to your agents material (Day 4) and unified any-to-any model notes.</li>
+    <li><b>Unified stack &amp; data</b>: Muse Spark &rarr; Muse Image &rarr; Muse Video share pretraining; strong hook for multimodal scaling-law discussion (your Science-of-MM-Data material) — image and video from one base, what does the data mixture look like?</li>
+    <li><b>Video open problems</b>: AV sync + fast-motion physics — natural bridge to your video-JEPA / LatentFusion proposal (physical plausibility in latent space).</li>
+    <li><b>Provenance</b>: watermark robustness under crop/compress/screenshot — good safety/eval talking point.</li>
+  </ul>
+</section>
+<!-- /MUSE-MSL-NEWS-2026-07 -->
+
 </body>
 </html>
