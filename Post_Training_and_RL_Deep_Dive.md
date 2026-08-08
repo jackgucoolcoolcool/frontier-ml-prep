@@ -229,7 +229,7 @@ Everything above is **model-free** — recall the dynamics $p(s'|s,a)$ *cancelle
 
 ---
 
-## §8 — RL + Agents (the the interviewer/the interviewer bridge)
+## §8 — RL + Agents (the coding-rounds bridge)
 
 Agents add a **multi-step environment** — the reward comes from *task success*, often after many tool calls.
 - **Environment feedback as reward:** tool results, test pass/fail, task completion → a (often sparse, often verifiable) reward. This is RL with a real environment, not just a preference RM.

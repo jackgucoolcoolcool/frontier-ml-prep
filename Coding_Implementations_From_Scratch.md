@@ -87,7 +87,7 @@ class MultiHeadAttention(nn.Module):
 
 ---
 
-## 5. Cross-attention (likely for the interviewer — VLM / encoder-decoder)
+## 5. Cross-attention (VLM / encoder-decoder)
 
 Same math, but **Q comes from one stream, K/V from another** (e.g. text queries attending to image features).
 
@@ -137,7 +137,7 @@ class RMSNorm(nn.Module):                                  # no mean-centering; 
         rms = torch.sqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
         return self.g * x / rms
 ```
-**Probes:** LN normalizes over the **feature dim within each token** (not the batch) — why transformers use it over BN. RMSNorm drops the mean subtraction. (Tie-in: the interviewer's Weight Standardization normalizes the *weights* instead.)
+**Probes:** LN normalizes over the **feature dim within each token** (not the batch) — why transformers use it over BN. RMSNorm drops the mean subtraction. (Tie-in: Weight Standardization normalizes the *weights* instead.)
 
 > **⚠️ Mistakes I actually made (2026-07-04) — re-look before interviews:**
 > - **`eps` goes *inside* the sqrt**: `sqrt(var + eps)` / `sqrt(mean(x²) + eps)`, never `sqrt(var) + eps`. Added-outside doesn't guard the sqrt against `var → 0`, and it's a different quantity. Don't add it twice either.
@@ -406,4 +406,4 @@ def beam_search(model, prompt_ids, k=4, max_new=50, eos_id=2, alpha=0.7):
 - [ ] best-of-n
 - [ ] 2-layer MLP backprop (NumPy)
 
-**Interview style reminders:** narrate shapes as you go; test on a tiny example; handle batch dim and edge cases (T=1, empty); call out complexity (attention O(T²·d)); mention numerical stability (logsumexp, subtract max). For the interviewer: emphasize correctness + efficiency. For the interviewer: connect to reasoning/agents/multimodal.
+**Interview style reminders:** narrate shapes as you go; test on a tiny example; handle batch dim and edge cases (T=1, empty); call out complexity (attention O(T²·d)); mention numerical stability (logsumexp, subtract max). For the systems-leaning round: emphasize correctness + efficiency. For the research-leaning round: connect to reasoning/agents/multimodal.

@@ -53,7 +53,7 @@
 <a href="#s2">2. Scaled dot-product attention (the #1 ask)</a>
 <a href="#s3">3. Causal mask</a>
 <a href="#s4">4. Multi-head attention (write this fluently)</a>
-<a href="#s5">5. Cross-attention (likely for the interviewer</a>
+<a href="#s5">5. Cross-attention (VLM / encoder-decoder)</a>
 <a href="#s6">6. LayerNorm &amp; RMSNorm</a>
 <a href="#s7">7. Transformer block (pre-norm, decoder-style)</a>
 <a href="#s7b">7b. Sequence → training loop</a>
@@ -180,7 +180,7 @@ print('all five checks passed')</code></pre>
         return self.out(attn)</code></pre>
 <p><strong>Probes:</strong> the reshape/permute to split heads (most common bug spot — narrate shapes), why heads (different representation subspaces), total compute ≈ single full-width attention.</p>
 <hr>
-<h2 class="section" id="s5">5. Cross-attention (likely for the interviewer — VLM / encoder-decoder)</h2>
+<h2 class="section" id="s5">5. Cross-attention (VLM / encoder-decoder)</h2>
 <p>Same math, but <strong>Q comes from one stream, K/V from another</strong> (e.g. text queries attending to image features).</p>
 <pre><code>class CrossAttention(nn.Module):
     def __init__(self, d_model, n_heads):
@@ -221,7 +221,7 @@ class RMSNorm(nn.Module):                                  # no mean-centering; 
     def forward(self, x):
         rms = torch.sqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
         return self.g * x / rms</code></pre>
-<p><strong>Probes:</strong> LN normalizes over the <strong>feature dim within each token</strong> (not the batch) — why transformers use it over BN. RMSNorm drops the mean subtraction. (Tie-in: the interviewer&#x27;s Weight Standardization normalizes the <em>weights</em> instead.)</p>
+<p><strong>Probes:</strong> LN normalizes over the <strong>feature dim within each token</strong> (not the batch) — why transformers use it over BN. RMSNorm drops the mean subtraction. (Tie-in: Weight Standardization normalizes the <em>weights</em> instead.)</p>
 <div style="border-left:4px solid #e0a800;background:rgba(224,168,0,.08);padding:10px 14px;margin:10px 0;border-radius:4px">
 <p style="margin:0 0 6px"><strong>⚠️ Mistakes I actually made (2026-07-04) — re-look before interviews:</strong></p>
 <ul style="margin:0">
@@ -539,7 +539,7 @@ def linreg_gd(X, y, lr=0.1, n_iters=1000):             # the "now scale it" foll
 <li>best-of-n</li>
 <li>2-layer MLP backprop (NumPy)</li>
 </ul>
-<p><strong>Interview style reminders:</strong> narrate shapes as you go; test on a tiny example; handle batch dim and edge cases (T=1, empty); call out complexity (attention O(T²·d)); mention numerical stability (logsumexp, subtract max). For the interviewer: emphasize correctness + efficiency. For the interviewer: connect to reasoning/agents/multimodal.</p>
+<p><strong>Interview style reminders:</strong> narrate shapes as you go; test on a tiny example; handle batch dim and edge cases (T=1, empty); call out complexity (attention O(T²·d)); mention numerical stability (logsumexp, subtract max). For the systems-leaning round: emphasize correctness + efficiency. For the research-leaning round: connect to reasoning/agents/multimodal.</p>
 </main></div>
 <button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&#8593;</button>
 <script>

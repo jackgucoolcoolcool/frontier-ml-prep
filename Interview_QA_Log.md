@@ -1577,13 +1577,13 @@ Calibrated against where 2025–26 frontier coding rounds concentrate *and* the 
 
 ---
 
-## Q92 — 20-minute pre-the interviewer cram: on/off-policy + sampling (speakable brief)
+## Q92 — 20-minute pre-coding-round cram: on/off-policy + sampling (speakable brief)
 
 **On/off-policy one-liner:** "on-policy-ness = whose distribution the expectation is under; ratios stretch to nearby policies; a bootstrapped critic evaluates anyone's data." **The ladder:** REINFORCE/RLOO/GRPO strictly on-policy (fresh group per step) → PPO deliberately slightly off (multi-epoch reuse; the ratio IS the IS-correction, clip = trust region) → DQN/SAC truly off (critic re-evaluates replay; impractical at token level) → DPO fully offline (closed-form, no rollouts; margin-only weakness). **Staleness** (compaction doc §3): async rollouts make everything stale; per-token truncated IS ratios = variance-for-bias trade. **Sharp point to volunteer:** rollout temperature/top-p ≠ scoring distribution makes "on-policy" silently off-policy — sample at τ=1 for training data or correct. **Sampling:** τ divides logits pre-softmax (probs-division = no-op, #23); top-k masks with −inf not 0 (#45); top-p = adaptive vocab (why it beats fixed k); beam = seq-log-prob + length norm + EOS retirement, wrong for open-ended; BoN needs diversity (greedy×16 = Bo1, v2-49); entropy collapse = canary. **Six 2-sentence answers** prepared: why REINFORCE is on-policy (expectation under π_θ; IS variance explodes), why PPO clip works, GRPO vs PPO (free resets → group baseline; σ-division + length-norm caveats), why no replay for LLM RL (no critic; token-ratio products degenerate), off-policy in RLHF (DPO family), why not τ=0 rollouts (no exploration, BoN collapse, logprob mismatch). Cross-refs: Q61 landscape, Q88 multi-turn RLOO, pack §9/§16.
 
 ---
 
-## Q93 — the interviewer coding-round cheat sheet: sampling + RL (write-from-blank skeletons)
+## Q93 — Coding-round cheat sheet: sampling + RL (write-from-blank skeletons)
 
 Built **Coding_Prep_Sampling_RL.html** — one page, seven blocks: (1) the sampler (temperature/top-k/top-p in one function; traps: τ on logits pre-softmax, top-k mask = −inf never 0, top-p keeps the crossing token via `cum − p > p_thresh`; RNG seeded once) + KV-cache loop + beam bullets; (2) `sequence_logp` (log_softmax → gather → shift → response mask → **sum**); (3) RLOO 4-liner (LOO baseline `(R.sum()−R)/(G−1)`, detach, sum-not-normalize, multi-turn = same loss per Q88, sample-and-score at same τ); (4) PPO clip (frozen old_logp), DPO (0.693 diagnosis, log both logps), GAE ("reversed, dones gate both, V[t+1]"); (5) 30-sec on/off-policy frame incl. the τ≠1 silent-off-policy point; (6) 10-row trap table (plant → symptom → line) covering #23/45/46/25/48/49/50/47/v2-45/34/Q88; (7) personal protocol (shape-annotate while typing, smoke test before submit).
 
