@@ -36,11 +36,7 @@ The sections below mirror `home.html` so you can jump straight to a page on GitH
 - [ViT Training Tutorial](ViT_Training_Tutorial.html) — how a ViT is trained, end to end
 - [VLM / VLA → Unified Omni models](VLM_VLA_Unified_Omni.html)
 - [MMU ⇄ MMGen Transfer](MMU_MMGen_Transfer_Deep_Dive.html) — understanding ↔ generation transfer
-- [Vision Banana — Deep Dive](Vision_Banana_Deep_Dive.html) — perception as RGB generation (15 Q&As + colormap demo)
-- [Vision Banana — Coverage Map & Primer](Vision_Banana_Coverage_and_Primer.html)
-- [Vision Banana — Job Talk](Vision_Banana_Job_Talk.html)
 - [Self-Improving VLMs](Self_Improving_VLMs.html)
-- [Meta MSL — Muse Image & Muse Video](Meta_Muse_MSL_Deep_Dive.html)
 
 ## Deep dives — RL & post-training
 
@@ -54,6 +50,12 @@ The sections below mirror `home.html` so you can jump straight to a page on GitH
 - [Scaling behaviors](Science_of_MM_Data_Scaling.html)
 - [Project designs](Science_of_MM_Data_Projects.html)
 - [Scaling-law methods](Science_of_MM_Data_ScalingLaw_Methods.html)
+
+## Vision Banana — paper deep dive & job talk
+
+- [Vision Banana — Deep Dive](Vision_Banana_Deep_Dive.html) — perception as RGB generation (15 Q&As + colormap demo)
+- [Vision Banana — Coverage Map & Primer](Vision_Banana_Coverage_and_Primer.html)
+- [Vision Banana — Job Talk](Vision_Banana_Job_Talk.html)
 
 ## Research proposal
 
