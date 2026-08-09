@@ -20,3 +20,6 @@ _PRIVATE_*
 
 # personal (immigration / non-ML plans) — never publish
 ProofSmith_*
+
+# Vision Banana talk materials — kept local, not published
+Vision_Banana_*

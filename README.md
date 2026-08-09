@@ -51,12 +51,6 @@ The sections below mirror `home.html` so you can jump straight to a page on GitH
 - [Project designs](Science_of_MM_Data_Projects.html)
 - [Scaling-law methods](Science_of_MM_Data_ScalingLaw_Methods.html)
 
-## Vision Banana — paper deep dive & job talk
-
-- [The paper, in depth](Vision_Banana_Deep_Dive.html) — perception as RGB generation (15 Q&As + colormap demo)
-- [Talk coverage map & background primer](Vision_Banana_Coverage_and_Primer.html)
-- [Job talk slides](Vision_Banana_Job_Talk.html)
-
 ## Research proposal
 
 - [LatentFusion — Predicting in Frozen SSL Latent Spaces](Proposal_JEPA_Latent_VLM.html)
