@@ -46,10 +46,10 @@ The sections below mirror `home.html` so you can jump straight to a page on GitH
 
 ## Deep dives — science of data & scaling
 
-- [Science of Multimodal Data — Master](Science_of_MM_Data_Master.html)
-- [Scaling behaviors](Science_of_MM_Data_Scaling.html)
-- [Project designs](Science_of_MM_Data_Projects.html)
-- [Scaling-law methods](Science_of_MM_Data_ScalingLaw_Methods.html)
+- [Science of MM Data — the master doc](Science_of_MM_Data_Master.html) — field map, projects, and scaling-law methods in one place
+- [Field map — how frontier VLLMs do data science](Science_of_MM_Data_Scaling.html)
+- [MixOracle & CapForge — two rehearsal projects](Science_of_MM_Data_Projects.html)
+- [Scaling-law development mechanics](Science_of_MM_Data_ScalingLaw_Methods.html)
 
 ## Research proposal
 
@@ -60,13 +60,13 @@ The sections below mirror `home.html` so you can jump straight to a page on GitH
 - [Mock Interview Simulator](mock_interview/) — timed problems, variants, history, gap report (`python app.py`)
 - [ML Coding From Scratch](Coding_Implementations_From_Scratch.html) — attention, transformer block, DPO/RM/PPO losses, sampling
 - [RL Coding Interview Pack](RL_Coding_Interview_Pack.html) — whiteboard math + full REINFORCE / PPO / GRPO / RLOO loops
-- [Sampling & RL Fundamentals](Fundamentals_Sampling_and_RL.html) — decoding from scratch + classical RL
+- [Sampling & classical RL, with code](Fundamentals_Sampling_and_RL.html) — decoding from scratch + classical RL
 - [ML Debugging — 50 Interview Sessions](ML_Debugging_50_Sessions.html) and [v2 — 50 fresh sessions](ML_Debugging_50_Sessions_v2.html)
-- [Sampling & RL Cheat Sheet (NumPy)](Coding_Prep_Sampling_RL.html)
+- [Sampling & RL in pure NumPy](Coding_Prep_Sampling_RL.html) — whiteboard cheat sheet
 
 ## Strategy, notes & Q&A
 
-- [Resume Interview Prep](Resume_Interview_Prep.html)
+- [Resume walkthrough — per-line Q&A](Resume_Interview_Prep.html)
 - [Interview Round Strategy](Interview_Round_Strategy.html)
 - [Notes: Activation Functions](Notes_Activation_Functions.html)
 - [Interview Q&A Log](Interview_QA_Log.html) — running log of every technical question encountered
