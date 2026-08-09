@@ -53,9 +53,9 @@ The sections below mirror `home.html` so you can jump straight to a page on GitH
 
 ## Vision Banana — paper deep dive & job talk
 
-- [Vision Banana — Deep Dive](Vision_Banana_Deep_Dive.html) — perception as RGB generation (15 Q&As + colormap demo)
-- [Vision Banana — Coverage Map & Primer](Vision_Banana_Coverage_and_Primer.html)
-- [Vision Banana — Job Talk](Vision_Banana_Job_Talk.html)
+- [The paper, in depth](Vision_Banana_Deep_Dive.html) — perception as RGB generation (15 Q&As + colormap demo)
+- [Talk coverage map & background primer](Vision_Banana_Coverage_and_Primer.html)
+- [Job talk slides](Vision_Banana_Job_Talk.html)
 
 ## Research proposal
 
